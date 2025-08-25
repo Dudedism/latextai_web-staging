@@ -1,0 +1,189 @@
+.signin-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+
+.signin-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  min-height: calc(100vh - 200px);
+  margin: 0;
+  padding: 100px 0;
+}
+
+.signin-form-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.signin-title {
+  font-size: 36px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 40px;
+  color: #000;
+  font-family: var(--font-sans);
+}
+
+.signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-input {
+  padding: 16px 0;
+  border: none;
+  border-bottom: 1px solid #e0e0e0;
+  background: transparent;
+  font-size: 16px;
+  color: #000;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+.form-input:focus {
+  border-bottom-color: #000;
+}
+
+.checkbox-field {
+  margin-top: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e0e0e0;
+  border-radius: 3px;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.checkbox-label input[type="checkbox"]:checked {
+  background-color: #000;
+  border-color: #000;
+}
+
+.checkbox-label input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.checkbox-label a {
+  color: #000;
+  text-decoration: underline;
+}
+
+.checkbox-label a:hover {
+  color: #333;
+}
+
+.signin-btn {
+  background: #000;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.signin-btn:hover {
+  background: #333;
+  transform: translateY(-1px);
+}
+
+.auth-switch {
+  text-align: center;
+  margin-top: 32px;
+}
+
+.auth-switch p {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.switch-btn {
+  background: none;
+  border: none;
+  color: #000;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  margin: 0 4px;
+}
+
+.switch-btn:hover {
+  color: #333;
+}
+
+@media (max-width: 1200px) {
+  .signin-form-container {
+    max-width: 95%;
+    padding: 0 30px;
+  }
+}
+
+@media (max-width: 768px) {
+  .signin-section {
+    padding: 60px 20px;
+  }
+  
+  .signin-form-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 0 20px;
+  }
+  
+  .signin-title {
+    font-size: 28px;
+    margin-bottom: 32px;
+  }
+  
+  .signin-form {
+    gap: 20px;
+  }
+}

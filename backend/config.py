@@ -1,6 +1,10 @@
 import os
+from dotenv import load_dotenv
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+# Load environment variables from .env file
+load_dotenv()
 
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/latext_db')
 SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')

@@ -1,6 +1,7 @@
 from flask_pymongo import PyMongo
 from bson import ObjectId
 from datetime import datetime
+from werkzeug.security import generate_password_hash
 
 mongo = PyMongo()
 
@@ -42,76 +43,38 @@ class BaseModel:
             result = mongo.db[self.collection_name].delete_one({'_id': self.data['_id']})
             return result.deleted_count > 0
         return False
+    
+    def insert(self):
+        result = mongo.db[self.collection_name].insert_one(self.data)
+        self.data['_id'] = result.inserted_id
+        return True
 
 class User(BaseModel):
     collection_name = 'users'
     
-    def __init__(self, email=None, password_hash=None, info=None, **kwargs):
-        super().__init__(
-            email=email,
-            password_hash=password_hash,
-            info=info or {},
-            created_at=datetime.utcnow(),
-            **kwargs
-        )
-
-class Answer(BaseModel):
-    collection_name = 'answers'
-    
-    def __init__(self, user_email=None, poll_id=None, question_id=None, answer=None, **kwargs):
-        super().__init__(
-            user_email=user_email,
-            poll_id=poll_id,
-            question_id=question_id,
-            answer=answer,
-            timestamp=datetime.utcnow(),
-            **kwargs
-        )
-
-class Poll(BaseModel):
-    collection_name = 'polls'
-    
-    def __init__(self, title=None, short_title=None, questions=None, **kwargs):
-        super().__init__(
-            title=title,
-            short_title=short_title,
-            questions=questions or [],
-            created_at=datetime.utcnow(),
-            **kwargs
-        )
-
-class PollResponse(BaseModel):
-    collection_name = 'poll_responses'
-    
-    def __init__(self, user_email=None, poll_id=None, responses=None, **kwargs):
-        super().__init__(
-            user_email=user_email,
-            poll_id=poll_id,
-            responses=responses or [],
-            submitted_at=datetime.utcnow(),
-            **kwargs
-        )
-
-class Norms(BaseModel):
-    collection_name = 'norms'
-    
-    def __init__(self, name=None, short_title=None, norms=None, **kwargs):
+    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, **kwargs):
         super().__init__(
             name=name,
-            short_title=short_title,
-            norms=norms or [],
+            email=email,
+            password=password,
+            is_verified=is_verified,
+            admin=admin,
             created_at=datetime.utcnow(),
             **kwargs
         )
-
-class NormResponses(BaseModel):
-    collection_name = 'norm_responses'
     
-    def __init__(self, user_email=None, short_title=None, answers=None, **kwargs):
-        super().__init__(
-            user_email=user_email,
-            short_title=short_title,
-            answers=answers or [],
-            submitted_at=datetime.utcnow(),
-            **kwargs
+    @classmethod
+    def insertdate(cls, email, data):
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email}, 
+            {'$set': data}
         )
+        return result.modified_count > 0
+    
+    @classmethod
+    def update_password(cls, email, password_hash):
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email}, 
+            {'$set': {'password': password_hash}}
+        )
+        return result.modified_count > 0

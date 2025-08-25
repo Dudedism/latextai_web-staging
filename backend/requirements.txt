@@ -7,4 +7,5 @@ python-dotenv
 Werkzeug
 dnspython
 google-auth
+google-auth-oauthlib
 itsdangerous

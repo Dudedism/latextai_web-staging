@@ -1,0 +1,251 @@
+
+/* Landing Page Styles */
+.landing-container {
+  min-height: 100vh;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+
+}
+
+/* Section Styles */
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  margin: 0 0 100px 0;
+}
+
+.section:first-of-type {
+  margin-top: 100px;
+}
+
+/* Hero Box */
+.hero-box {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  width: 1123.79px;
+  height: 329.17px;
+  padding: 40px;
+  background: white;
+  margin: 0 auto;
+}
+
+.hero-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  max-width: 600px;
+}
+
+.title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.main-title {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 55px;
+  color: black;
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.subtitle-container {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.latex-logo {
+  height: 55px;
+  object-fit: contain;
+}
+
+.subtitle-text {
+  font-size: 48px;
+  font-weight: 700;
+  color: black;
+  font-family: Arial, sans-serif;
+}
+
+.description {
+  font-size: 20px;
+  line-height: 40px;
+  letter-spacing: 0.07em;
+  color: black;
+  margin: 0;
+  font-family: 'Open Sans', sans-serif;
+}
+
+/* Hero Visual */
+.hero-visual {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 464px;
+}
+
+.document-preview {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: radial-gradient(ellipse 300px 200px at center, #BEE2FF 0%, rgba(190, 226, 255, 0.4) 35%, rgba(255, 255, 255, 0) 70%);
+  padding: 60px 80px;
+  border-radius: 20px;
+}
+
+.doc-before,
+.doc-after {
+  width: 140px;
+  height: 200px;
+  border: 1px solid #000000;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.doc-before {
+  transform: rotate(-5deg);
+}
+
+.doc-after {
+  transform: rotate(5deg);
+}
+
+.doc-placeholder {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  padding: 10px;
+}
+
+.arrow {
+  font-size: 40px;
+  color: #1e1e1e;
+  font-weight: bold;
+}
+
+/* Publishers Section */
+.publishers-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  width: 100%;
+  max-width: 1200px;
+  padding: 40px 0;
+}
+
+.publisher-logo {
+  height: 40px;
+  max-width: 200px;
+  object-fit: contain;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.publisher-logo:hover {
+  opacity: 1;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 80px;
+  width: 100%;
+}
+
+/* Button Styles */
+.btn-primary,
+.btn-outline {
+  padding: 20px 32px;
+  border-radius: 40px;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.btn-primary {
+  background: black;
+  color: white;
+  border: 1px solid black;
+}
+
+.btn-primary:hover {
+  background: #333;
+  transform: translateY(-2px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: black;
+  border: 1px solid black;
+}
+
+.btn-outline:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .hero-box {
+    width: 95%;
+    max-width: 1123.79px;
+    height: auto;
+    padding: 30px;
+  }
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 0 20px;
+    margin-bottom: 60px;
+  }
+  
+  .hero-box {
+    width: 100%;
+    height: auto;
+    flex-direction: column;
+    gap: 40px;
+    padding: 30px;
+  }
+  
+  .main-title,
+  .latex-logo,
+  .subtitle-text {
+    font-size: 32px;
+    line-height: 40px;
+  }
+  
+  .publishers-section {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+}

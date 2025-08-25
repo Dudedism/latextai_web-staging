@@ -1,0 +1,175 @@
+.processing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+
+.processing-main-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  min-height: calc(100vh - 200px);
+  margin: 0;
+  padding: 60px 0;
+}
+
+.processing-container {
+  width: 100%;
+  max-width: 800px;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.processing-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 60px;
+  font-size: 14px;
+  color: #999;
+  position: absolute;
+  top: 120px;
+}
+
+.progress-step {
+  padding: 8px 16px;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active {
+  background: #f0f0f0;
+  color: #000;
+  font-weight: 500;
+}
+
+.progress-arrow {
+  color: #ccc;
+}
+
+.processing-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.processing-circle {
+  position: relative;
+  width: 320px;
+  height: 320px;
+}
+
+.circle-outer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circle-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.progress-ring-bg {
+  stroke: #f0f0f0;
+}
+
+.progress-ring-fill {
+  stroke: #000;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.processing-text {
+  text-align: center;
+  z-index: 1;
+  padding: 40px;
+}
+
+.processing-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #000;
+  font-family: var(--font-sans);
+}
+
+.processing-subtitle {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+@media (max-width: 1200px) {
+  .processing-container {
+    max-width: 95%;
+    padding: 0 30px;
+  }
+}
+
+@media (max-width: 640px) {
+  .processing-main-section {
+    padding: 40px 20px;
+  }
+  
+  .processing-container {
+    padding: 0 20px;
+  }
+  
+  .processing-progress {
+    font-size: 12px;
+    gap: 8px;
+    position: static;
+    margin-bottom: 40px;
+  }
+  
+  .progress-step {
+    padding: 6px 12px;
+  }
+  
+  .processing-circle {
+    width: 280px;
+    height: 280px;
+  }
+  
+  .progress-ring {
+    width: 280px;
+    height: 280px;
+  }
+  
+  .progress-ring-bg,
+  .progress-ring-fill {
+    cx: 140;
+    cy: 140;
+    r: 130;
+  }
+  
+  .processing-title {
+    font-size: 24px;
+  }
+  
+  .processing-subtitle {
+    font-size: 14px;
+  }
+}

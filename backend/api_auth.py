@@ -12,8 +12,8 @@ from google.oauth2 import id_token
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import *
-from database import User, PollResponse
-from repository import merge_account, get_profile_image_internal
+from database import User
+from repository import merge_account
 
 import smtplib
 from email.mime.text import MIMEText
@@ -232,7 +232,7 @@ def login():
         if anon_user:
             merge_account(anon_user, user)
         jwtoken = _make_jwt(email)
-        return jsonify({'message': 'Login successful!', 'token': jwtoken, 'admin': user['admin'], 'pfp': get_profile_image_internal(user), 'name': user['name'] }), 200
+        return jsonify({'message': 'Login successful!', 'token': jwtoken, 'admin': user['admin'], 'name': user['name'] }), 200
     else:  # if it's not legit, error
         return jsonify({'message': 'Invalid email or password.'}), 401
 
@@ -278,7 +278,6 @@ def login_google():
         return jsonify({'message': 'Login successful!',
                         'token': jwtoken,
                         'email': email,
-                        'pfp': get_profile_image_internal(existing_user),
                         'admin': existing_user['admin']}), 200
 
     except (ValueError, KeyError):
@@ -308,8 +307,3 @@ def delete_account(user, data):
     merge_account(user, anon_user)
     return jsonify({'message': 'Account deleted successfully!'}), 204
 
-@api_auth.route('/deleteResponses', methods=['POST'])
-@requires_auth
-def delete_responses(user):
-    PollResponse.delete_all(user['email'])
-    return jsonify({'message': 'Responses deleted successfully!'}), 204
