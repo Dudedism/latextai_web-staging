@@ -1,0 +1,219 @@
+.choose-template-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+
+.template-main-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100vw;
+  min-height: calc(100vh - 200px);
+  margin: 0;
+  padding: 60px 0;
+}
+
+.template-container {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.template-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 40px;
+  font-size: 14px;
+  color: #999;
+}
+
+.progress-step {
+  padding: 8px 16px;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active {
+  background: #f0f0f0;
+  color: #000;
+  font-weight: 500;
+}
+
+.progress-arrow {
+  color: #ccc;
+}
+
+.page-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 32px;
+  text-align: center;
+  font-family: var(--font-sans);
+}
+
+.template-search {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: 40px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 48px 12px 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 30px;
+  font-size: 16px;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #999;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+}
+
+.search-icon {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  pointer-events: none;
+}
+
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  width: 100%;
+}
+
+.template-card {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.template-card:hover {
+  border-color: #999;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.template-card.selected {
+  border-color: #000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.template-preview {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.template-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.template-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: white;
+  color: #ff0000;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  font-style: italic;
+  border: 1px solid #ff0000;
+}
+
+.template-info {
+  padding: 16px;
+  background: white;
+}
+
+.template-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #000;
+  line-height: 1.4;
+}
+
+.template-year {
+  font-size: 14px;
+  color: #666;
+}
+
+@media (max-width: 1024px) {
+  .templates-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+  }
+  
+  .template-preview {
+    height: 240px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .template-container {
+    max-width: 95%;
+    padding: 0 30px;
+  }
+}
+
+@media (max-width: 640px) {
+  .template-main-section {
+    padding: 40px 20px;
+  }
+  
+  .template-container {
+    padding: 0 20px;
+  }
+  
+  .template-progress {
+    font-size: 12px;
+    gap: 8px;
+  }
+  
+  .progress-step {
+    padding: 6px 12px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .templates-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+  }
+  
+  .template-preview {
+    height: 200px;
+  }
+}

@@ -1,0 +1,42 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import './Footer.css';
+
+const Footer: React.FC = () => {
+  return (
+    <footer className="footer">
+      <div className="footer-container">
+        <div className="footer-brand">
+          <h2 className="footer-logo">LaTexT</h2>
+          <p className="footer-copyright">© LaTexT, All rights reserved.</p>
+        </div>
+        
+        <div className="footer-section">
+          <h3 className="footer-heading">The Site</h3>
+          <ul className="footer-links">
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/about">About</Link></li>
+            <li><Link to="/pricing">Pricing</Link></li>
+          </ul>
+        </div>
+        
+        <div className="footer-section">
+          <h3 className="footer-heading">Legal</h3>
+          <ul className="footer-links">
+            <li><Link to="/privacy">Privacy Policy</Link></li>
+            <li><Link to="/terms">Terms & Conditions</Link></li>
+          </ul>
+        </div>
+        
+        <div className="footer-section">
+          <h3 className="footer-heading">Contact Us</h3>
+          <ul className="footer-links">
+            <li><a href="mailto:thelatexemail@latex.com">thelatexemail@latex.com</a></li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;

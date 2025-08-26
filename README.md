@@ -1,93 +1,174 @@
-# LatextAI_web
+# LaTeX Survey API Project
 
+A Flask-based backend API with React frontend for managing surveys, polls, and norms data.
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Project Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/latextai/latextai_web.git
-git branch -M main
-git push -uf origin main
+latext-site/
+├── backend/                    # Flask API server
+│   ├── app.py                 # Main Flask application
+│   ├── config.py              # Configuration and settings
+│   ├── database.py            # MongoDB models and database layer
+│   ├── api_auth.py            # Authentication blueprint (login, register, JWT)
+│   ├── api_user.py            # User operations blueprint (profile, responses)
+│   ├── api_admin.py           # Admin operations blueprint (manage polls, users)
+│   ├── api_anon.py            # Anonymous/public endpoints blueprint
+│   ├── requirements.txt       # Python dependencies
+│   └── venv/                  # Virtual environment
+├── frontend/                  # React + Vite frontend
+│   ├── src/                   # React source code
+│   ├── public/                # Static assets
+│   ├── package.json           # Node.js dependencies
+│   └── node_modules/          # Installed packages
+├── .gitignore                 # Git ignore rules
+└── README.md                  # This file
 ```
 
-## Integrate with your tools
+## Backend Architecture
 
-- [ ] [Set up project integrations](https://gitlab.com/latextai/latextai_web/-/settings/integrations)
+### Blueprints Organization
 
-## Collaborate with your team
+The Flask backend is organized using blueprints to separate different functionalities:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+- **`api_auth`** (`/api/auth/*`): Authentication endpoints
+  - `POST /api/auth/register` - User registration
+  - `POST /api/auth/login` - User login
+  - `GET /api/auth/verify` - Token verification
 
-## Test and Deploy
+- **`api_user`** (`/api/user/*`): User-specific operations (requires authentication)
+  - `GET /api/user/profile` - Get user profile
+  - `PUT /api/user/profile` - Update user profile
+  - `GET /api/user/polls` - Get user's poll responses
+  - `POST /api/user/polls/<poll_id>/submit` - Submit poll response
+  - `POST /api/user/norms/<short_title>/submit` - Submit norm response
+  - `GET /api/user/answers` - Get user's answers
 
-Use the built-in continuous integration in GitLab.
+- **`api_admin`** (`/api/admin/*`): Admin operations (requires admin authentication)
+  - `GET /api/admin/users` - List all users
+  - `DELETE /api/admin/users/<email>` - Delete user
+  - `GET /api/admin/polls` - List all polls
+  - `POST /api/admin/polls` - Create new poll
+  - `PUT /api/admin/polls/<id>` - Update poll
+  - `DELETE /api/admin/polls/<id>` - Delete poll
+  - `GET /api/admin/norms` - List all norms
+  - `POST /api/admin/norms` - Create new norm
+  - `GET /api/admin/stats` - Get system statistics
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- **`api_anon`** (`/api/*`): Public endpoints (no authentication required)
+  - `GET /api/health` - Health check
+  - `GET /api/polls/public` - List public polls
+  - `GET /api/polls/<id>/details` - Get poll details
+  - `GET /api/norms/public` - List public norms
+  - `GET /api/norms/<title>/details` - Get norm details
+  - `GET /api/info` - App information
 
-***
+### Database Models
 
-# Editing this README
+MongoDB collections managed through custom base model:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- **Users**: User accounts with email, password hash, and profile info
+- **Polls**: Survey polls with questions and metadata
+- **PollResponse**: User responses to polls
+- **Norms**: Normative data structures
+- **NormResponses**: User responses to norm assessments
+- **Answer**: Individual question answers
 
-## Suggestions for a good README
+### Security Features
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+- JWT-based authentication
+- Password hashing with SHA-256
+- Rate limiting on sensitive endpoints
+- CORS support for frontend integration
+- Admin role validation
 
-## Name
-Choose a self-explaining name for your project.
+## Setup Instructions
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### Backend Setup
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+1. Navigate to backend directory:
+   ```bash
+   cd backend
+   ```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+2. Create and activate virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+4. Set up environment variables (optional):
+   ```bash
+   export MONGO_URI="mongodb://localhost:27017/latext_db"
+   export SECRET_KEY="your-secret-key-here"
+   ```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+5. Run the Flask server:
+   ```bash
+   python app.py
+   ```
+   Server runs on `http://localhost:8000`
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### Frontend Setup
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+1. Navigate to frontend directory:
+   ```bash
+   cd frontend
+   ```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+3. Run development server:
+   ```bash
+   npm run dev
+   ```
+   Development server runs on `http://localhost:5173`
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Dependencies
 
-## License
-For open source projects, say how it is licensed.
+### Backend (Python)
+- **Flask**: Web framework
+- **Flask-CORS**: Cross-origin resource sharing
+- **Flask-PyMongo**: MongoDB integration
+- **Flask-Limiter**: Rate limiting
+- **PyJWT**: JWT token handling
+- **python-dotenv**: Environment variable management
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+### Frontend (Node.js)
+- **React**: UI framework
+- **TypeScript**: Type-safe JavaScript
+- **Vite**: Build tool and dev server
+
+## Development Notes
+
+- MongoDB is required for the backend to function properly
+- Admin users are identified by email domain (`@admin.com`)
+- JWT tokens expire based on `JWT_EXP_DELTA_SECONDS` configuration
+- Rate limiting is applied to prevent abuse
+- All API responses follow JSON format
+- CORS is enabled for frontend-backend communication
+
+## API Authentication
+
+Most endpoints require JWT authentication via `Authorization` header:
+```
+Authorization: Bearer <jwt_token>
+```
+
+Admin endpoints additionally require admin role validation.
+
+## Environment Configuration
+
+Key environment variables:
+- `MONGO_URI`: MongoDB connection string
+- `SECRET_KEY`: JWT signing secret
+- `JWT_EXP_DELTA_SECONDS`: Token expiration time
+- `ADMIN_IMAGES_DIR`: Admin images directory path

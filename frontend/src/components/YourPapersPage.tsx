@@ -1,0 +1,156 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Banner from './Banner';
+import Footer from './Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../utils/auth';
+import '../styles/common.css';
+import './YourPapersPage.css';
+
+interface Paper {
+  id: string;
+  title: string;
+  date: string;
+  template: string;
+  thumbnail: string;
+  status: 'completed' | 'processing';
+}
+
+const YourPapersPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
+  
+  const papers: Paper[] = [
+    {
+      id: '1',
+      title: 'Extroversion In North American Chimpanzees',
+      date: '01/05/25',
+      template: 'Nature Communications',
+      thumbnail: '/nature.svg',
+      status: 'completed'
+    },
+    {
+      id: '2',
+      title: 'Extroversion In North American Chimpanzees',
+      date: '01/05/25',
+      template: 'Nature Communications',
+      thumbnail: '/nature.svg',
+      status: 'completed'
+    },
+    {
+      id: '3',
+      title: 'Extroversion In North American Chimpanzees',
+      date: '01/05/25',
+      template: 'Nature Communications',
+      thumbnail: '/nature.svg',
+      status: 'completed'
+    }
+  ];
+
+  const handleView = (paperId: string) => {
+    navigate(`/papers/${paperId}/view`);
+  };
+
+  const handleDownload = (paperId: string) => {
+    console.log('Download paper:', paperId);
+  };
+
+  const handleSend = (paperId: string) => {
+    console.log('Send paper:', paperId);
+  };
+
+  const handleNewPaper = () => {
+    navigate('/papers/new');
+  };
+
+  return (
+    <div className="papers-page">
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      
+      <section className="papers-main-section">
+        <div className="papers-container">
+        <div className="papers-header">
+          <h1 className="papers-title">Your Papers</h1>
+          <div className="papers-actions">
+            <div className="search-container">
+              <input
+                type="text"
+                placeholder="Search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+              />
+              <svg className="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/>
+                <path d="M14 14L17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <button className="new-paper-btn" onClick={handleNewPaper}>
+              New Paper
+              <span className="plus-icon">+</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="papers-list">
+          {papers.map((paper) => (
+            <div key={paper.id} className="paper-card">
+              <div className="paper-thumbnail">
+                <img src={paper.thumbnail} alt={paper.template} />
+                <span className="template-badge">nature</span>
+              </div>
+              
+              <div className="paper-info">
+                <div className="paper-meta">
+                  <span className="paper-label">Title</span>
+                  <h3 className="paper-title-text">{paper.title}</h3>
+                </div>
+                <div className="paper-details">
+                  <div className="paper-meta">
+                    <span className="paper-label">Date</span>
+                    <span className="paper-value">{paper.date}</span>
+                  </div>
+                  <div className="paper-meta">
+                    <span className="paper-label">Template</span>
+                    <span className="paper-value">{paper.template}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="paper-actions">
+                <button className="action-btn view-btn" onClick={() => handleView(paper.id)}>
+                  View
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 4C6 4 2.5 7 1 10C2.5 13 6 16 10 16C14 16 17.5 13 19 10C17.5 7 14 4 10 4Z" stroke="currentColor" strokeWidth="1.5"/>
+                    <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/>
+                  </svg>
+                </button>
+                <button className="action-btn download-btn" onClick={() => handleDownload(paper.id)}>
+                  Download .tex
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 3V13M10 13L6 9M10 13L14 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M3 17H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+                <button className="action-btn send-btn" onClick={() => handleSend(paper.id)}>
+                  Send
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 10L7 7V9.5H11V10.5H7V13L3 10Z" fill="currentColor" transform="rotate(-45 10 10)"/>
+                    <path d="M2 10L18 3L11 10L18 17L2 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))}
+          </div>
+        </div>
+      </section>
+
+      <Footer />
+    </div>
+  );
+};
+
+export default YourPapersPage;

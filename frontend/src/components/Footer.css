@@ -1,0 +1,108 @@
+.footer {
+  background: white;
+  padding: 60px 40px 400px;
+  margin-top: auto;
+  width: 100%;
+}
+
+.footer-container {
+  max-width: 1123.79px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 80px;
+}
+
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-logo {
+  font-size: 48px;
+  font-weight: 700;
+  font-family: 'CMU Serif Extra';
+  margin: 0;
+  color: black;
+}
+
+.footer-copyright {
+  font-size: 14px;
+  color: black;
+  margin: 0;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.footer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.footer-heading {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: black;
+  font-family: Arial, sans-serif;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-links li {
+  margin: 0;
+}
+
+.footer-links a {
+  color: black;
+  text-decoration: none;
+  font-size: 16px;
+  font-family: 'Open Sans', sans-serif;
+  transition: all 0.3s ease;
+}
+
+.footer-links a:hover {
+  color: black;
+  text-decoration: underline;
+  transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .footer-container {
+    max-width: 95%;
+    padding: 0 30px;
+  }
+}
+
+@media (max-width: 768px) {
+  .footer {
+    padding: 40px 20px 30px;
+  }
+  
+  .footer-container {
+    flex-direction: column;
+    gap: 40px;
+    text-align: center;
+  }
+  
+  .footer-brand {
+    align-items: center;
+  }
+  
+  .footer-section {
+    align-items: center;
+  }
+  
+  .footer-links {
+    align-items: center;
+  }
+}
