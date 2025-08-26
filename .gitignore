@@ -79,3 +79,5 @@ logs
 
 # Docker (for future use)
 .dockerignore
+
+.claude

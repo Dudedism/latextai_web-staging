@@ -11,27 +11,36 @@ import TermsConditions from './components/TermsConditions';
 import AboutPage from './components/AboutPage';
 import PricingPage from './components/PricingPage';
 import SignInPage from './components/SignInPage';
+import useAuthRedirect from './hooks/useAuthRedirect';
 import './App.css'
+
+const AppContent = () => {
+  useAuthRedirect();
+  
+  return (
+    <div className="App">
+      <Routes>
+        <Route path="/" element={<><LandingPage /><Footer /></>} />
+        <Route path="/account" element={<AccountPage />} />
+        <Route path="/papers" element={<YourPapersPage />} />
+        <Route path="/papers/new" element={<NewPaperPage />} />
+        <Route path="/papers/processing" element={<ProcessingPage />} />
+        <Route path="/papers/:id/view" element={<PreviewPage />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsConditions />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/signin" element={<SignInPage />} />
+        <Route path="/signup" element={<SignInPage />} />
+      </Routes>
+    </div>
+  );
+};
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="App">
-        <Routes>
-          <Route path="/" element={<><LandingPage /><Footer /></>} />
-          <Route path="/account" element={<AccountPage />} />
-          <Route path="/papers" element={<YourPapersPage />} />
-          <Route path="/papers/new" element={<NewPaperPage />} />
-          <Route path="/papers/processing" element={<ProcessingPage />} />
-          <Route path="/papers/:id/view" element={<PreviewPage />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsConditions />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/signin" element={<SignInPage />} />
-          <Route path="/signup" element={<SignInPage />} />
-        </Routes>
-      </div>
+      <AppContent />
     </BrowserRouter>
   )
 }

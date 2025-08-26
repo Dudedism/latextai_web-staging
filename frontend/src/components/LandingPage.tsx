@@ -10,9 +10,9 @@ const LandingPage: React.FC = () => {
   const authenticated = isAuthenticated();
 
   const handleTryFree = async () => {
-    // If already authenticated, just go to papers page
+    // If already authenticated, just go to new paper page
     if (authenticated) {
-      navigate('/papers');
+      navigate('/papers/new');
       return;
     }
     
@@ -41,17 +41,17 @@ const LandingPage: React.FC = () => {
         localStorage.setItem('userName', 'Anonymous');
         localStorage.setItem('isAdmin', 'false');
         
-        // Navigate to papers page
-        navigate('/papers');
+        // Navigate to new paper page
+        navigate('/papers/new');
       } else {
         console.error('Failed to create anonymous session:', data.message);
-        // Still navigate to papers page even if anonymous session fails
-        navigate('/papers');
+        // Still navigate to new paper page even if anonymous session fails
+        navigate('/papers/new');
       }
     } catch (error) {
       console.error('Error creating anonymous session:', error);
-      // Still navigate to papers page even if anonymous session fails
-      navigate('/papers');
+      // Still navigate to new paper page even if anonymous session fails
+      navigate('/papers/new');
     }
   };
 
