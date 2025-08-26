@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Banner from './Banner';
 import Footer from './Footer';
-import { getAuthenticatedUser, isAuthenticated, getAnonymousKey } from '../utils/auth';
+import { getAuthenticatedUser, isAuthenticated, getAnonymousKey, isAnonymousUser } from '../utils/auth';
 import '../styles/common.css';
 import './SignInPage.css';
 
@@ -11,19 +11,9 @@ type AuthMode = 'signin' | 'signup';
 const SignInPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [authMode, setAuthMode] = useState<AuthMode>('signup');
-
-  useEffect(() => {
-    // Set auth mode based on current path and clear form data
-    const newMode = location.pathname === '/signin' ? 'signin' : 'signup';
-    setAuthMode(newMode);
-    setError('');
-    setName('');
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setAgreeToTerms(false);
-  }, [location.pathname]);
+  const [authMode, setAuthMode] = useState<AuthMode>(() => 
+    location.pathname === '/signin' ? 'signin' : 'signup'
+  );
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,15 +21,39 @@ const SignInPage: React.FC = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [justRegistered, setJustRegistered] = useState(false);
+
+  useEffect(() => {
+    // Set auth mode based on current path
+    const newMode = location.pathname === '/signin' ? 'signin' : 'signup';
+    setAuthMode(newMode);
+    
+    // Clear password fields when switching modes
+    if (!justRegistered) {
+      setError('');
+      setPassword('');
+      setConfirmPassword('');
+      setAgreeToTerms(false);
+      // Clear all fields if not coming from successful registration
+      setName('');
+      setEmail('');
+    } else {
+      // Only clear passwords after successful registration
+      setPassword('');
+      setConfirmPassword('');
+      setJustRegistered(false);
+    }
+  }, [location.pathname]);
   
   const user = getAuthenticatedUser();
+  const isAnonymous = isAnonymousUser();
   
-  // Redirect if already authenticated
+  // Redirect only if authenticated as a real user (not anonymous)
   useEffect(() => {
-    if (user) {
+    if (user && !isAnonymous) {
       navigate('/papers');
     }
-  }, [user, navigate]);
+  }, [user, isAnonymous, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,9 +119,13 @@ const SignInPage: React.FC = () => {
         } else {
           // Signup successful - show success message
           setError('');
-          alert('Registration successful! Please check your email to verify your account.');
-          // Switch to signin mode
-          setAuthMode('signin');
+          // WARNING: Placeholder - Email verification disabled until email API developed
+          // In production, should mention checking email for verification
+          alert(data.message || 'Registration successful! You can now sign in.');
+          // Set flag to preserve email when switching to signin
+          setJustRegistered(true);
+          // Navigate to signin page (this also switches mode)
+          navigate('/signin');
         }
       } else {
         setError(data.message || 'An error occurred');

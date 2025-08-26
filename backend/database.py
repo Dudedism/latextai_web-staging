@@ -25,7 +25,8 @@ class BaseModel:
     
     def find(self, query=None):
         if query is None:
-            query = {k: v for k, v in self.data.items() if k != '_id'}
+            # Only use non-None values for the query
+            query = {k: v for k, v in self.data.items() if k != '_id' and v is not None}
         result = mongo.db[self.collection_name].find_one(query)
         if result:
             self.data = result
@@ -62,6 +63,12 @@ class User(BaseModel):
             created_at=datetime.utcnow(),
             **kwargs
         )
+    
+    @classmethod
+    def find_by_email(cls, email):
+        """Find a user by email address only"""
+        user = cls()
+        return user.find({'email': email})
     
     @classmethod
     def insertdate(cls, email, data):

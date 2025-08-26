@@ -145,7 +145,7 @@ def signup():
     if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', data['email']):
         return jsonify({'message': 'Invalid email format.'}), 400
 
-    existing_user = User(email=data['email']).find()
+    existing_user = User.find_by_email(data['email'])
     if existing_user:
         return jsonify({'message': 'User with this email already exists!'}), 400
 
@@ -162,19 +162,23 @@ def signup():
 
     pwd = generate_password_hash(data['password'])
 
-    user = User(name=data['name'], email=data['email'], password=pwd, is_verified=False, admin=False)
+    # WARNING: Placeholder - Email verification disabled until email API developed
+    # In production, is_verified should be False and email verification should be required
+    user = User(name=data['name'], email=data['email'], password=pwd, is_verified=True, admin=False)
 
-    token = s.dumps(data['email'], salt='email-confirm-salt')
-
-    verify_url = url_for('api_auth_blueprint.verify', token=token, _external=True)
-
-    try:
-        send_verification_email(data['email'], data['name'], verify_url)
-    except Exception as e:
-        return jsonify({'message': 'User registered, but failed to send verification email.'}), 500
+    # WARNING: Placeholder - Email sending disabled until email API developed
+    # Uncomment below when email service is configured
+    # token = s.dumps(data['email'], salt='email-confirm-salt')
+    # verify_url = url_for('api_auth_blueprint.verify', token=token, _external=True)
+    # try:
+    #     send_verification_email(data['email'], data['name'], verify_url)
+    # except Exception as e:
+    #     return jsonify({'message': 'User registered, but failed to send verification email.'}), 500
 
     user.insert()
-    return jsonify({'message': 'User registered successfully! Please check your email to verify your account.'}), 201
+    
+    # WARNING: Placeholder - Auto-verified for development, remove this message in production
+    return jsonify({'message': 'User registered successfully! You can now sign in.'}), 201
 
 @api_auth.route('/verify', methods=['GET'])
 def verify():
@@ -225,8 +229,8 @@ def login():
         anon_email = data['anon_key'] + '@anonymous.user'
         anon_user = User(email=anon_email).find()
 
-    user = User(email=email).find()  # get the user object from the DB
-    if user and check_password_hash(user['password'], password):  # if the password is legit log in
+    user = User.find_by_email(email)  # get the user object from the DB
+    if user and user.get('password') and check_password_hash(user['password'], password):  # if the password is legit log in
         if user.get('is_verified', True) == False: # the account exists but the user is not verified
             return jsonify({'message': 'Account not verified'}), 401
         if anon_user:
