@@ -249,3 +249,102 @@
     align-items: center;
   }
 }
+
+/* --- How it works --- */
+.howitworks {
+  margin-top: 200px; /* visually tightens spacing after buttons */
+  margin-bottom: 240px;
+}
+
+.how-container {
+  width: 100%;
+  max-width: 1124px; /* matches hero width */
+  padding: 0 24px;
+  margin: 0 auto;}
+
+.how-title {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: black;
+  margin: 0 0 8px 0;
+  font-family: Arial, sans-serif; /* matches .main-title */
+  text-align: center;
+}
+
+.how-subtitle {
+  text-align: center;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  color: #111;
+  margin: 0 0 60px 0;
+  font-family: 'Open Sans', sans-serif; /* matches .description */
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 48px;
+}
+
+.how-step {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 340px;
+}
+
+.how-step-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.how-step-number {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  color: black;
+  font-family: Arial, sans-serif;
+}
+
+.how-step-icon {
+  width: 40px;
+  height: 40px;
+  color: #000; /* inherit from parent for easy theming */
+}
+
+.how-step-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: black;
+  margin: 4px 0 0 0;
+  font-family: Arial, sans-serif;
+}
+
+.how-step-desc {
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: black;
+  margin: 0;
+  font-family: 'Open Sans', sans-serif;
+}
+
+/* Responsive tweaks */
+@media (max-width: 1024px) {
+  .how-steps { gap: 32px; }
+  .how-step { max-width: none; }
+}
+
+@media (max-width: 768px) {
+  .how-title { font-size: 32px; }
+  .how-step-number { font-size: 36px; }
+  .how-step-icon { width: 30px; height: 30px; }
+  .how-steps {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .how-subtitle { margin-bottom: 24px; }
+}
