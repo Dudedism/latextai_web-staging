@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Banner from './Banner';
-import Footer from './Footer';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import '../../styles/common.css';
 import './ProcessingPage.css';
 
 const ProcessingPage: React.FC = () => {

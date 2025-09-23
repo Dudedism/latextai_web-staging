@@ -1,16 +1,16 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import LandingPage from './components/LandingPage';
-import AccountPage from './components/AccountPage';
-import YourPapersPage from './components/YourPapersPage';
-import NewPaperPage from './components/NewPaperPage';
-import ProcessingPage from './components/ProcessingPage';
-import PreviewPage from './components/PreviewPage';
-import PrivacyPolicy from './components/PrivacyPolicy';
-import TermsConditions from './components/TermsConditions';
-import AboutPage from './components/AboutPage';
-import PricingPage from './components/PricingPage';
-import SignInPage from './components/SignInPage';
+import LandingPage from './components/homepage/LandingPage';
+import AccountPage from './components/authenticated/AccountPage';
+import YourPapersPage from './components/authenticated/YourPapersPage';
+import NewPaperPage from './components/authenticated/NewPaperPage';
+import ProcessingPage from './components/authenticated/ProcessingPage';
+import PreviewPage from './components/authenticated/PreviewPage';
+import PrivacyPolicy from './components/static/PrivacyPolicy';
+import TermsConditions from './components/static/TermsConditions';
+import AboutPage from './components/static/AboutPage';
+import PricingPage from './components/static/PricingPage';
+import SignInPage from './components/static/SignInPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
 import './App.css'
 

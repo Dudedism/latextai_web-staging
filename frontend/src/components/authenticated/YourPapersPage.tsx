@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Banner from './Banner';
-import Footer from './Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../utils/auth';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import '../../styles/common.css';
 import './YourPapersPage.css';
 
 interface Paper {

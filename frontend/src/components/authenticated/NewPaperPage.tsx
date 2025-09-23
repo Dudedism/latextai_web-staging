@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Banner from './Banner';
-import Footer from './Footer';
+import Banner from '../Banner';
+import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
-import '../styles/common.css';
+import '../../styles/common.css';
 import './NewPaperPage.css';
 
 type UploadState = 'upload' | 'preview' | 'template';

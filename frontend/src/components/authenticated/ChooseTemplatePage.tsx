@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import Banner from './Banner';
-import Footer from './Footer';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import '../../styles/common.css';
 import './ChooseTemplatePage.css';
 
 interface Template {
