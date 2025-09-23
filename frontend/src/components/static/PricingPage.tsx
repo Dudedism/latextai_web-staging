@@ -25,57 +25,19 @@ const PricingPage: React.FC = () => {
         </p>
         
         <div className="pricing-grid">
-          <div className="pricing-card">
-            <h3 className="pricing-title">Pay Per Document</h3>
-            <div className="pricing-price">$9.99</div>
-            <div className="pricing-unit">per conversion</div>
-            <ul className="pricing-features">
-              <li>Single document conversion</li>
-              <li>All journal templates</li>
-              <li>Preview before payment</li>
-              <li>Download .tex and supporting files</li>
-              <li>7-day storage</li>
-              <li>Email support</li>
-            </ul>
-            <button className="pricing-btn" onClick={() => handleGetStarted('single')}>
-              Get Started
-            </button>
-          </div>
-
           <div className="pricing-card featured">
-            <span className="pricing-badge">Most Popular</span>
-            <h3 className="pricing-title">Document Pack</h3>
-            <div className="pricing-price">$79.99</div>
-            <div className="pricing-unit">10 conversions</div>
+            <h3 className="pricing-title">Our Service</h3>
+            <div className="pricing-price">$1</div>
+            <div className="pricing-unit">per page</div>
             <ul className="pricing-features">
-              <li>10 document conversions</li>
-              <li>All journal templates</li>
-              <li>Priority processing</li>
-              <li>Download .tex and supporting files</li>
-              <li>30-day storage</li>
-              <li>Priority email support</li>
-              <li>20% savings per document</li>
+              <li>Free first time conversion</li>
+              <li>Delivery in minutes, not days</li>
+              <li>Templates</li>
+              <li>Editing</li>
+              <li>Raw LaTeX code download</li>
+              <li>Perfect for small projects</li>
             </ul>
-            <button className="pricing-btn" onClick={() => handleGetStarted('pack')}>
-              Get Started
-            </button>
-          </div>
-
-          <div className="pricing-card">
-            <h3 className="pricing-title">Academic</h3>
-            <div className="pricing-price">$49.99</div>
-            <div className="pricing-unit">per month</div>
-            <ul className="pricing-features">
-              <li>Unlimited conversions</li>
-              <li>All journal templates</li>
-              <li>Instant processing</li>
-              <li>Download .tex and supporting files</li>
-              <li>Unlimited storage</li>
-              <li>Priority support</li>
-              <li>Collaboration features</li>
-              <li>API access</li>
-            </ul>
-            <button className="pricing-btn" onClick={() => handleGetStarted('academic')}>
+            <button className="pricing-btn" onClick={() => handleGetStarted('perpage')}>
               Get Started
             </button>
           </div>
@@ -98,31 +60,31 @@ const PricingPage: React.FC = () => {
           
           <h3>What payment methods do you accept?</h3>
           <p>
-            We accept all major credit cards (Visa, MasterCard, American Express) and debit cards 
+            We accept all major credit cards (Visa, MasterCard, American Express) and debit cards
             through our secure payment processor, Stripe.
           </p>
 
-          <h3>Can I try before I buy?</h3>
+          <h3>How does the pricing work?</h3>
           <p>
-            Yes! You can upload your document and preview the first 3 pages of the converted LaTeX 
-            output completely free. Payment is only required to download the full document.
+            We charge $1 per page of your document. Your first conversion is completely free to try
+            our service. Payment is only required after you're satisfied with the conversion quality.
           </p>
 
           <h3>What's included in the download?</h3>
           <p>
-            Your download includes the main .tex file, bibliography file (.bib), all extracted images 
+            Your download includes the main .tex file, bibliography file (.bib), all extracted images
             in appropriate formats, and a README with compilation instructions.
           </p>
 
-          <h3>Do unused conversions expire?</h3>
+          <h3>How fast is the conversion?</h3>
           <p>
-            Document packs are valid for 12 months from purchase date. Monthly subscriptions renew 
-            automatically and don't have usage limits during the subscription period.
+            Most conversions are completed within minutes, not days like traditional services.
+            You'll receive your converted LaTeX files quickly so you can get back to your research.
           </p>
 
           <h3>What's your refund policy?</h3>
           <p>
-            We offer a 7-day money-back guarantee if you're not satisfied with the conversion quality. 
+            We offer a 7-day money-back guarantee if you're not satisfied with the conversion quality.
             Simply contact our support team with details about the issue.
           </p>
         </section>
