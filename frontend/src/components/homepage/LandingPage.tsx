@@ -11,50 +11,8 @@ const LandingPage: React.FC = () => {
   const user = getAuthenticatedUser();
   const authenticated = isAuthenticated();
 
-  const handleTryFree = async () => {
-    // If already authenticated, just go to new paper page
-    if (authenticated) {
-      navigate('/papers/new');
-      return;
-    }
-
-    // Create anonymous session
-    try {
-      // Generate a unique key for anonymous user
-      const anonymousKey = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // Store the key in localStorage for later use
-      localStorage.setItem('anonymousKey', anonymousKey);
-
-      const response = await fetch('http://localhost:8000/api/loginAnonymously', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ key: anonymousKey }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store anonymous token
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('userEmail', `${anonymousKey}@anonymous.user`);
-        localStorage.setItem('userName', 'Anonymous');
-        localStorage.setItem('isAdmin', 'false');
-
-        // Navigate to new paper page
-        navigate('/papers/new');
-      } else {
-        console.error('Failed to create anonymous session:', data.message);
-        // Still navigate to new paper page even if anonymous session fails
-        navigate('/papers/new');
-      }
-    } catch (error) {
-      console.error('Error creating anonymous session:', error);
-      // Still navigate to new paper page even if anonymous session fails
-      navigate('/papers/new');
-    }
+  const handleTryFree = () => {
+    navigate('/papers/new');
   };
 
   const handleBrowseJournals = () => {

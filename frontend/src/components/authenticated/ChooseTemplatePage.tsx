@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './ChooseTemplatePage.css';
 
@@ -19,6 +20,9 @@ interface ChooseTemplatePageProps {
 const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
 
   const templates: Template[] = [
     { id: '1', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
@@ -40,7 +44,7 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
 
   return (
     <div className="choose-template-page">
-      <Banner isAuthenticated={true} />
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
       
       <section className="template-main-section">
         <div className="template-container">

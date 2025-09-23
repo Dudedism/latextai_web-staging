@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
@@ -12,10 +12,16 @@ import AboutPage from './components/static/AboutPage';
 import PricingPage from './components/static/PricingPage';
 import SignInPage from './components/static/SignInPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
+import { anonSpawn } from './utils/auth';
 import './App.css'
 
 const AppContent = () => {
   useAuthRedirect();
+
+  // Create anonymous account on site load
+  useEffect(() => {
+    anonSpawn();
+  }, []);
   
   return (
     <div className="App">

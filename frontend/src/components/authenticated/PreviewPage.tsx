@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './PreviewPage.css';
 
 const PreviewPage: React.FC = () => {
   const [satisfied, setSatisfied] = useState<boolean | null>(null);
   const [currentPage] = useState(1);
+
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
 
   const handleSatisfiedClick = (value: boolean) => {
     setSatisfied(value);
@@ -21,7 +25,7 @@ const PreviewPage: React.FC = () => {
 
   return (
     <div className="preview-page">
-      <Banner isAuthenticated={true} />
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
       
       <section className="preview-main-section">
         <div className="preview-container">

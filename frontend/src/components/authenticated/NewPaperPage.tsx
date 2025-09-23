@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './NewPaperPage.css';
 
@@ -16,6 +17,9 @@ const NewPaperPage: React.FC = () => {
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
+
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -90,7 +94,7 @@ something.wordx`);
 
   return (
     <div className="new-paper-page">
-      <Banner isAuthenticated={true} />
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
       
       <section className="new-paper-main-section">
         <div className="new-paper-container">

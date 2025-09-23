@@ -2,12 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './ProcessingPage.css';
 
 const ProcessingPage: React.FC = () => {
   const navigate = useNavigate();
   const [progress, setProgress] = useState(0);
+
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
 
   useEffect(() => {
     // Simulate processing progress
@@ -30,7 +34,7 @@ const ProcessingPage: React.FC = () => {
 
   return (
     <div className="processing-page">
-      <Banner isAuthenticated={true} />
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
       
       <section className="processing-main-section">
         <div className="processing-container">

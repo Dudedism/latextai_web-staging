@@ -47,9 +47,54 @@ export const logout = (): void => {
 export const getAuthHeaders = () => {
   const user = getAuthenticatedUser();
   if (!user) return {};
-  
+
   return {
     'Authorization': `Bearer ${user.token}`,
     'Content-Type': 'application/json'
   };
+};
+
+export const anonSpawn = async (): Promise<boolean> => {
+  // Don't create anonymous account if user is already registered
+  if (isAuthenticated() && !isAnonymousUser()) {
+    return true; // Already have registered account
+  }
+
+  // Check if anonymous account already exists
+  if (getAnonymousKey()) {
+    return true; // Already have anonymous account
+  }
+
+  try {
+    // Generate a unique key for anonymous user
+    const anonymousKey = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Store the key in localStorage for later use
+    localStorage.setItem('anonymousKey', anonymousKey);
+
+    const response = await fetch('http://localhost:8000/api/loginAnonymously', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ key: anonymousKey }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // Store anonymous token
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userEmail', `${anonymousKey}@anonymous.user`);
+      localStorage.setItem('userName', 'Anonymous');
+      localStorage.setItem('isAdmin', 'false');
+      return true;
+    } else {
+      console.error('Failed to create anonymous session:', data.message);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error creating anonymous session:', error);
+    return false;
+  }
 };
