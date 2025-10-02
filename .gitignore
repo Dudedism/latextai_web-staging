@@ -81,3 +81,7 @@ logs
 .dockerignore
 
 .claude
+
+# User project files (keep only mock_files)
+backend/user_projects/*
+!backend/user_projects/mock_files/
