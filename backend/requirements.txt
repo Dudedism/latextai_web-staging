@@ -9,3 +9,4 @@ dnspython
 google-auth
 google-auth-oauthlib
 itsdangerous
+PyPDF2

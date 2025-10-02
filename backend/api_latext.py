@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 from api_auth import requires_auth
 from database import User, Project
 from datetime import datetime
+from PyPDF2 import PdfReader, PdfWriter
 
 api_latext = Blueprint('api_latext_blueprint', __name__, url_prefix='/api/latex')
 
@@ -42,6 +43,29 @@ def copy_mock_files(project_directory, project_id):
 
     return True
 
+def generate_pdf_preview(pdf_path, preview_path, max_pages=3):
+    """Generate a preview PDF with only the first N pages"""
+    try:
+        # Read the full PDF
+        pdf_reader = PdfReader(pdf_path)
+        pdf_writer = PdfWriter()
+
+        # Get the number of pages to extract (min of total pages or max_pages)
+        num_pages = min(len(pdf_reader.pages), max_pages)
+
+        # Add first N pages to the writer
+        for page_num in range(num_pages):
+            pdf_writer.add_page(pdf_reader.pages[page_num])
+
+        # Write the preview PDF
+        with open(preview_path, 'wb') as preview_file:
+            pdf_writer.write(preview_file)
+
+        return True
+    except Exception as e:
+        print(f"Error generating PDF preview: {e}")
+        return False
+
 @api_latext.route('/upload', methods=['POST'])
 @requires_auth
 def upload_file(user, data):
@@ -75,7 +99,12 @@ def upload_file(user, data):
     if os.path.exists(mock_tex):
         shutil.copy(mock_tex, os.path.join(project_dir, f'{project_id}.tex'))
     if os.path.exists(mock_pdf):
-        shutil.copy(mock_pdf, os.path.join(project_dir, f'{project_id}.pdf'))
+        full_pdf_path = os.path.join(project_dir, f'{project_id}.pdf')
+        shutil.copy(mock_pdf, full_pdf_path)
+
+        # Generate preview PDF (first 3 pages)
+        preview_pdf_path = os.path.join(project_dir, f'preview_{project_id}.pdf')
+        generate_pdf_preview(full_pdf_path, preview_pdf_path, max_pages=3)
 
     # Create database entry
     project = Project(
@@ -157,7 +186,7 @@ def get_project(user, data, project_id):
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
 @requires_auth
 def get_pdf(user, data, project_id):
-    """Serve the PDF file for a project"""
+    """Serve the PDF file for a project (preview for unverified users, full for verified)"""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -167,12 +196,20 @@ def get_pdf(user, data, project_id):
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
+    # Check user verification status to determine which PDF to serve
+    if user.get('is_verified', False):
+        # Verified user - serve full PDF
+        pdf_filename = project.get('pdf_filename', f'{project_id}.pdf')
+    else:
+        # Unverified/anonymous user - serve preview only (first 3 pages)
+        pdf_filename = f'preview_{project_id}.pdf'
+
     # Build PDF path
     pdf_path = os.path.join(
         USER_PROJECTS_DIR,
         str(project.get('user_id')),
         str(project_id),
-        project.get('pdf_filename', f'{project_id}.pdf')
+        pdf_filename
     )
 
     if not os.path.exists(pdf_path):
@@ -183,7 +220,11 @@ def get_pdf(user, data, project_id):
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
 @requires_auth
 def get_tex(user, data, project_id):
-    """Download the .tex file for a project"""
+    """Download the .tex file for a project (only for verified users)"""
+    # Check user verification status first
+    if not user.get('is_verified', False):
+        return jsonify({'error': 'Please sign up to download LaTeX files'}), 403
+
     project = Project.find_by_id(project_id)
 
     if not project:

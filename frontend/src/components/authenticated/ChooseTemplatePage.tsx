@@ -49,11 +49,11 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
       <section className="template-main-section">
         <div className="template-container">
         <div className="template-progress">
-          <div className="progress-step">Upload</div>
+          <div className="progress-step">File</div>
           <div className="progress-arrow">→</div>
           <div className="progress-step active">Template</div>
           <div className="progress-arrow">→</div>
-          <div className="progress-step">Preview</div>
+          <div className="progress-step">Upload</div>
         </div>
 
         <h1 className="page-title">Choose Your Template</h1>

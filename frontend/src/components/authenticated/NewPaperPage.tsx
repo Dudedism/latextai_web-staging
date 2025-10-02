@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
-import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './NewPaperPage.css';
 
@@ -43,28 +43,7 @@ const NewPaperPage: React.FC = () => {
 
   const handleFileSelect = (file: File) => {
     setUploadedFile(file);
-    setDocumentTitle(file.name.replace(/\.(docx?|doc)$/, ''));
-    
-    // Simulate reading file content for preview
-    const reader = new FileReader();
-    reader.onload = () => {
-      // Mock preview content since we can't actually read Word files in browser
-      setPreviewContent(`Microsoft Word Tips and Tricks
-
-Increase or programmatically develop speed awareness and formatting solutions. Work on some formatting to Improve Business with direct formats through use of MS Word.
-
-Headers and Footers
-Creating headers is best to bring the design of even a basic of your document. A header which is well- formatted indicates the Word page, [MS], date and much details date and shown on each margin to increase the text bars for the header. (1) Use the format-text integrated function to add text before the right, (2) see you can adjust the font and sizing for them, (3) switch to Footer function to any fonts left header. The header function is, by default used, also offers you can access by inserting headers for even pages and odd pages.
-
-Tables in Word will happen to the bottom margin of every page. Essentially, the pages of modern guides are numbered in the header, and in footer is cited by the macro browsing your completed document.
-
-Footnotes are fantastic features that allow you to add additional information for your readers. Place the cursor in a page, and go the bottom margin, make any References tab. The cursor "Insert footenote" is used. The tab will initiate the context formatting with superscripted notation in them. A footnote for your choice to select from your application. Make sure to provide information that is helpful and references will continue responsible throughout the whole paper unless you select "[1], (2] insert reference section and appear. Insert a cell page under the formatting change font. The Standard Selected for Movement: You can also use other style elements to create a set foothold list for all the bottom will appear in a floating text display, so you can decide what what each pointer will contain, command giving to the bottom of each page.]
-
-title
-something.wordx`);
-    };
-    reader.readAsText(file);
-    
+    setDocumentTitle(file.name);
     setUploadState('preview');
   };
 
@@ -83,7 +62,7 @@ something.wordx`);
     setUploadState('template');
   };
 
-  const handleTemplateSelect = async (templateId: string) => {
+  const handleTemplateSelect = (templateId: string) => {
     // Map template IDs to template names
     const templateMap: { [key: string]: string } = {
       '1': 'nature',
@@ -98,32 +77,14 @@ something.wordx`);
 
     const template = templateMap[templateId] || 'nature';
 
-    // Upload file with selected template
+    // Navigate to upload confirmation page
     if (uploadedFile) {
-      try {
-        const formData = new FormData();
-        formData.append('file', uploadedFile);
-        formData.append('template', template);
-
-        const token = getToken();
-        const response = await fetch('http://localhost:8000/api/latex/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          body: formData,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          // Navigate to preview page with the project ID
-          navigate(`/papers/${data.project_id}/view`);
-        } else {
-          console.error('Failed to upload file');
+      navigate('/papers/upload-confirm', {
+        state: {
+          file: uploadedFile,
+          template: template
         }
-      } catch (error) {
-        console.error('Error uploading file:', error);
-      }
+      });
     }
   };
 
@@ -138,14 +99,14 @@ something.wordx`);
       <section className="new-paper-main-section">
         <div className="new-paper-container">
         <div className="upload-progress">
-          <div className="progress-step active">Upload</div>
+          <div className="progress-step active">File</div>
           <div className="progress-arrow">→</div>
           <div className={`progress-step ${uploadState === 'preview' ? 'active' : ''}`}>Template</div>
           <div className="progress-arrow">→</div>
-          <div className="progress-step">Preview</div>
+          <div className="progress-step">Upload</div>
         </div>
 
-        <h1 className="page-title">Upload Your Word Document</h1>
+        <h1 className="page-title">Choose Your Word Document</h1>
 
         {uploadState === 'upload' && (
           <div className="upload-section">
@@ -177,14 +138,9 @@ something.wordx`);
 
         {uploadState === 'preview' && (
           <div className="preview-section">
-            <div className="document-preview">
-              <div className="preview-content">
-                <pre>{previewContent}</pre>
-              </div>
-            </div>
             <div className="preview-info">
               <p className="document-title">
-                <strong>title</strong><br />
+                <strong>Filename:</strong><br />
                 {documentTitle}
               </p>
             </div>

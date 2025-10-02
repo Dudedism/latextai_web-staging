@@ -6,6 +6,7 @@ import YourPapersPage from './components/authenticated/YourPapersPage';
 import NewPaperPage from './components/authenticated/NewPaperPage';
 import ProcessingPage from './components/authenticated/ProcessingPage';
 import PreviewPage from './components/authenticated/PreviewPage';
+import UploadConfirmPage from './components/authenticated/UploadConfirmPage';
 import PrivacyPolicy from './components/static/PrivacyPolicy';
 import TermsConditions from './components/static/TermsConditions';
 import AboutPage from './components/static/AboutPage';
@@ -30,6 +31,7 @@ const AppContent = () => {
         <Route path="/account" element={<AccountPage />} />
         <Route path="/papers" element={<YourPapersPage />} />
         <Route path="/papers/new" element={<NewPaperPage />} />
+        <Route path="/papers/upload-confirm" element={<UploadConfirmPage />} />
         <Route path="/papers/processing" element={<ProcessingPage />} />
         <Route path="/papers/:id/view" element={<PreviewPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />

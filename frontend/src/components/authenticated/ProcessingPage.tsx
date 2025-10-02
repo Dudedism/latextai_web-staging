@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
@@ -8,29 +8,25 @@ import './ProcessingPage.css';
 
 const ProcessingPage: React.FC = () => {
   const navigate = useNavigate();
-  const [progress, setProgress] = useState(0);
+  const location = useLocation();
+  const projectId = location.state?.projectId;
 
   const user = getAuthenticatedUser();
   const authenticated = isAuthenticated();
 
   useEffect(() => {
-    // Simulate processing progress
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          // Navigate to preview page after processing
-          setTimeout(() => {
-            navigate('/papers/1/view');
-          }, 500);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 500);
+    // Show the animation for 2 seconds then navigate to preview
+    const timer = setTimeout(() => {
+      if (projectId) {
+        navigate(`/papers/${projectId}/view`);
+      } else {
+        console.error('No project ID provided');
+        navigate('/papers');
+      }
+    }, 2000);
 
-    return () => clearInterval(interval);
-  }, [navigate]);
+    return () => clearTimeout(timer);
+  }, [navigate, projectId]);
 
   return (
     <div className="processing-page">
@@ -39,11 +35,11 @@ const ProcessingPage: React.FC = () => {
       <section className="processing-main-section">
         <div className="processing-container">
         <div className="processing-progress">
-          <div className="progress-step">Upload</div>
+          <div className="progress-step">File</div>
           <div className="progress-arrow">→</div>
           <div className="progress-step">Template</div>
           <div className="progress-arrow">→</div>
-          <div className="progress-step active">Preview</div>
+          <div className="progress-step active">Upload</div>
         </div>
 
         <div className="processing-content">
@@ -51,7 +47,7 @@ const ProcessingPage: React.FC = () => {
             <div className="circle-outer">
               <div className="circle-inner">
                 <svg
-                  className="progress-ring"
+                  className="progress-ring spinning"
                   width="320"
                   height="320"
                   viewBox="0 0 320 320"
@@ -69,16 +65,15 @@ const ProcessingPage: React.FC = () => {
                     cx="160"
                     cy="160"
                     r="150"
-                    strokeWidth="2"
+                    strokeWidth="3"
                     fill="none"
-                    strokeDasharray={`${2 * Math.PI * 150}`}
-                    strokeDashoffset={`${2 * Math.PI * 150 * (1 - progress / 100)}`}
+                    strokeDasharray="400 942"
                     transform="rotate(-90 160 160)"
                   />
                 </svg>
                 <div className="processing-text">
                   <h1 className="processing-title">Processing Your Paper</h1>
-                  <p className="processing-subtitle">This should take just a few minutes.</p>
+                  <p className="processing-subtitle">Converting to your selected template...</p>
                 </div>
               </div>
             </div>

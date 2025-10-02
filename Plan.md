@@ -6,9 +6,10 @@ This file is to keep track of the to-do for this website:
 <!-- - Fix authentication and anon user creation -->
 <!-- - Delete user button -->
 <!-- - Create repository and docker for pipeline. (We're not doing this, for now we bundle everything together) -->
-- For now, we pretend an actual signed up account is a "paid" account.
+<!-- - For now, we pretend an actual signed up account is a "paid" account.
 - For "paid" accounts, full pdf view, no preview. Allow .tex download.
-- For "free" (anonymous, unverified), only first 3 pages preview. No .tex download permitted.
+- For "free" (anonymous, unverified), only first 3 pages preview. No .tex download permitted. -->
+
 - Improve preview page. Add approval buttons, pdf download button, tex download button. In the case of the approval move to status of resolved.
 - Add basic admin panel to search users, projects, update, delete, download, etc.
 
@@ -35,6 +36,13 @@ Create admin dashboard, features should include:
 1. Website (Flask NodeJs?, MongoDB)
 2. Pipeline handling (Flask, Celery, RabbitMQ)
 3. Pipeline (single i/o for insertion into #2)
+
+
+
+
+# Later:
+
+- Maybe move the processing spinner into the /papers page. Then add polling if there's any unfinished papers processing.
 
 
 
