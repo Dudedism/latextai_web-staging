@@ -67,4 +67,3 @@ def get_admin_stats():
             'total_users': total_users
         }
     }), 200
-

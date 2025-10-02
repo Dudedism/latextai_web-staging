@@ -603,3 +603,364 @@ If no tickets exist yet:
 - Admin can change ticket status
 - Email notifications for ticket updates
 - This will be implemented in a later phase
+
+---
+
+# Admin Panel Implementation
+
+## Understanding of Requirements
+
+### Authentication Strategy
+- **Role-based authentication** using existing auth system
+- Users already have `admin` field in database (default: `False`)
+- Admin users login through normal authentication flow
+- Admin routes protected with `@requires_admin` decorator
+- Admin users access admin panel at `/admin/*` routes
+
+### Pages to Build
+1. **Admin Support Page** (`/admin/support`) - View and respond to ALL support tickets across all projects
+2. **Admin Projects Page** (`/admin/projects`) - Project listing and management
+3. **Admin Project Detail Page** (`/admin/projects/{project_id}`) - Individual project file management
+
+**NOT building:**
+- Admin Login Page (use normal sign-in page, redirect based on `admin=True`)
+- Dashboard page (deferred to later phase)
+
+### Admin Panel Structure
+```
+/admin
+  /support                    - Support ticket management (all tickets)
+  /projects                   - Project listing (search, filter, view)
+  /projects/{project_id}      - Individual project file management
+```
+
+## Backend Implementation
+
+### 1. New Admin Decorator in `api_auth.py`
+Create `@requires_admin` decorator:
+- Wraps existing `@requires_auth`
+- Checks if `user.get('admin', False) == True`
+- Returns 403 Forbidden if not admin
+- Allows function to proceed if admin
+
+### 2. New `api_admin.py` Blueprint
+Create new API blueprint for admin-only endpoints:
+- URL prefix: `/api/admin`
+- All routes require `@requires_admin` decorator
+
+**Admin Support Ticket Endpoints:**
+- `GET /api/admin/tickets` - Get ALL tickets across all projects
+  - Query params: `status` (filter by open/in_progress/resolved/closed), `user_id`, `project_id`
+  - Returns list of tickets with user info, project info, ticket details
+  - Sorted by created_at descending (newest first)
+
+- `GET /api/admin/ticket/{ticket_id}` - Get full ticket details
+  - Returns ticket with all messages and context (user email, project name)
+
+- `POST /api/admin/ticket/{ticket_id}/reply` - Admin reply to ticket
+  - Accepts: `message` in request body
+  - Validation: 10-2000 characters
+  - Adds message with `sender='admin'`, `sender_id=admin_user_email`
+  - Automatically updates ticket status to 'in_progress' if currently 'open'
+  - Returns updated ticket
+
+- `PATCH /api/admin/ticket/{ticket_id}/status` - Update ticket status
+  - Accepts: `status` (open/in_progress/resolved/closed)
+  - Updates ticket status
+  - Returns updated ticket
+
+**Admin Project Management Endpoints:**
+- `GET /api/admin/projects` - Get ALL projects
+  - Query params: `user_id`, `status`, `search` (search by filename or user email)
+  - Returns list with user info, project details
+  - Sorted by created_at descending
+
+- `GET /api/admin/project/{project_id}` - Get specific project details
+  - Returns full project metadata:
+    - Project ID, user email, upload filename, template, status, created_at
+    - List of all files in project directory with metadata:
+      - filename, size, last_modified, file_type
+  - Returns list of actual files found in the project directory
+
+- `GET /api/admin/project/{project_id}/files` - List all files in project directory
+  - Returns array of files with metadata:
+    - `filename`, `size`, `last_modified`, `path`
+  - Scans actual directory to get real file list
+
+- `GET /api/admin/project/{project_id}/file/{filename}` - Download specific file
+  - Downloads individual file from project directory
+  - Supports any file: .docx, .tex, .pdf, preview_*.pdf, etc.
+  - Returns file with appropriate mimetype
+
+- `POST /api/admin/project/{project_id}/file` - Upload file to project
+  - Accepts: `file` (multipart/form-data), `filename` (optional override)
+  - Uploads file to project directory with specified filename
+  - If filename not specified, uses uploaded file's name
+  - Returns success with file info
+
+- `DELETE /api/admin/project/{project_id}/file/{filename}` - Delete specific file
+  - Deletes individual file from project directory
+  - Does NOT delete project from database
+  - Returns success confirmation
+  - **Security: Cannot delete if it's the last file in project**
+
+- `GET /api/admin/project/{project_id}/archive` - Download project as ZIP
+  - Creates temporary ZIP file containing ALL files in project directory
+  - Returns ZIP file for download
+  - Cleanup temporary ZIP after sending
+
+- `DELETE /api/admin/project/{project_id}` - Delete entire project
+  - Deletes project from database
+  - Deletes entire project directory and all files
+  - Returns success confirmation
+  - **Security: Requires confirmation, logs admin action**
+
+- `GET /api/admin/user/{user_id}/export` - Export user data (GDPR compliance)
+  - Exports all user data as JSON:
+    - User account info
+    - All projects
+    - All support tickets
+  - Returns JSON file
+  - Logs export action
+
+### 3. Admin Action Logging (Optional but Recommended)
+Create simple logging for admin actions:
+- New `AdminLog` class in `database.py` (optional)
+- Log: admin_id, action (reply_ticket, delete_project, etc.), target_id, timestamp
+- Or use Python logging to file
+
+## Frontend Implementation
+
+### 1. New Directory Structure
+```
+frontend/src/components/admin/
+  AdminSupportPage.tsx
+  AdminSupportPage.css
+  AdminProjectsPage.tsx
+  AdminProjectsPage.css
+  AdminProjectDetailPage.tsx
+  AdminProjectDetailPage.css
+```
+
+### 2. Authentication Flow
+**No separate admin login page** - Use existing sign-in flow:
+- User logs in through normal `/signin` page
+- Backend returns user object with `admin` field
+- Frontend checks if `admin=True`:
+  - If admin: Show admin navigation options or redirect to `/admin/support`
+  - If not admin: Normal user flow
+- Store admin status in localStorage/auth context
+- Admin routes protected on frontend (redirect to `/signin` if not admin)
+
+### 3. Admin Support Page (`/admin/support`)
+**Layout:**
+- Header: "Support Tickets Management"
+- Filter bar: Status dropdown (All/Open/In Progress/Resolved/Closed), Search by user/project
+- Tickets list: Table or card view
+  - Columns: Subject, User, Project, Status, Created Date, Last Updated
+  - Click row to expand/navigate to detail view
+
+**Ticket Detail View (Expanded or Separate Section):**
+- Full ticket information:
+  - Subject, Status, User email, Project name
+  - Full message history (user and admin messages)
+  - Message bubbles: User (left), Admin (right)
+
+**Admin Reply Section:**
+- Text area for admin response (10-2000 chars)
+- Character counter
+- Send Reply button
+- Status change dropdown (Open → In Progress → Resolved → Closed)
+- Update Status button (separate or combined with reply)
+
+**Features:**
+- Real-time status badge color coding
+- Filter tickets by status
+- Search/filter by user email or project name
+- Empty state: "No tickets match your filters"
+
+### 4. Admin Projects Page (`/admin/projects`)
+**Layout:**
+- Header: "Project Management"
+- Search bar: Search by user email or filename
+- Filter dropdowns: Status, User
+- Projects table:
+  - Columns: Project ID, User Email, Filename, Template, Status, Created Date, Actions
+  - Actions column: View Details, Download Archive, Delete Project
+
+**Actions:**
+- **View Details**: Navigate to `/admin/projects/{project_id}` - Individual project file management page
+- **Download Archive**: Download entire project as ZIP (all files)
+- **Delete Project**:
+  - Confirmation modal: "Are you sure? This will delete all files and cannot be undone."
+  - On confirm: Delete entire project and all files
+  - Show success/error message
+
+**Features:**
+- Pagination (if many projects)
+- Sort by any column (clicking column headers)
+- Search functionality (filters table in real-time)
+- Empty state: "No projects found"
+
+### 5. Admin Project Detail Page (`/admin/projects/{project_id}`)
+**Layout:**
+- Header: "Project Details: {project_id}"
+- Back button: Return to projects list
+
+**Project Metadata Section:**
+- Display project information:
+  - Project ID
+  - User Email
+  - Upload Filename
+  - Template
+  - Status
+  - Created Date
+
+**Files Management Section:**
+- Header: "Project Files"
+- Files table:
+  - Columns: Filename, Size, Last Modified, Actions
+  - Actions: Download, Delete
+- Upload file section:
+  - File input
+  - Optional filename override input
+  - Upload button
+
+**File Actions:**
+- **Download**: Download specific file from project
+- **Delete**:
+  - Confirmation: "Delete {filename}?"
+  - On confirm: Delete file (keeps project in database)
+  - Cannot delete if it's the last file
+- **Upload**:
+  - Select file to upload
+  - Optionally specify custom filename
+  - Upload to project directory
+  - Refresh file list after upload
+
+**Features:**
+- Real-time file list (refreshes after upload/delete)
+- File size formatting (KB, MB)
+- File type icons/indicators
+- Empty state: "No files in this project"
+- Success/error messages for all operations
+
+### 6. Admin Layout Component (Optional)
+Create `AdminLayout.tsx`:
+- Shared layout for all admin pages
+- Navigation bar with links: Support | Projects
+- Logout button
+- Shows admin username
+- Could add breadcrumbs
+
+### 7. Route Updates in `App.tsx`
+Add admin routes:
+```tsx
+<Route path="/admin/support" element={<AdminSupportPage />} />
+<Route path="/admin/projects" element={<AdminProjectsPage />} />
+<Route path="/admin/projects/:projectId" element={<AdminProjectDetailPage />} />
+```
+
+Add route protection:
+- Check if user is admin before rendering admin pages
+- Redirect to `/signin` if not authenticated or not admin
+
+## Files to Create
+
+### Backend
+1. `backend/api_admin.py` - New blueprint for admin routes
+2. Update `backend/api_auth.py` - Add `@requires_admin` decorator
+3. Update `backend/app.py` - Register admin blueprint
+
+### Frontend
+1. `frontend/src/components/admin/AdminSupportPage.tsx`
+2. `frontend/src/components/admin/AdminSupportPage.css`
+3. `frontend/src/components/admin/AdminProjectsPage.tsx`
+4. `frontend/src/components/admin/AdminProjectsPage.css`
+5. `frontend/src/components/admin/AdminProjectDetailPage.tsx`
+6. `frontend/src/components/admin/AdminProjectDetailPage.css`
+7. Update `frontend/src/App.tsx` - Add admin routes
+
+## Implementation Order
+
+### Phase 1: Authentication Setup
+1. Create `@requires_admin` decorator
+2. Create `api_admin.py` blueprint with basic structure
+3. Register blueprint in app.py
+4. Test with simple endpoint
+
+### Phase 2: Admin Support Page (Priority)
+1. Create admin support ticket endpoints
+2. Create AdminSupportPage.tsx component
+3. Implement ticket list view
+4. Implement ticket detail/reply functionality
+5. Add status change capability
+6. Test full admin support workflow
+
+### Phase 3: Admin Projects List Page
+1. Create admin project list endpoints (GET /api/admin/projects)
+2. Create AdminProjectsPage.tsx component
+3. Implement projects table with search/filter
+4. Implement download archive functionality
+5. Implement delete project with confirmation
+6. Test project listing workflow
+
+### Phase 4: Admin Project Detail Page
+1. Create project detail/file management endpoints:
+   - GET /api/admin/project/{project_id}
+   - GET /api/admin/project/{project_id}/files
+   - GET /api/admin/project/{project_id}/file/{filename}
+   - POST /api/admin/project/{project_id}/file
+   - DELETE /api/admin/project/{project_id}/file/{filename}
+2. Create AdminProjectDetailPage.tsx component
+3. Implement project metadata display
+4. Implement file list table
+5. Implement file download/delete functionality
+6. Implement file upload functionality
+7. Test full file management workflow
+
+## Security Considerations
+- All admin routes protected with `@requires_admin` on backend
+- Never trust frontend admin status - always verify on server
+- Log all destructive admin actions (deletes)
+- Consider adding confirmation for destructive operations
+- Rate limiting on admin endpoints (prevent abuse)
+
+## Expected Behavior After Implementation
+
+### Admin Login
+1. Admin logs in through normal `/signin` page
+2. Backend returns user object with `admin=True`
+3. Frontend detects admin status
+4. Admin sees admin navigation options
+5. Can navigate to `/admin/support` or `/admin/projects`
+
+### Admin Support Workflow
+1. Admin views all tickets across all projects
+2. Can filter by status, user, project
+3. Clicks on ticket to expand
+4. Sees full conversation history
+5. Types reply in text area
+6. Clicks "Send Reply" - adds admin message
+7. Can change ticket status (open → in_progress → resolved → closed)
+8. User sees admin reply on their support page
+
+### Admin Projects List Workflow
+1. Admin navigates to `/admin/projects`
+2. Views all projects in table
+3. Can search by user email or filename
+4. Can filter by status or user
+5. Can download project as ZIP archive
+6. Can delete entire project (with confirmation)
+7. Clicks "View Details" to see individual project
+
+### Admin Project Detail Workflow
+1. Admin clicks "View Details" on a project
+2. Navigates to `/admin/projects/{project_id}`
+3. Sees project metadata (ID, user, template, status, etc.)
+4. Sees list of all files in project directory
+5. Can download individual files
+6. Can delete individual files (with confirmation, cannot delete last file)
+7. Can upload new files to project directory
+8. Can specify custom filename when uploading
+9. Changes reflect immediately for users
