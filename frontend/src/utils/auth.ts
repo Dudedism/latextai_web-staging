@@ -32,6 +32,11 @@ export const isAnonymousUser = (): boolean => {
   return user !== null && user.email.endsWith('@anonymous.user');
 };
 
+export const isAdmin = (): boolean => {
+  const user = getAuthenticatedUser();
+  return user !== null && user.isAdmin === true;
+};
+
 export const getAnonymousKey = (): string | null => {
   return localStorage.getItem('anonymousKey');
 };

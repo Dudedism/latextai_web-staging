@@ -16,7 +16,6 @@ const NewPaperPage: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [previewContent, setPreviewContent] = useState('');
 
   const user = getAuthenticatedUser();
   const authenticated = isAuthenticated();

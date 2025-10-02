@@ -81,8 +81,8 @@ const YourPapersPage: React.FC = () => {
     }
   };
 
-  const handleSend = (paperId: string) => {
-    console.log('Send paper:', paperId);
+  const handleSupport = (paperId: string) => {
+    navigate(`/papers/${paperId}/support`);
   };
 
   const handleNewPaper = () => {
@@ -168,11 +168,12 @@ const YourPapersPage: React.FC = () => {
                     <path d="M3 17H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
                 </button>
-                <button className="action-btn send-btn" onClick={() => handleSend(paper.id)}>
-                  Send
+                <button className="action-btn support-btn" onClick={() => handleSupport(paper.id)}>
+                  Support
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M3 10L7 7V9.5H11V10.5H7V13L3 10Z" fill="currentColor" transform="rotate(-45 10 10)"/>
-                    <path d="M2 10L18 3L11 10L18 17L2 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                    <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M10 14V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <circle cx="10" cy="7" r="0.5" stroke="currentColor" strokeWidth="1.5"/>
                   </svg>
                 </button>
               </div>

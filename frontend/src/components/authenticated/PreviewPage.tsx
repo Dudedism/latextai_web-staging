@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
@@ -7,10 +7,10 @@ import '../../styles/common.css';
 import './PreviewPage.css';
 
 const PreviewPage: React.FC = () => {
-  const [satisfied, setSatisfied] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const { id: paperId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   const user = getAuthenticatedUser();
   const authenticated = isAuthenticated();
@@ -53,14 +53,59 @@ const PreviewPage: React.FC = () => {
     };
   }, [pdfUrl]);
 
-  const handleSatisfiedClick = (value: boolean) => {
-    setSatisfied(value);
-    if (value) {
-      // If satisfied, could navigate to payment or download
-      console.log('User is satisfied with formatting');
-    } else {
-      // If not satisfied, could offer options to reprocess
-      console.log('User wants to try different formatting');
+  const handleGoToSupport = () => {
+    navigate(`/papers/${paperId}/support`);
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `paper_${paperId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+    }
+  };
+
+  const handleDownloadTex = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/tex`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `paper_${paperId}.tex`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else if (response.status === 403) {
+        alert('Please sign up to download LaTeX files');
+      }
+    } catch (error) {
+      console.error('Error downloading TeX:', error);
     }
   };
 
@@ -70,10 +115,9 @@ const PreviewPage: React.FC = () => {
       
       <section className="preview-main-section">
         <div className="preview-container">
-        <div className="preview-content">
-          <div className="preview-document">
+          <div className="preview-document-wrapper">
             {loading ? (
-              <p>Loading PDF...</p>
+              <p className="loading-text">Loading PDF...</p>
             ) : pdfUrl ? (
               <iframe
                 src={pdfUrl}
@@ -83,33 +127,50 @@ const PreviewPage: React.FC = () => {
                 title="PDF Preview"
               />
             ) : (
-              <p>Failed to load PDF</p>
+              <p className="error-text">Failed to load PDF</p>
             )}
           </div>
 
-          <div className="preview-sidebar">
-            <h2 className="sidebar-title">See your first 3 pages free</h2>
-            
-            <div className="satisfaction-section">
-              <p className="satisfaction-question">
-                Are you happy with the quality of this formatting?
-              </p>
-              <div className="satisfaction-buttons">
-                <button
-                  className={`satisfaction-btn ${satisfied === true ? 'active' : ''}`}
-                  onClick={() => handleSatisfiedClick(true)}
-                >
-                  Yes ✓
+          {/* Quality Feedback Section */}
+          <div className="feedback-section">
+            <p className="feedback-question">
+              Are you happy with the quality of this formatting?
+            </p>
+            <p className="feedback-subtext">
+              If not: submit a support ticket
+            </p>
+            <button className="support-btn" onClick={handleGoToSupport}>
+              Go to Support
+            </button>
+          </div>
+
+          {/* Download Section */}
+          <div className="download-sections">
+            {/* Download Box 1: PDF and TeX */}
+            <div className="download-box">
+              <h3>Download as a .pdf or .tex here!</h3>
+              <div className="download-buttons">
+                <button className="download-btn pdf-btn" onClick={handleDownloadPdf}>
+                  Download PDF
                 </button>
-                <button
-                  className={`satisfaction-btn ${satisfied === false ? 'active' : ''}`}
-                  onClick={() => handleSatisfiedClick(false)}
-                >
-                  No ✗
+                <button className="download-btn tex-btn" onClick={handleDownloadTex}>
+                  Download .tex
                 </button>
               </div>
             </div>
-          </div>
+
+            {/* Download Box 2: Package Download */}
+            <div className="download-box package-box">
+              <h3>Full Package Download</h3>
+              <p className="package-description">
+                Your download includes the main .tex file, bibliography file (.bib),
+                all extracted images in appropriate formats, pdf, and a README with
+                compilation instructions.
+              </p>
+              <button className="download-btn package-btn" disabled>
+                Download Full Package (Coming Soon)
+              </button>
+            </div>
           </div>
         </div>
       </section>
