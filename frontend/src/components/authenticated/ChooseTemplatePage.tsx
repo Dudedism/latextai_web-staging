@@ -26,13 +26,13 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
 
   const templates: Template[] = [
     { id: '1', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '2', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '3', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '4', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '5', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '6', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '7', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '8', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
+    { id: '2', name: 'The Lancet', publisher: 'the lancet', year: '2025', thumbnail: '/lancet.svg' },
+    { id: '3', name: 'Springer Journal', publisher: 'springer', year: '2025', thumbnail: '/springer.svg' },
+    { id: '4', name: 'Elsevier Journal', publisher: 'elsevier', year: '2025', thumbnail: '/elsevier.svg' },
+    { id: '5', name: 'IEEE Transactions', publisher: 'ieee', year: '2025', thumbnail: '/ieee.svg' },
+    { id: '6', name: 'Nature Physics', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
+    { id: '7', name: 'Lancet Oncology', publisher: 'the lancet', year: '2025', thumbnail: '/lancet.svg' },
+    { id: '8', name: 'Springer Mathematics', publisher: 'springer', year: '2025', thumbnail: '/springer.svg' },
   ];
 
   const handleTemplateClick = (templateId: string) => {

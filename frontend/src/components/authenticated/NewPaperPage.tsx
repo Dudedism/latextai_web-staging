@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
 import '../../styles/common.css';
 import './NewPaperPage.css';
 
@@ -83,9 +83,48 @@ something.wordx`);
     setUploadState('template');
   };
 
-  const handleTemplateSelect = (template: string) => {
-    // Navigate to processing page with the selected template
-    navigate('/papers/processing', { state: { template, file: uploadedFile } });
+  const handleTemplateSelect = async (templateId: string) => {
+    // Map template IDs to template names
+    const templateMap: { [key: string]: string } = {
+      '1': 'nature',
+      '2': 'the lancet',
+      '3': 'springer',
+      '4': 'elsevier',
+      '5': 'ieee',
+      '6': 'nature',
+      '7': 'the lancet',
+      '8': 'springer'
+    };
+
+    const template = templateMap[templateId] || 'nature';
+
+    // Upload file with selected template
+    if (uploadedFile) {
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadedFile);
+        formData.append('template', template);
+
+        const token = getToken();
+        const response = await fetch('http://localhost:8000/api/latex/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Navigate to preview page with the project ID
+          navigate(`/papers/${data.project_id}/view`);
+        } else {
+          console.error('Failed to upload file');
+        }
+      } catch (error) {
+        console.error('Error uploading file:', error);
+      }
+    }
   };
 
   if (uploadState === 'template') {

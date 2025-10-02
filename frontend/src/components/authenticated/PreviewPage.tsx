@@ -1,16 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
 import '../../styles/common.css';
 import './PreviewPage.css';
 
 const PreviewPage: React.FC = () => {
   const [satisfied, setSatisfied] = useState<boolean | null>(null);
-  const [currentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const { id: paperId } = useParams<{ id: string }>();
 
   const user = getAuthenticatedUser();
   const authenticated = isAuthenticated();
+
+  useEffect(() => {
+    if (paperId) {
+      fetchPdf();
+    }
+  }, [paperId]);
+
+  const fetchPdf = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPdfUrl(url);
+      } else {
+        console.error('Failed to fetch PDF');
+      }
+    } catch (error) {
+      console.error('Error fetching PDF:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Cleanup blob URL on unmount
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
 
   const handleSatisfiedClick = (value: boolean) => {
     setSatisfied(value);
@@ -31,39 +72,19 @@ const PreviewPage: React.FC = () => {
         <div className="preview-container">
         <div className="preview-content">
           <div className="preview-document">
-            <div className="document-header">
-              <img src="/nature.svg" alt="Nature" className="journal-logo" />
-              <span className="journal-name">nature</span>
-              <span className="journal-subtitle">Manuscript formatting</span>
-            </div>
-            
-            <div className="document-body">
-              <div className="document-text">
-                <p className="document-paragraph">
-                  This guide describes how to prepare contributions for submission. We recommend you read this in full if you have not previously submitted a contribution to Nature. We also recommend that authors refer to the full author instruction prior to submission.
-                </p>
-
-                <h2 className="section-title">Format of Articles and letters</h2>
-                
-                <p className="document-paragraph">
-                  <strong>Articles</strong> are original reports whose conclusions represent a substantial advance in the understanding of an important problem and have immediate, far-reaching implications. They are typically 3,000 words of main text (not including Methods, references and figure legends). Articles have a separate summary of up to 150 words, which has no references, and does not contain citations to numbered references in the main text, and up to six display items (figures and/or tables). Typically Articles includes received/accepted dates.
-                </p>
-
-                <p className="document-paragraph">
-                  Articles have a summary separate of 150-200 words, which is aimed at readers outside the discipline. This summary contains a paragraph (2-3 sentences) of basic-level introduction to the field, a brief account of the background and rationale of the work, followed by a statement of the main conclusions (introduced by the phrase 'Here we show' or its equivalent) and finally, 2-3 sentences putting the main findings into general context so it is clear how the results described in the paper have moved the field forwards. Please refer to our annotated example to see how to structure the summary paragraph.
-                </p>
-
-                <h2 className="section-title">Format of articles and letters</h2>
-                
-                <p className="document-paragraph">
-                  Contributors may suggest particularly suitable independent referees when they submit their manuscript, but must give contact details of the proposed reviewer. They are confident notes that are by other departments on the essential aspects and published in the editors' discretion. Correspondence intended for publication in Nature must be submitted exclusively via the journal's online submission system.
-                </p>
-              </div>
-              
-              <div className="page-indicator">
-                Page {currentPage}
-              </div>
-            </div>
+            {loading ? (
+              <p>Loading PDF...</p>
+            ) : pdfUrl ? (
+              <iframe
+                src={pdfUrl}
+                width="100%"
+                height="800px"
+                style={{ border: 'none' }}
+                title="PDF Preview"
+              />
+            ) : (
+              <p>Failed to load PDF</p>
+            )}
           </div>
 
           <div className="preview-sidebar">

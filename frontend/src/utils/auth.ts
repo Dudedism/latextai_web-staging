@@ -36,6 +36,10 @@ export const getAnonymousKey = (): string | null => {
   return localStorage.getItem('anonymousKey');
 };
 
+export const getToken = (): string | null => {
+  return localStorage.getItem('token');
+};
+
 export const logout = (): void => {
   localStorage.removeItem('token');
   localStorage.removeItem('userEmail');
@@ -86,7 +90,7 @@ export const anonSpawn = async (): Promise<boolean> => {
       // Store anonymous token
       localStorage.setItem('token', data.token);
       localStorage.setItem('userEmail', `${anonymousKey}@anonymous.user`);
-      localStorage.setItem('userName', 'Anonymous');
+      localStorage.setItem('userName', data.name || 'Anonymous');
       localStorage.setItem('isAdmin', 'false');
       return true;
     } else {

@@ -81,7 +81,44 @@ class User(BaseModel):
     @classmethod
     def update_password(cls, email, password_hash):
         result = mongo.db[cls.collection_name].update_one(
-            {'email': email}, 
+            {'email': email},
             {'$set': {'password': password_hash}}
+        )
+        return result.modified_count > 0
+
+class Project(BaseModel):
+    collection_name = 'projects'
+
+    def __init__(self, tex_filename=None, upload_filename=None, pdf_filename=None,
+                 user_id=None, status='unconverted', project_id=None, template='nature', **kwargs):
+        super().__init__(
+            tex_filename=tex_filename,
+            upload_filename=upload_filename,
+            pdf_filename=pdf_filename,
+            user_id=user_id,
+            status=status,
+            project_id=project_id,
+            template=template,
+            created_at=datetime.utcnow(),
+            **kwargs
+        )
+
+    @classmethod
+    def find_by_user(cls, user_id):
+        """Find all projects for a specific user"""
+        return cls.find_all({'user_id': user_id})
+
+    @classmethod
+    def find_by_id(cls, project_id):
+        """Find a project by its project_id"""
+        project = cls()
+        return project.find({'project_id': project_id})
+
+    def update_status(self, new_status):
+        """Update the status of a project"""
+        self.data['status'] = new_status
+        result = mongo.db[self.collection_name].update_one(
+            {'project_id': self.data['project_id']},
+            {'$set': {'status': new_status}}
         )
         return result.modified_count > 0
