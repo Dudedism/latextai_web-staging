@@ -101,6 +101,20 @@
   transition: stroke-dashoffset 0.5s ease;
 }
 
+/* Spinning animation for the progress ring */
+.progress-ring.spinning {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .processing-text {
   text-align: center;
   z-index: 1;

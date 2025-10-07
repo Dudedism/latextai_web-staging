@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Banner from './Banner';
-import Footer from './Footer';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import '../../styles/common.css';
 import './AccountPage.css';
 
 interface AccountPageProps {
@@ -10,11 +11,13 @@ interface AccountPageProps {
   userEmail?: string;
 }
 
-const AccountPage: React.FC<AccountPageProps> = ({ 
-  userName = localStorage.getItem('userName') || 'User', 
+const AccountPage: React.FC<AccountPageProps> = ({
+  userName = localStorage.getItem('userName') || 'User',
   userEmail = localStorage.getItem('userEmail') || 'user@example.com' 
 }) => {
   const navigate = useNavigate();
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
   const hasAnonymousKey = localStorage.getItem('anonymousKey') !== null;
 
   useEffect(() => {
@@ -38,7 +41,7 @@ const AccountPage: React.FC<AccountPageProps> = ({
 
   return (
     <div className="account-page">
-      <Banner isAuthenticated={true} userName={userName} />
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
       
       <section className="account-main-section">
         <div className="account-container">

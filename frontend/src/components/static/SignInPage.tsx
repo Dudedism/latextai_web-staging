@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import Banner from './Banner';
-import Footer from './Footer';
-import { getAuthenticatedUser, isAuthenticated, getAnonymousKey, isAnonymousUser } from '../utils/auth';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated, getAnonymousKey, isAnonymousUser } from '../../utils/auth';
+import '../../styles/common.css';
 import './SignInPage.css';
 
 type AuthMode = 'signin' | 'signup';

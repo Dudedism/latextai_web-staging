@@ -1,0 +1,19 @@
+# MongoDB Configuration
+MONGO_URI=mongodb://admin:password123@localhost:27017/latext_db?authSource=admin
+
+# Security
+SECRET_KEY=your-super-secret-jwt-key-change-in-production
+JWT_EXP_DELTA_SECONDS=3600
+
+# Email Configuration (for verification emails)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=your-email@gmail.com
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=your-google-client-id
+
+# File uploads
+ADMIN_IMAGES_DIR=./images

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import Banner from './Banner';
-import Footer from './Footer';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import '../../styles/common.css';
 import './ChooseTemplatePage.css';
 
 interface Template {
@@ -20,15 +21,18 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
+  const user = getAuthenticatedUser();
+  const authenticated = isAuthenticated();
+
   const templates: Template[] = [
     { id: '1', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '2', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '3', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '4', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '5', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '6', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '7', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '8', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
+    { id: '2', name: 'The Lancet', publisher: 'the lancet', year: '2025', thumbnail: '/lancet.svg' },
+    { id: '3', name: 'Springer Journal', publisher: 'springer', year: '2025', thumbnail: '/springer.svg' },
+    { id: '4', name: 'Elsevier Journal', publisher: 'elsevier', year: '2025', thumbnail: '/elsevier.svg' },
+    { id: '5', name: 'IEEE Transactions', publisher: 'ieee', year: '2025', thumbnail: '/ieee.svg' },
+    { id: '6', name: 'Nature Physics', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
+    { id: '7', name: 'Lancet Oncology', publisher: 'the lancet', year: '2025', thumbnail: '/lancet.svg' },
+    { id: '8', name: 'Springer Mathematics', publisher: 'springer', year: '2025', thumbnail: '/springer.svg' },
   ];
 
   const handleTemplateClick = (templateId: string) => {
@@ -40,16 +44,16 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
 
   return (
     <div className="choose-template-page">
-      <Banner isAuthenticated={true} />
+      <Banner isAuthenticated={authenticated} userName={user?.name} />
       
       <section className="template-main-section">
         <div className="template-container">
         <div className="template-progress">
-          <div className="progress-step">Upload</div>
+          <div className="progress-step">File</div>
           <div className="progress-arrow">→</div>
           <div className="progress-step active">Template</div>
           <div className="progress-arrow">→</div>
-          <div className="progress-step">Preview</div>
+          <div className="progress-step">Upload</div>
         </div>
 
         <h1 className="page-title">Choose Your Template</h1>

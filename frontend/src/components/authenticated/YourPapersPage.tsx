@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Banner from './Banner';
-import Footer from './Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../utils/auth';
-import '../styles/common.css';
+import Banner from '../Banner';
+import Footer from '../Footer';
+import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
+import '../../styles/common.css';
 import './YourPapersPage.css';
 
 interface Paper {
@@ -18,47 +18,71 @@ interface Paper {
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const user = getAuthenticatedUser();
   const authenticated = isAuthenticated();
-  
-  const papers: Paper[] = [
-    {
-      id: '1',
-      title: 'Extroversion In North American Chimpanzees',
-      date: '01/05/25',
-      template: 'Nature Communications',
-      thumbnail: '/nature.svg',
-      status: 'completed'
-    },
-    {
-      id: '2',
-      title: 'Extroversion In North American Chimpanzees',
-      date: '01/05/25',
-      template: 'Nature Communications',
-      thumbnail: '/nature.svg',
-      status: 'completed'
-    },
-    {
-      id: '3',
-      title: 'Extroversion In North American Chimpanzees',
-      date: '01/05/25',
-      template: 'Nature Communications',
-      thumbnail: '/nature.svg',
-      status: 'completed'
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch('http://localhost:8000/api/latex/projects', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPapers(data);
+      } else {
+        console.error('Failed to fetch projects');
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const handleView = (paperId: string) => {
     navigate(`/papers/${paperId}/view`);
   };
 
-  const handleDownload = (paperId: string) => {
-    console.log('Download paper:', paperId);
+  const handleDownload = async (paperId: string) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/tex`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `document.tex`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        console.error('Failed to download .tex file');
+      }
+    } catch (error) {
+      console.error('Error downloading .tex file:', error);
+    }
   };
 
-  const handleSend = (paperId: string) => {
-    console.log('Send paper:', paperId);
+  const handleSupport = (paperId: string) => {
+    navigate(`/papers/${paperId}/support`);
   };
 
   const handleNewPaper = () => {
@@ -95,7 +119,17 @@ const YourPapersPage: React.FC = () => {
         </div>
 
         <div className="papers-list">
-          {papers.map((paper) => (
+          {loading ? (
+            <p>Loading projects...</p>
+          ) : papers.length === 0 ? (
+            <div className="no-papers">
+              <p>You don't have any papers yet.</p>
+              <button className="new-paper-btn" onClick={handleNewPaper}>
+                Upload Your First Paper
+              </button>
+            </div>
+          ) : (
+            papers.map((paper) => (
             <div key={paper.id} className="paper-card">
               <div className="paper-thumbnail">
                 <img src={paper.thumbnail} alt={paper.template} />
@@ -134,16 +168,18 @@ const YourPapersPage: React.FC = () => {
                     <path d="M3 17H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
                 </button>
-                <button className="action-btn send-btn" onClick={() => handleSend(paper.id)}>
-                  Send
+                <button className="action-btn support-btn" onClick={() => handleSupport(paper.id)}>
+                  Support
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M3 10L7 7V9.5H11V10.5H7V13L3 10Z" fill="currentColor" transform="rotate(-45 10 10)"/>
-                    <path d="M2 10L18 3L11 10L18 17L2 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                    <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M10 14V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <circle cx="10" cy="7" r="0.5" stroke="currentColor" strokeWidth="1.5"/>
                   </svg>
                 </button>
               </div>
             </div>
-          ))}
+          ))
+          )}
           </div>
         </div>
       </section>

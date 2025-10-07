@@ -78,7 +78,7 @@ def _process_token(data):
     if payload is None:
         return None, None
     email = payload['email']
-    user = User(email=email).find()  # get the user who made the verified request
+    user = User.find_by_email(email)  # Use find_by_email to avoid default values issue
     return payload, user
 
 def _authenticate(data, require_admin=False):
@@ -137,6 +137,12 @@ def requires_auth(func=None, require_admin=False, use_form=False):
         return func(*args, **kwargs, **extra_params)
 
     return function_wrapper
+
+def requires_admin(func):
+    """
+    Decorator for admin-only endpoints. This is a convenience wrapper around requires_auth.
+    """
+    return requires_auth(func, require_admin=True)
 
 @api_auth.route('/signup', methods=['POST'])
 def signup():
@@ -243,16 +249,18 @@ def login():
 @api_auth.route('/loginAnonymously', methods=['POST'])
 def login_anonymously():
     data = request.get_json()
-    name = 'anonymous'
+    name = 'Anonymous'
     email = data['key'] + '@anonymous.user'
+    # Password doesn't matter for anonymous users - just use the key as-is
     password = data['key']
 
-    user = User(email=email).find()
+    user = User.find_by_email(email)
     if not user:
-        User(name=name, email=email, password=password).insert()
+        # Anonymous users are unverified by definition
+        User(name=name, email=email, password=password, is_verified=False, admin=False).insert()
 
     jwt_token = _make_jwt(email)
-    return jsonify({'message': 'Logged in anonymously!', 'token': jwt_token}), 200
+    return jsonify({'message': 'Logged in anonymously!', 'token': jwt_token, 'name': name}), 200
 
 @api_auth.route('/loginGoogle', methods=['POST'])
 def login_google():

@@ -4,6 +4,7 @@ from flask_cors import CORS
 from api_admin import api_admin
 from api_anon import api_anon
 from api_auth import api_auth
+from api_latext import api_latext
 from api_user import api_user
 from config import *
 from database import mongo
@@ -21,6 +22,7 @@ app.register_blueprint(api_user)
 app.register_blueprint(api_anon)
 app.register_blueprint(api_admin)
 app.register_blueprint(api_auth)
+app.register_blueprint(api_latext)
 
 limiter.init_app(app)
 mongo.init_app(app)

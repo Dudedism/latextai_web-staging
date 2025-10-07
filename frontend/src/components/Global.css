@@ -1,0 +1,64 @@
+/* --- Load Roboto (400, 500, 700) --- */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+/* ----------------- TOKENS ----------------- */
+:root {
+  /* Font family token */
+  --font-sans: 'Roboto', 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande',
+               'Lucida Sans Unicode', Geneva, Verdana, system-ui, -apple-system,
+               'Segoe UI', Arial, sans-serif;
+
+  /* Font sizes / weights / line-height */
+  --fs-body: 1rem;          /* 16px */
+  --fs-h1:   2.5rem;        /* 40px */
+  --fs-h2:   2rem;          /* 32px */
+  --fs-h3:   1.5rem;        /* 24px */
+  --fs-h4:   1.25rem;       /* 20px */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-bold:    700;
+  --lh-normal:  1.5;
+  --lh-tight:   1.2;
+
+  /* Theme colors */
+  --accent: #2563eb;
+  --accent-weak: #eff6ff;
+  --ring: rgba(37,99,235,.12);
+  --text-primary: #111;
+}
+
+/* Optional dark mode (toggle with data-theme="dark" on <html> or <body>) */
+:root[data-theme="dark"] {
+  --accent: #60a5fa;
+  --accent-weak: rgba(96,165,250,.12);
+  --ring: rgba(96,165,250,.18);
+  --text-primary: #e5e7eb;
+}
+
+/* --------------- GLOBAL BASE --------------- */
+html, body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Headings use global family + sizes from tokens */
+h1, h2, h3, h4, h5, h6 { 
+  font-family: inherit;
+  margin: 0 0 0.5em 0;
+}
+
+h1 { font-size: var(--fs-h1); line-height: var(--lh-tight); font-weight: var(--fw-bold); }
+h2 { font-size: var(--fs-h2); line-height: var(--lh-tight); font-weight: var(--fw-bold); }
+h3 { font-size: var(--fs-h3); line-height: var(--lh-tight); font-weight: var(--fw-medium); }
+h4 { font-size: var(--fs-h4); line-height: var(--lh-tight); font-weight: var(--fw-medium); }
+
+/* Text elements */
+p { margin: 0 0 1em 0; }
+
+/* Ensure form controls/buttons inherit text styles */
+button, input, select, textarea {
+  font: inherit;
+}
