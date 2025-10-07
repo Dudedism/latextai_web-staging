@@ -270,7 +270,6 @@ const SupportPage: React.FC = () => {
                     placeholder="Describe your issue in detail"
                     rows={6}
                   />
-                  <span className="char-count">{newTicketMessage.length}/2000</span>
                 </div>
 
                 <div className="form-actions">
@@ -371,7 +370,6 @@ const SupportPage: React.FC = () => {
                               rows={4}
                             />
                             <div className="message-form-footer">
-                              <span className="char-count">{newMessage.length}/2000</span>
                               {messageCount >= 4 && (
                                 <span className="rate-limit-warning">
                                   {5 - messageCount} message(s) remaining this hour

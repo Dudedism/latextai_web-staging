@@ -138,6 +138,12 @@ def requires_auth(func=None, require_admin=False, use_form=False):
 
     return function_wrapper
 
+def requires_admin(func):
+    """
+    Decorator for admin-only endpoints. This is a convenience wrapper around requires_auth.
+    """
+    return requires_auth(func, require_admin=True)
+
 @api_auth.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()

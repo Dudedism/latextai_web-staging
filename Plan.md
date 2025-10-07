@@ -9,12 +9,14 @@ This file is to keep track of the to-do for this website:
 <!-- - For now, we pretend an actual signed up account is a "paid" account.
 - For "paid" accounts, full pdf view, no preview. Allow .tex download.
 - For "free" (anonymous, unverified), only first 3 pages preview. No .tex download permitted. -->
-
-- Improve preview page. Add approval buttons, pdf download button, tex download button. In the case of the approval move to status of resolved.
-- Add basic admin panel to search users, projects, update, delete, download, etc.
-
-- Add a support ticket function for paid users. Users can write a message (1000 characters) on what to change / improve. Support ticket shown if user presses not satisfied with preview.
-
+<!-- - Improve preview page. Add approval buttons, pdf download button, tex download button. In the case of the approval move to status of resolved.
+- Add basic admin panel to search users, projects, update, delete, download, etc. -->
+<!-- - Add a support ticket function for paid users. Users can write a message (1000 characters) on what to change / improve. Support ticket shown if user presses not satisfied with preview. -->
+- Create admin panel
+- Update hardcoded paths from "https://localhost:8000". So make:
+    - .env.development
+    - .env.staging
+    - .env.production
 
 - Create the actual pipeline that uses RabbitMQ + Celery, including whatever else the pipeline will use.
 
