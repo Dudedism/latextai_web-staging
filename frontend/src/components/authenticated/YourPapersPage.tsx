@@ -31,7 +31,7 @@ const YourPapersPage: React.FC = () => {
   const fetchProjects = async () => {
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:8000/api/latex/projects', {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/projects`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -57,7 +57,7 @@ const YourPapersPage: React.FC = () => {
   const handleDownload = async (paperId: string) => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/tex`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${paperId}/tex`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

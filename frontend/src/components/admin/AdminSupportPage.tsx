@@ -78,7 +78,7 @@ const AdminSupportPage: React.FC = () => {
     try {
       setLoading(true);
       const token = getToken();
-      const response = await fetch('http://localhost:8000/api/admin/tickets', {
+      const response = await fetch('${import.meta.env.VITE_BACKEND_URL}/api/admin/tickets', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -101,7 +101,7 @@ const AdminSupportPage: React.FC = () => {
   const fetchTicketDetails = async (ticketId: string) => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/admin/ticket/${ticketId}`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/ticket/${ticketId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -128,7 +128,7 @@ const AdminSupportPage: React.FC = () => {
       setError('');
       setSuccessMessage('');
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/admin/ticket/${selectedTicket.ticket_id}/reply`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/ticket/${selectedTicket.ticket_id}/reply`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -163,7 +163,7 @@ const AdminSupportPage: React.FC = () => {
       setError('');
       setSuccessMessage('');
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/admin/ticket/${selectedTicket.ticket_id}/status`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/ticket/${selectedTicket.ticket_id}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -220,7 +220,6 @@ const AdminSupportPage: React.FC = () => {
           <h2>Admin Panel</h2>
           <div className="admin-nav-links">
             <a href="/admin/support" className="active">Support Tickets</a>
-            <a href="/admin/projects">Projects</a>
           </div>
         </div>
 

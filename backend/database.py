@@ -87,6 +87,45 @@ class User(BaseModel):
         )
         return result.modified_count > 0
 
+    @classmethod
+    def store_refresh_token(cls, email, refresh_token_jti):
+        """
+        Store refresh token JTI for a user.
+        This enables token rotation and reuse detection.
+
+        Args:
+            email: User email
+            refresh_token_jti: The JTI (unique identifier) from the refresh token
+        """
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email},
+            {'$set': {'refresh_token_jti': refresh_token_jti, 'token_updated_at': datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def get_refresh_token_jti(cls, email):
+        """
+        Get the stored refresh token JTI for a user.
+        Returns None if no token is stored.
+        """
+        user = cls.find_by_email(email)
+        if user:
+            return user.get('refresh_token_jti')
+        return None
+
+    @classmethod
+    def invalidate_refresh_token(cls, email):
+        """
+        Invalidate (clear) the refresh token for a user.
+        Used when token reuse is detected or user logs out.
+        """
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email},
+            {'$unset': {'refresh_token_jti': '', 'token_updated_at': ''}}
+        )
+        return result.modified_count > 0
+
 class Project(BaseModel):
     collection_name = 'projects'
 

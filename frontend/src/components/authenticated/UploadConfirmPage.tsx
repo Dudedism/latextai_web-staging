@@ -27,7 +27,7 @@ const UploadConfirmPage: React.FC = () => {
       formData.append('template', template);
 
       const token = getToken();
-      const response = await fetch('http://localhost:8000/api/latex/upload', {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

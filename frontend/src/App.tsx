@@ -14,8 +14,6 @@ import AboutPage from './components/static/AboutPage';
 import PricingPage from './components/static/PricingPage';
 import SignInPage from './components/static/SignInPage';
 import AdminSupportPage from './components/admin/AdminSupportPage';
-import AdminProjectsPage from './components/admin/AdminProjectsPage';
-import AdminProjectDetailPage from './components/admin/AdminProjectDetailPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
 import { anonSpawn } from './utils/auth';
 import './App.css'
@@ -47,8 +45,6 @@ const AppContent = () => {
         <Route path="/signup" element={<SignInPage />} />
         {/* Admin Routes */}
         <Route path="/admin/support" element={<AdminSupportPage />} />
-        <Route path="/admin/projects" element={<AdminProjectsPage />} />
-        <Route path="/admin/projects/:projectId" element={<AdminProjectDetailPage />} />
       </Routes>
     </div>
   );
