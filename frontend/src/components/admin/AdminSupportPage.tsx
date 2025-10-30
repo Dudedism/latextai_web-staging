@@ -220,7 +220,6 @@ const AdminSupportPage: React.FC = () => {
           <h2>Admin Panel</h2>
           <div className="admin-nav-links">
             <a href="/admin/support" className="active">Support Tickets</a>
-            <a href="/admin/projects">Projects</a>
           </div>
         </div>
 
