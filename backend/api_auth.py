@@ -1,12 +1,21 @@
 import datetime
 import inspect
 import uuid
+from datetime import timedelta
 from functools import wraps, partial
 import re
 import dns.resolver
 
 import jwt
 from flask import jsonify, Blueprint, request, url_for, redirect, send_file
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt_identity,
+    get_jwt,
+    decode_token
+)
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -56,49 +65,11 @@ def send_verification_email(user_email, user_name, verify_url):
         print(f"Failed to send email: {e}")
         raise e
 
-def _make_jwt(email):
-    return jwt.encode(
-        {
-            'email': email,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=JWT_EXP_DELTA_SECONDS)
-        }, SECRET_KEY, algorithm='HS256')
-
-def _decode_jwt(token):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        return payload
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
-
-def _process_token(data):
-    token = data['token']
-    payload = _decode_jwt(token)  # verify the account for security
-    if payload is None:
-        return None, None
-    email = payload['email']
-    user = User.find_by_email(email)  # Use find_by_email to avoid default values issue
-    return payload, user
-
-def _authenticate(data, require_admin=False):
-    payload, user = _process_token(data)
-
-    if payload is None:
-        return None, (jsonify({'message': 'Invalid or expired token.'}), 401)
-
-    elif not user:
-        return None, (jsonify({'message': 'User not found.'}), 401)
-
-    elif require_admin and not user['admin']:
-        return None, (jsonify({'message': 'User not admin.'}), 403)
-
-    else:
-        return user, None
-
 def requires_auth(func=None, require_admin=False, use_form=False):
     """
-    Decorator to apply user authentication. Decorator can also provide `data` and `user` parsed from the request body.
+    Decorator to apply user authentication using Flask-JWT-Extended.
+    Decorator can also provide `data` and `user` parsed from the request body.
+
     :param func: The Flask API function to be decorated with authentication.
     :param require_admin: Optional boolean indicating whether admin access is required. Default is False.
     :param use_form: Optional boolean indicating whether to use form data. Default is False.
@@ -108,33 +79,31 @@ def requires_auth(func=None, require_admin=False, use_form=False):
         return partial(requires_auth, require_admin=require_admin, use_form=use_form)
 
     @wraps(func)
+    @jwt_required()  # Flask-JWT-Extended handles token validation
     def function_wrapper(*args, **kwargs):
+        # Get user email from JWT token
+        email = get_jwt_identity()
+        user = User.find_by_email(email)
 
-        def get_data_source():
-            """Determine the source of data"""
-            auth_header = request.headers.get('Authorization')
-            if auth_header and auth_header.startswith('Bearer '):
-                token = auth_header.split("Bearer ")[1]
-                return { 'token': token }
-            return request.form if use_form else request.get_json()
+        if not user:
+            return jsonify({'message': 'User not found.'}), 401
 
-        def prepare_extra_parameters(authenticated_user, sourced_data):
-            """Check the parameters of the decorated function and prepare a dictionary for extra parameters"""
-            params_dict = dict()
-            sig = inspect.signature(func)
-            if 'user' in sig.parameters:
-                params_dict['user'] = authenticated_user
-            if 'data' in sig.parameters:
-                params_dict['data'] = sourced_data
-            return params_dict
+        if require_admin and not user.get('admin', False):
+            return jsonify({'message': 'User not admin.'}), 403
 
-        data = get_data_source()
-        user, auth_error = _authenticate(data, require_admin)
-        if auth_error:
-            return auth_error
+        # Prepare extra parameters based on function signature
+        params_dict = dict()
+        sig = inspect.signature(func)
 
-        extra_params = prepare_extra_parameters(user, data)
-        return func(*args, **kwargs, **extra_params)
+        if 'user' in sig.parameters:
+            params_dict['user'] = user
+
+        if 'data' in sig.parameters:
+            # Get data from form or JSON
+            data = request.form if use_form else request.get_json()
+            params_dict['data'] = data
+
+        return func(*args, **kwargs, **params_dict)
 
     return function_wrapper
 
@@ -241,8 +210,23 @@ def login():
             return jsonify({'message': 'Account not verified'}), 401
         if anon_user:
             merge_account(anon_user, user)
-        jwtoken = _make_jwt(email)
-        return jsonify({'message': 'Login successful!', 'token': jwtoken, 'admin': user['admin'], 'name': user['name'] }), 200
+
+        # Create tokens with Flask-JWT-Extended (regular users get standard expiry)
+        access_token = create_access_token(identity=email, fresh=True)
+        refresh_token = create_refresh_token(identity=email)
+
+        # Store refresh token JTI in database for rotation and reuse detection
+        refresh_token_decoded = decode_token(refresh_token)
+        refresh_token_jti = refresh_token_decoded['jti']
+        User.store_refresh_token(email, refresh_token_jti)
+
+        return jsonify({
+            'message': 'Login successful!',
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'admin': user['admin'],
+            'name': user['name']
+        }), 200
     else:  # if it's not legit, error
         return jsonify({'message': 'Invalid email or password.'}), 401
 
@@ -259,8 +243,111 @@ def login_anonymously():
         # Anonymous users are unverified by definition
         User(name=name, email=email, password=password, is_verified=False, admin=False).insert()
 
-    jwt_token = _make_jwt(email)
-    return jsonify({'message': 'Logged in anonymously!', 'token': jwt_token, 'name': name}), 200
+    # Anonymous users: 1 hour access token, NEVER-expiring refresh token
+    # (they have no password to log back in!)
+    access_token = create_access_token(
+        identity=email,
+        expires_delta=timedelta(seconds=JWT_ANON_ACCESS_TOKEN_EXPIRES)
+    )
+    refresh_token = create_refresh_token(
+        identity=email,
+        expires_delta=False  # Never expires for anonymous users
+    )
+
+    # Store refresh token JTI in database for rotation and reuse detection
+    refresh_token_decoded = decode_token(refresh_token)
+    refresh_token_jti = refresh_token_decoded['jti']
+    User.store_refresh_token(email, refresh_token_jti)
+
+    return jsonify({
+        'message': 'Logged in anonymously!',
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'name': name
+    }), 200
+
+@api_auth.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    """
+    Refresh endpoint with TOKEN ROTATION and REUSE DETECTION.
+
+    Security mechanism:
+    1. Check if the refresh token JTI matches what's stored in database
+    2. If it doesn't match -> TOKEN REUSE DETECTED -> Invalidate all tokens
+    3. If it matches -> Generate new tokens and update stored JTI (rotation)
+
+    Note: Anonymous users have never-expiring refresh tokens since they
+    have no password to recover access.
+    """
+    # Get the identity and JTI from the refresh token
+    identity = get_jwt_identity()
+    current_token_jti = get_jwt()['jti']
+
+    print(f"\n🔄 Refresh request from: {identity}")
+    print(f"   Token JTI: {current_token_jti}")
+
+    # Get the stored refresh token JTI from database
+    stored_token_jti = User.get_refresh_token_jti(identity)
+    print(f"   Stored JTI: {stored_token_jti}")
+
+    # REUSE DETECTION: Check if this token was already used
+    if stored_token_jti != current_token_jti:
+        print(f"🚨 TOKEN REUSE DETECTED for {identity}!")
+        print(f"   Expected JTI: {stored_token_jti}")
+        print(f"   Received JTI: {current_token_jti}")
+        print(f"   Action: Invalidating all refresh tokens for this user")
+
+        # Invalidate all refresh tokens for this user
+        User.invalidate_refresh_token(identity)
+
+        return jsonify({
+            'error': 'Token reuse detected. All refresh tokens have been invalidated for security.',
+            'message': 'Please log in again.'
+        }), 401
+
+    # Token is valid - proceed with rotation
+    print(f"✅ Token valid - proceeding with rotation")
+
+    # Check if user is anonymous to determine expiry times
+    is_anonymous = identity.endswith('@anonymous.user')
+
+    # Generate NEW access token
+    if is_anonymous:
+        # Anonymous users get 1 hour access token
+        new_access_token = create_access_token(
+            identity=identity,
+            expires_delta=timedelta(seconds=JWT_ANON_ACCESS_TOKEN_EXPIRES),
+            fresh=False  # Refreshed tokens are not fresh
+        )
+    else:
+        # Regular users get 15 minute access token
+        new_access_token = create_access_token(
+            identity=identity,
+            fresh=False  # Refreshed tokens are not fresh
+        )
+
+    # Generate NEW refresh token (rotation)
+    if is_anonymous:
+        new_refresh_token = create_refresh_token(
+            identity=identity,
+            expires_delta=False  # Never expires for anonymous
+        )
+    else:
+        new_refresh_token = create_refresh_token(identity=identity)
+
+    # Store the NEW refresh token JTI in database
+    new_refresh_token_decoded = decode_token(new_refresh_token)
+    new_refresh_token_jti = new_refresh_token_decoded['jti']
+    User.store_refresh_token(identity, new_refresh_token_jti)
+
+    print(f"✅ Tokens rotated successfully")
+    print(f"   New Refresh JTI: {new_refresh_token_jti}")
+
+    return jsonify({
+        'access_token': new_access_token,
+        'refresh_token': new_refresh_token
+    }), 200
 
 @api_auth.route('/loginGoogle', methods=['POST'])
 def login_google():
@@ -286,11 +373,22 @@ def login_google():
             if anon_user:
                 merge_account(anon_user, existing_user)
 
-        jwtoken = _make_jwt(email)
-        return jsonify({'message': 'Login successful!',
-                        'token': jwtoken,
-                        'email': email,
-                        'admin': existing_user['admin']}), 200
+        # Create tokens with Flask-JWT-Extended
+        access_token = create_access_token(identity=email, fresh=True)
+        refresh_token = create_refresh_token(identity=email)
+
+        # Store refresh token JTI in database for rotation and reuse detection
+        refresh_token_decoded = decode_token(refresh_token)
+        refresh_token_jti = refresh_token_decoded['jti']
+        User.store_refresh_token(email, refresh_token_jti)
+
+        return jsonify({
+            'message': 'Login successful!',
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'email': email,
+            'admin': existing_user['admin']
+        }), 200
 
     except (ValueError, KeyError):
         return jsonify({'message': 'Authentication failed.'}), 401

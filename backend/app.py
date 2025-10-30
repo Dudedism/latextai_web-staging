@@ -1,5 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+from datetime import timedelta
 
 from api_admin import api_admin
 from api_anon import api_anon
@@ -13,19 +15,29 @@ app = Flask(__name__)
 
 CORS(app)
 
+# Basic Flask config
 app.config["MONGO_URI"] = MONGO_URI
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 app.config['SECRET_KEY'] = SECRET_KEY
-app.config['JWT_EXP_DELTA_SECONDS'] = JWT_EXP_DELTA_SECONDS
+
+# Flask-JWT-Extended config
+app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=JWT_ACCESS_TOKEN_EXPIRES)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(seconds=JWT_REFRESH_TOKEN_EXPIRES)
+app.config['JWT_TOKEN_LOCATION'] = ['headers']  # Accept tokens in Authorization header
+app.config['JWT_HEADER_NAME'] = 'Authorization'
+app.config['JWT_HEADER_TYPE'] = 'Bearer'
+
+# Initialize extensions
+jwt = JWTManager(app)
+limiter.init_app(app)
+mongo.init_app(app)
 
 app.register_blueprint(api_user)
 app.register_blueprint(api_anon)
 app.register_blueprint(api_admin)
 app.register_blueprint(api_auth)
 app.register_blueprint(api_latext)
-
-limiter.init_app(app)
-mongo.init_app(app)
 
 # Test MongoDB connection
 try:

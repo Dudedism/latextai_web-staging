@@ -8,8 +8,18 @@ load_dotenv()
 
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/latext_db')
 SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
-JWT_EXP_DELTA_SECONDS = int(os.getenv('JWT_EXP_DELTA_SECONDS', '3600'))
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
+
+# Flask-JWT-Extended Configuration
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
+
+# Regular users: 15 minutes access, 7 days refresh (industry standard)
+JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', '900'))  # 15 minutes
+JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', '604800'))  # 7 days
+
+# Anonymous users: 1 hour access, NEVER expires refresh (no password to recover access)
+JWT_ANON_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ANON_ACCESS_TOKEN_EXPIRES', '3600'))  # 1 hour
+JWT_ANON_REFRESH_TOKEN_EXPIRES = False  # Never expires - anonymous users can't log back in!
 
 ADMIN_IMAGES_DIR = os.getenv('ADMIN_IMAGES_DIR', './images')
 

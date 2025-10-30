@@ -2,6 +2,7 @@ Flask
 Flask-CORS
 Flask-PyMongo
 Flask-Limiter
+Flask-JWT-Extended
 PyJWT
 python-dotenv
 Werkzeug
@@ -10,3 +11,5 @@ google-auth
 google-auth-oauthlib
 itsdangerous
 PyPDF2
+pytest
+requests
