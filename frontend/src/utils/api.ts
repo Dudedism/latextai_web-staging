@@ -1,6 +1,6 @@
 import { getToken, logout } from './auth';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 /**
  * Centralized fetch wrapper that handles authentication and redirects on 401

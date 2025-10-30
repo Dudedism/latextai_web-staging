@@ -82,7 +82,7 @@ const SignInPage: React.FC = () => {
 
     try {
       const endpoint = authMode === 'signin' ? '/api/login' : '/api/signup';
-      const baseUrl = 'http://localhost:8000';
+      const baseUrl = import.meta.env.VITE_BACKEND_URL;
       
       // Check if there's an anonymous key for account merging
       const anonymousKey = getAnonymousKey();

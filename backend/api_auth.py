@@ -173,18 +173,18 @@ def verify():
 
         # Check if the user is already verified
         if user.get('is_verified', False):
-            return redirect('http://localhost:5173')  # Redirect to frontend
+            return redirect(FRONTEND_URL)  # Redirect to frontend
 
         # Update the user's is_verified status to True using the insertdate method
         User.insertdate(email, {"is_verified": True})
 
         # Return an HTML page with a JavaScript alert and a redirect
-        return '''
+        return f'''
         <html>
             <head>
                 <script type="text/javascript">
                     alert('Verification successful!');
-                    window.location.href = 'http://localhost:5173/signin';
+                    window.location.href = '{FRONTEND_URL}/signin';
                 </script>
             </head>
             <body></body>

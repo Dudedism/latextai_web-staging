@@ -56,7 +56,7 @@ const SupportPage: React.FC = () => {
       const token = getToken();
 
       // Fetch project details
-      const projectResponse = await fetch(`http://localhost:8000/api/latex/project/${projectId}`, {
+      const projectResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${projectId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -71,7 +71,7 @@ const SupportPage: React.FC = () => {
       }
 
       // Fetch tickets for this project
-      const ticketsResponse = await fetch(`http://localhost:8000/api/latex/project/${projectId}/tickets`, {
+      const ticketsResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${projectId}/tickets`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -92,7 +92,7 @@ const SupportPage: React.FC = () => {
   const fetchTicketDetails = async (ticketId: string) => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/ticket/${ticketId}`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/ticket/${ticketId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -121,7 +121,7 @@ const SupportPage: React.FC = () => {
 
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/project/${projectId}/support`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${projectId}/support`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -155,7 +155,7 @@ const SupportPage: React.FC = () => {
 
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/ticket/${selectedTicket.ticket_id}/message`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/ticket/${selectedTicket.ticket_id}/message`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

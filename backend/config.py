@@ -6,7 +6,11 @@ from flask_limiter.util import get_remote_address
 # Load environment variables from .env file
 load_dotenv()
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/latext_db')
+# Application URLs
+BACKEND_URL = os.getenv('BACKEND_URL')
+FRONTEND_URL = os.getenv('FRONTEND_URL')
+
+MONGO_URI = os.getenv('MONGO_URI')
 SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 

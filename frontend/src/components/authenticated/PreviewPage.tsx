@@ -24,7 +24,7 @@ const PreviewPage: React.FC = () => {
   const fetchPdf = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${paperId}/pdf`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -60,7 +60,7 @@ const PreviewPage: React.FC = () => {
   const handleDownloadPdf = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${paperId}/pdf`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -85,7 +85,7 @@ const PreviewPage: React.FC = () => {
   const handleDownloadTex = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:8000/api/latex/project/${paperId}/tex`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${paperId}/tex`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

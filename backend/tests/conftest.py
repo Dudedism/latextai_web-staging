@@ -8,8 +8,9 @@ that can be used across all test files.
 import pytest
 import requests
 import uuid
+import os
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv('BACKEND_URL')
 
 # Hardcoded test user credentials
 TEST_USER_NAME = "TestUser_AutomatedTests"

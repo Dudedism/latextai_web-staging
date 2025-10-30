@@ -28,7 +28,8 @@ instance/
 .webassets-cache
 
 # Environment variables
-.env
+# Note: .env files are tracked for deployment convenience
+# DO NOT put sensitive credentials in these files in production
 .venv
 env/
 venv/

@@ -81,7 +81,7 @@ export const anonSpawn = async (): Promise<boolean> => {
     // Store the key in localStorage for later use
     localStorage.setItem('anonymousKey', anonymousKey);
 
-    const response = await fetch('http://localhost:8000/api/loginAnonymously', {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/loginAnonymously`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

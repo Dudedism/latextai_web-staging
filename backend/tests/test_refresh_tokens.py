@@ -11,9 +11,10 @@ Run with output:
 import pytest
 import requests
 import time
+import os
 
 # Test configuration
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv('BACKEND_URL')
 
 
 def test_normal_login(test_user):

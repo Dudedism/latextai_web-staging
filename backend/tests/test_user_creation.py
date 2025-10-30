@@ -6,8 +6,9 @@ Run with: pytest tests/test_user_creation.py -v -s
 
 import pytest
 import requests
+import os
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv('BACKEND_URL')
 
 
 def test_user_creation(test_user_credentials):
