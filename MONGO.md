@@ -1,353 +1,157 @@
-# MongoDB Server Setup Guide
+# MongoDB Setup Summary
 
-This guide covers setting up MongoDB with TLS encryption on a remote cloud server using Docker and Let's Encrypt certificates.
+## Architecture Decision
 
-## Prerequisites
+**MongoDB is installed directly on the host system** (not in Docker) and accessed over the internet with TLS encryption.
 
-- Cloud server (Ubuntu/Debian recommended)
-- Domain name pointing to your server:
-  - Staging: `staging.latext.ai`
-  - Production: `latext.ai`
-- Root or sudo access
-- Docker and Docker Compose installed
+## Why This Approach?
 
-## Setup Steps
+1. **Docker symlink issues**: MongoDB 8.x requires CA files, but Let's Encrypt creates symlinks that Docker couldn't resolve with `:ro` mounts
+2. **Simpler certificate management**: Direct installation allows MongoDB to read certificates directly from `/etc/letsencrypt/live/`
+3. **Better performance**: No Docker networking overhead for database queries
+4. **Easier debugging**: Direct systemd service logs and management
 
-### 1. Initial Server Setup
+## Setup Overview
 
-```bash
-# Update system packages
-sudo apt update && sudo apt upgrade -y
+### 1. Install MongoDB on Host
+- MongoDB 8.0+ installed via apt repository
+- Runs as systemd service: `systemctl start mongod`
+- Data stored in `/var/lib/mongodb`
 
-# Install Docker if not already installed
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
+### 2. TLS Configuration
+- Uses Let's Encrypt certificates from Certbot
+- Certificate locations:
+  - `certificateKeyFile`: `/etc/letsencrypt/live/staging.latext.ai/mongodb.pem` (combined cert+key)
+  - `CAFile`: `/etc/letsencrypt/live/staging.latext.ai/fullchain.pem`
+- Auto-renewal: Certbot renewal hook regenerates `mongodb.pem` and restarts MongoDB
 
-# Install Docker Compose
-sudo apt install docker-compose-plugin -y
+### 3. Network Access
+- **Staging**: `staging.latext.ai:27017` (TLS required)
+- **Production**: `latext.ai:27017` (TLS required)
+- Exposed to internet (port 27017 open)
+- Protected by:
+  - TLS encryption
+  - Authentication required
+  - 64-character hex passwords
+  - Firewall rules (optional: restrict to known IPs)
+
+### 4. Authentication
+- Root user: `admin`
+- Passwords stored in `.env.staging` and `.env.production`
+- Authorization enabled in `/etc/mongod.conf`
+
+## Connection String Format
+
+```
+mongodb://admin:PASSWORD@staging.latext.ai:27017/latext_db?tls=true&authSource=admin
 ```
 
-### 2. Configure DNS
+## Services That Connect
 
-Point your domain to the server's IP address:
+1. **Backend (latext-site)**: Via `MONGO_URI` in `.env.staging` / `.env.production`
+2. **LatextAI microservice**: Via `MONGO_URI` in `.env.staging` / `.env.production`
+3. **Frontend**: Indirectly through backend API
 
-**Staging:**
-```
-A Record: staging.latext.ai → YOUR_STAGING_SERVER_IP
-```
+## Key Files
 
-**Production:**
-```
-A Record: latext.ai → YOUR_PRODUCTION_SERVER_IP
-```
+- **Config**: `/etc/mongod.conf`
+- **Logs**: `/var/log/mongodb/mongod.log`
+- **Data**: `/var/lib/mongodb`
+- **Certificates**: `/etc/letsencrypt/live/staging.latext.ai/`
+- **Renewal Hook**: `/etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh`
 
-Wait for DNS propagation (check with `dig staging.latext.ai` or `dig latext.ai`)
+## mongod.conf Key Sections
 
-### 3. Install Certbot and Get TLS Certificate
+```yaml
+net:
+  port: 27017
+  bindIp: 0.0.0.0
+  tls:
+    mode: requireTLS
+    certificateKeyFile: /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
+    CAFile: /etc/letsencrypt/live/staging.latext.ai/fullchain.pem
+    allowConnectionsWithoutCertificates: true  # CRITICAL: Allows server-side TLS only
 
-```bash
-# Install Certbot
-sudo apt install certbot -y
-
-# Get certificate (ensure port 80 is open and no web server is running)
-# For staging server:
-sudo certbot certonly --standalone -d staging.latext.ai
-
-# For production server:
-sudo certbot certonly --standalone -d latext.ai
-
-# Certbot will create certificates at:
-# - /etc/letsencrypt/live/staging.latext.ai/fullchain.pem (staging)
-# - /etc/letsencrypt/live/staging.latext.ai/privkey.pem (staging)
-# - /etc/letsencrypt/live/latext.ai/fullchain.pem (production)
-# - /etc/letsencrypt/live/latext.ai/privkey.pem (production)
+security:
+  authorization: enabled
 ```
 
-### 4. Combine Certificates for MongoDB
+## TLS Configuration Explained
 
-MongoDB requires a combined certificate file (cert + private key):
+### Server-Side TLS vs Mutual TLS
 
-**For staging:**
-```bash
-# Combine fullchain and private key
-sudo cat /etc/letsencrypt/live/staging.latext.ai/fullchain.pem \
-         /etc/letsencrypt/live/staging.latext.ai/privkey.pem \
-         > /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
+**Server-Side TLS (Current Setup):**
+- ✅ All connections are **encrypted**
+- ✅ Server proves identity with certificate
+- ✅ Clients verify server certificate
+- ❌ Clients do NOT need their own certificates
+- 🔒 Standard approach (like HTTPS websites)
 
-# Set proper permissions
-sudo chmod 644 /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
-```
+**Mutual TLS (mTLS):**
+- ✅ All connections encrypted
+- ✅ Server AND client both prove identity with certificates
+- 🔐 Used for ultra high-security scenarios only
 
-**For production:**
-```bash
-# Combine fullchain and private key
-sudo cat /etc/letsencrypt/live/latext.ai/fullchain.pem \
-         /etc/letsencrypt/live/latext.ai/privkey.pem \
-         > /etc/letsencrypt/live/latext.ai/mongodb.pem
+**Key Setting:** `allowConnectionsWithoutCertificates: true`
+- **Without this**: MongoDB requires client certificates (mutual TLS) → clients get rejected
+- **With this**: MongoDB accepts clients without certificates but **still encrypts all traffic**
 
-# Set proper permissions
-sudo chmod 644 /etc/letsencrypt/live/latext.ai/mongodb.pem
-```
+**Important:** Your connection is **always encrypted** even without client certificates. This setting only controls whether clients need to provide their own certificate for identity verification (in addition to username/password auth).
 
-### 5. Set Up Auto-Renewal
+## Certificate Renewal Hook
 
-Certbot automatically renews certificates, but we need to regenerate the combined file:
+Located at: `/etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh`
 
-```bash
-# Create renewal hook script
-sudo nano /etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh
-```
-
-Add this content **(adjust domain based on environment)**:
-
-**For staging server:**
 ```bash
 #!/bin/bash
 cat /etc/letsencrypt/live/staging.latext.ai/fullchain.pem \
     /etc/letsencrypt/live/staging.latext.ai/privkey.pem \
     > /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
 chmod 644 /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
-docker restart latext-mongodb
+systemctl restart mongod
 ```
 
-**For production server:**
-```bash
-#!/bin/bash
-cat /etc/letsencrypt/live/latext.ai/fullchain.pem \
-    /etc/letsencrypt/live/latext.ai/privkey.pem \
-    > /etc/letsencrypt/live/latext.ai/mongodb.pem
-chmod 644 /etc/letsencrypt/live/latext.ai/mongodb.pem
-docker restart latext-mongodb
-```
-
-Make it executable:
+## Common Commands
 
 ```bash
-sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh
+# Check MongoDB status
+systemctl status mongod
+
+# View logs
+tail -f /var/log/mongodb/mongod.log
+
+# Restart MongoDB
+systemctl restart mongod
+
+# Connect locally (with TLS)
+mongosh --tls --host staging.latext.ai -u admin -p PASSWORD --authenticationDatabase admin
+
+# Test connection from remote server
+mongosh "mongodb://admin:PASSWORD@staging.latext.ai:27017/latext_db?tls=true&authSource=admin"
 ```
 
-Test renewal (dry run):
+## Security Notes
 
-```bash
-sudo certbot renew --dry-run
-```
-
-### 6. Deploy MongoDB Container
-
-The MongoDB passwords and configurations are already hardcoded in the docker-compose files.
-
-**For staging:**
-```bash
-# Clone or pull latest code
-git clone <your-repo-url> /opt/latext-site
-cd /opt/latext-site
-
-# Deploy staging MongoDB
-docker compose -f docker-compose.staging.yml up -d
-
-# Check logs
-docker logs latext-mongodb
-```
-
-**For production:**
-```bash
-# Clone or pull latest code
-git clone <your-repo-url> /opt/latext-site
-cd /opt/latext-site
-
-# Deploy production MongoDB
-docker compose up -d
-
-# Check logs
-docker logs latext-mongodb
-```
-
-### 7. Verify TLS is Enabled
-
-**For staging:**
-```bash
-docker exec latext-mongodb mongosh --tls \
-  --host staging.latext.ai \
-  --tlsAllowInvalidCertificates \
-  -u admin -p 6364c3b75dfa0a523296bea188de76e696e04d72a023f9d175aad8d407eb9cee \
-  --authenticationDatabase admin
-```
-
-**For production:**
-```bash
-docker exec latext-mongodb mongosh --tls \
-  --host latext.ai \
-  --tlsAllowInvalidCertificates \
-  -u admin -p b13aa0e5f6147ca8cb3055c59a15e336591dfb4ad932944b3f397498ee3b9085 \
-  --authenticationDatabase admin
-```
-
-### 8. Configure Firewall
-
-Allow only necessary ports:
-
-```bash
-# Allow SSH (important - don't lock yourself out!)
-sudo ufw allow 22
-
-# Allow MongoDB from specific IPs only (recommended)
-sudo ufw allow from YOUR_BACKEND_SERVER_IP to any port 27017
-sudo ufw allow from YOUR_LATEXTAI_SERVER_IP to any port 27017
-
-# Or allow MongoDB from anywhere (less secure)
-sudo ufw allow 27017
-
-# Enable firewall
-sudo ufw enable
-```
-
-### 9. Test Connection from Client
-
-From your backend or latextai server:
-
-```bash
-# Install MongoDB client tools
-sudo apt install mongodb-mongosh -y
-
-# Test staging connection
-mongosh "mongodb://admin:6364c3b75dfa0a523296bea188de76e696e04d72a023f9d175aad8d407eb9cee@staging.latext.ai:27017/latext_db?tls=true&authSource=admin"
-
-# Test production connection
-mongosh "mongodb://admin:b13aa0e5f6147ca8cb3055c59a15e336591dfb4ad932944b3f397498ee3b9085@latext.ai:27017/latext_db?tls=true&authSource=admin"
-```
-
-## Security Checklist
-
-- [x] Strong password (64 character hex - already set in docker-compose files)
-- [x] TLS encryption enabled (`tls=true` in connection string)
-- [ ] Firewall configured (only allow trusted IPs)
-- [ ] Auto-renewal configured for certificates
-- [x] MongoDB authentication enabled (default in our setup)
-- [ ] Regular backups configured
-- [ ] Monitor logs for unauthorized access attempts
+- ✅ TLS encryption for all connections
+- ✅ Authentication required
+- ✅ Strong 64-character passwords
+- ✅ Auto-renewal of certificates
+- ⚠️ Port 27017 exposed to internet (consider IP whitelisting for production)
+- ⚠️ Passwords hardcoded in git (acceptable per project requirements)
 
 ## Troubleshooting
 
-### Certificate Issues
+**MongoDB won't start:**
+- Check logs: `journalctl -u mongod -n 50`
+- Verify certificate permissions: `ls -la /etc/letsencrypt/live/staging.latext.ai/`
+- Ensure permissions: `chmod 644 mongodb.pem fullchain.pem`
 
-```bash
-# Check certificate validity
-sudo certbot certificates
+**Can't connect from services:**
+- Verify DNS: `dig staging.latext.ai`
+- Test connection: `mongosh "mongodb://admin:PASSWORD@staging.latext.ai:27017/admin?tls=true"`
+- Check firewall: `ufw status`
 
-# Manually renew if needed
-sudo certbot renew --force-renewal
-
-# Regenerate combined MongoDB certificate (staging)
-sudo cat /etc/letsencrypt/live/staging.latext.ai/fullchain.pem \
-         /etc/letsencrypt/live/staging.latext.ai/privkey.pem \
-         > /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
-sudo chmod 644 /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
-docker restart latext-mongodb
-
-# Regenerate combined MongoDB certificate (production)
-sudo cat /etc/letsencrypt/live/latext.ai/fullchain.pem \
-         /etc/letsencrypt/live/latext.ai/privkey.pem \
-         > /etc/letsencrypt/live/latext.ai/mongodb.pem
-sudo chmod 644 /etc/letsencrypt/live/latext.ai/mongodb.pem
-docker restart latext-mongodb
-```
-
-### Connection Issues
-
-```bash
-# Check if MongoDB is running
-docker ps | grep mongodb
-
-# Check MongoDB logs
-docker logs latext-mongodb --tail 100
-
-# Check if port 27017 is open
-sudo netstat -tlnp | grep 27017
-
-# Test DNS resolution
-dig staging.latext.ai  # for staging
-dig latext.ai          # for production
-
-# Test connection without TLS (from MongoDB server itself)
-# Staging:
-docker exec latext-mongodb mongosh -u admin -p 6364c3b75dfa0a523296bea188de76e696e04d72a023f9d175aad8d407eb9cee --authenticationDatabase admin
-
-# Production:
-docker exec latext-mongodb mongosh -u admin -p b13aa0e5f6147ca8cb3055c59a15e336591dfb4ad932944b3f397498ee3b9085 --authenticationDatabase admin
-```
-
-### Permission Issues
-
-```bash
-# Fix certificate permissions (staging)
-sudo chmod 644 /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
-sudo chown root:root /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
-
-# Fix certificate permissions (production)
-sudo chmod 644 /etc/letsencrypt/live/latext.ai/mongodb.pem
-sudo chown root:root /etc/letsencrypt/live/latext.ai/mongodb.pem
-
-# Restart container
-docker restart latext-mongodb
-```
-
-## Backup and Restore
-
-### Backup
-
-```bash
-# Create backup directory
-mkdir -p /opt/mongodb-backups
-
-# Backup all databases
-docker exec latext-mongodb mongodump \
-  -u admin -p YOUR_PASSWORD --authenticationDatabase admin \
-  --out /data/backups/$(date +%Y%m%d)
-
-# Copy backup from container to host
-docker cp latext-mongodb:/data/backups /opt/mongodb-backups/
-```
-
-### Restore
-
-```bash
-# Restore from backup
-docker exec latext-mongodb mongorestore \
-  -u admin -p YOUR_PASSWORD --authenticationDatabase admin \
-  /data/backups/20250131
-```
-
-## Monitoring
-
-### Check MongoDB Status
-
-```bash
-# Container status
-docker ps -a | grep mongodb
-
-# Resource usage
-docker stats latext-mongodb
-
-# Database size
-docker exec latext-mongodb mongosh -u admin -p YOUR_PASSWORD --authenticationDatabase admin \
-  --eval "db.stats()"
-```
-
-### Logs
-
-```bash
-# Real-time logs
-docker logs latext-mongodb -f
-
-# Last 100 lines
-docker logs latext-mongodb --tail 100
-
-# Logs from specific time
-docker logs latext-mongodb --since 2h
-```
-
-## References
-
-- [MongoDB TLS/SSL Configuration](https://www.mongodb.com/docs/manual/tutorial/configure-ssl/)
-- [Let's Encrypt Documentation](https://letsencrypt.org/docs/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
+**Certificate renewal issues:**
+- Test renewal: `certbot renew --dry-run`
+- Check hook permissions: `ls -la /etc/letsencrypt/renewal-hooks/deploy/`
+- Manually run hook to test
