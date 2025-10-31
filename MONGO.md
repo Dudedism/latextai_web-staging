@@ -139,19 +139,62 @@ mongosh "mongodb://admin:PASSWORD@staging.latext.ai:27017/latext_db?tls=true&aut
 - ⚠️ Port 27017 exposed to internet (consider IP whitelisting for production)
 - ⚠️ Passwords hardcoded in git (acceptable per project requirements)
 
+## Installation Nuances
+
+### Permission Issues
+MongoDB needs to read certificates from `/etc/letsencrypt/`. The key is that **parent directories need execute permission** (755) so MongoDB can traverse to the files:
+
+```bash
+# Critical: Allow traversal through parent directories
+chmod 755 /etc/letsencrypt
+chmod 755 /etc/letsencrypt/live
+chmod 755 /etc/letsencrypt/archive
+chmod 755 /etc/letsencrypt/live/staging.latext.ai
+chmod 755 /etc/letsencrypt/archive/staging.latext.ai
+
+# Make certificate files readable
+chmod 644 /etc/letsencrypt/live/staging.latext.ai/mongodb.pem
+chmod 644 /etc/letsencrypt/live/staging.latext.ai/fullchain.pem
+chmod 644 /etc/letsencrypt/archive/staging.latext.ai/*
+```
+
+**Common Error:** `Permission denied` when reading certificates → forgot to chmod parent directories
+
+### Memory Requirements
+- Minimum: 512MB (will have OOM issues with mongosh)
+- Recommended for staging: 2GB RAM, 2 CPU cores
+- Recommended for production: 4GB+ RAM, 4+ CPU cores
+
+**If you have < 2GB RAM:** Add swap space before installing MongoDB:
+```bash
+fallocate -l 2G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+### Client Certificate Error
+If you see: **"No SSL certificate provided by peer; connection rejected"**
+- This means `allowConnectionsWithoutCertificates: true` is missing from config
+- Add it to the `net.tls` section and restart MongoDB
+
 ## Troubleshooting
 
 **MongoDB won't start:**
-- Check logs: `journalctl -u mongod -n 50`
+- Check logs: `journalctl -u mongod -n 50` or `tail -50 /var/log/mongodb/mongod.log`
 - Verify certificate permissions: `ls -la /etc/letsencrypt/live/staging.latext.ai/`
-- Ensure permissions: `chmod 644 mongodb.pem fullchain.pem`
+- Ensure parent directory permissions: `ls -ld /etc/letsencrypt /etc/letsencrypt/live`
+- Common error: Permission denied → run the chmod commands above
 
 **Can't connect from services:**
 - Verify DNS: `dig staging.latext.ai`
 - Test connection: `mongosh "mongodb://admin:PASSWORD@staging.latext.ai:27017/admin?tls=true"`
-- Check firewall: `ufw status`
+- Check firewall: `ufw status` (ensure port 27017 is open)
+- Check MongoDB is listening: `netstat -tlnp | grep 27017` (should show `0.0.0.0:27017`)
 
 **Certificate renewal issues:**
 - Test renewal: `certbot renew --dry-run`
 - Check hook permissions: `ls -la /etc/letsencrypt/renewal-hooks/deploy/`
-- Manually run hook to test
+- Make hook executable: `chmod +x /etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh`
+- Manually run hook to test: `/etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh`
