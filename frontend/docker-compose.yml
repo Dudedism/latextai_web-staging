@@ -1,0 +1,22 @@
+# Frontend Microservice
+# React + Vite application for latext-site
+#
+# Usage:
+#   Staging:     ENV=staging docker compose up -d
+#   Production:  ENV=production docker compose up -d
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: latext-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - latext-network
+
+networks:
+  latext-network:
+    external: true
