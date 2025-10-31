@@ -15,8 +15,8 @@ services:
       MONGO_INITDB_DATABASE: latext_db
     volumes:
       - mongodb_data:/data/db
-      # Mount TLS certificates from Let's Encrypt
-      - /etc/letsencrypt/live/staging.latext.ai:/certs:ro
+      # Mount TLS certificates from Let's Encrypt (remove :ro to allow symlink resolution)
+      - /etc/letsencrypt/live/staging.latext.ai:/certs
     # TLS enabled with Let's Encrypt certificates
     command: mongod --tlsMode requireTLS --tlsCertificateKeyFile /certs/mongodb.pem --tlsCAFile /certs/fullchain.pem --bind_ip_all
     networks:
