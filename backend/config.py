@@ -37,6 +37,10 @@ SMTP_FROM = os.getenv('SMTP_FROM', SMTP_USERNAME)
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
 
+# LatextAI Microservice Configuration
+LATEXTAI_SERVICE_URL = os.getenv('LATEXTAI_SERVICE_URL', 'http://localhost:8001')
+LATEXTAI_API_KEY = os.getenv('LATEXTAI_API_KEY', '')
+
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["10000 per day", "1000 per hour"]

@@ -3,14 +3,14 @@
 ENV=$1
 
 if [ -z "$ENV" ]; then
-    echo "Usage: ./deploy.sh [staging|production]"
-    echo "Example: ./deploy.sh staging"
+    echo "Usage: ./deploy.sh [development|staging|production]"
+    echo "Example: ./deploy.sh development"
     exit 1
 fi
 
 # Validate environment
-if [ "$ENV" != "staging" ] && [ "$ENV" != "production" ]; then
-    echo "Error: Invalid environment. Must be 'staging' or 'production'"
+if [ "$ENV" != "development" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "production" ]; then
+    echo "Error: Invalid environment. Must be 'development', 'staging', or 'production'"
     exit 1
 fi
 

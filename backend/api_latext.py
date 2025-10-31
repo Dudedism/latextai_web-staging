@@ -1,15 +1,17 @@
 import os
 import shutil
 import uuid
-from flask import jsonify, Blueprint, request, send_file
+import requests
+from flask import jsonify, Blueprint, request, send_file, Response
 from werkzeug.utils import secure_filename
 from api_auth import requires_auth
 from database import User, Project, Ticket
 from datetime import datetime
+from config import LATEXTAI_SERVICE_URL, LATEXTAI_API_KEY
 
 api_latext = Blueprint('api_latext_blueprint', __name__, url_prefix='/api/latex')
 
-# Base directory for user projects (temporary - will move to latextai service)
+# Base directory for user projects (local temporary storage before sending to latextai)
 USER_PROJECTS_DIR = 'user_projects'
 
 def create_user_directory(user_id):
@@ -30,7 +32,7 @@ def create_project_directory(user_id, project_id):
 @api_latext.route('/upload', methods=['POST'])
 @requires_auth
 def upload_file(user, data):
-    """Handle file upload - processing will be delegated to latextai service"""
+    """Handle file upload and forward to latextai service for processing"""
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
@@ -38,43 +40,83 @@ def upload_file(user, data):
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    # Get template from form data
-    template = request.form.get('template', 'nature')
+    # Get template from form data (but always use MQ for now)
+    template = 'MQ'  # Always use MQ template for now
 
     # Generate unique project ID
     project_id = str(uuid.uuid4())
 
-    # Save uploaded file temporarily (will be moved to latextai service)
+    # Get filename
     filename = secure_filename(file.filename)
-    file_extension = os.path.splitext(filename)[1]
 
-    # Create temporary project directory for uploaded file
-    project_dir = create_project_directory(user['email'], project_id)
-    upload_path = os.path.join(project_dir, f'{project_id}{file_extension}')
-    file.save(upload_path)
-
-    # Create database entry with 'unconverted' status
-    # Processing will be handled by latextai service in future phase
+    # Create database entry with 'processing' status
     project = Project(
         project_id=project_id,
         user_id=user['email'],
         upload_filename=filename,
-        tex_filename=None,  # Will be set after processing
-        pdf_filename=None,  # Will be set after processing
-        template=template.lower(),
-        status='unconverted'  # Changed from 'converted'
+        tex_filename=None,  # Will be set after processing by latextai
+        pdf_filename=None,  # Will be set after processing by latextai
+        template=template,
+        status='processing'  # Start as processing
     )
     project.insert()
 
-    return jsonify({
-        'message': 'File uploaded successfully',
-        'project_id': project_id,
-        'status': 'unconverted'
-    }), 200
+    try:
+        # Forward file to latextai service
+        files = {'file': (filename, file.stream, file.content_type)}
+        form_data = {
+            'user_email': user['email'],
+            'project_id': project_id,
+            'template': template
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
+
+        response = requests.post(
+            f"{LATEXTAI_SERVICE_URL}/api/upload",
+            files=files,
+            data=form_data,
+            headers=headers,
+            timeout=30
+        )
+
+        if response.status_code == 202:
+            # Successfully forwarded to latextai
+            return jsonify({
+                'message': 'File uploaded successfully. Processing started in background.',
+                'project_id': project_id,
+                'status': 'processing'
+            }), 202
+        else:
+            # Failed to forward to latextai
+            # Update project status to failed
+            project_obj = Project.find_by_id(project_id)
+            if project_obj:
+                p = Project(**project_obj)
+                p.data['status'] = 'failed'
+                p.save()
+
+            return jsonify({
+                'error': f'Failed to process file: {response.text}'
+            }), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        # Network error or timeout
+        # Update project status to failed
+        project_obj = Project.find_by_id(project_id)
+        if project_obj:
+            p = Project(**project_obj)
+            p.data['status'] = 'failed'
+            p.save()
+
+        return jsonify({
+            'error': f'Failed to connect to processing service: {str(e)}'
+        }), 500
 
 @api_latext.route('/projects', methods=['GET'])
 @requires_auth
-def get_projects(user, data):
+def get_projects(user):
     """Get all projects for the authenticated user"""
     projects = Project.find_by_user(user['email'])
 
@@ -106,20 +148,29 @@ def get_projects(user, data):
             {'name': 'Nature Communications', 'thumbnail': '/nature.svg'}
         )
 
+        # Map database status to frontend status
+        db_status = proj.get('status', 'processing')
+        if db_status == 'converted':
+            frontend_status = 'completed'
+        elif db_status in ['processing', 'unconverted']:
+            frontend_status = 'processing'
+        else:  # failed
+            frontend_status = 'failed'
+
         formatted_projects.append({
             'id': proj.get('project_id'),
             'title': title,
             'date': date_str,
             'template': template_info['name'],
             'thumbnail': template_info['thumbnail'],
-            'status': 'completed' if proj.get('status') == 'converted' else 'processing'
+            'status': frontend_status
         })
 
     return jsonify(formatted_projects), 200
 
 @api_latext.route('/project/<project_id>', methods=['GET'])
 @requires_auth
-def get_project(user, data, project_id):
+def get_project(user, project_id):
     """Get a single project by ID"""
     project = Project.find_by_id(project_id)
 
@@ -134,12 +185,8 @@ def get_project(user, data, project_id):
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
 @requires_auth
-def get_pdf(user, data, project_id):
-    """Serve the PDF file for a project (preview for unverified users, full for verified)
-
-    NOTE: This endpoint will be replaced by a proxy to latextai service.
-    Currently returns 404 if PDF doesn't exist (no more mock files).
-    """
+def get_pdf(user, project_id):
+    """Proxy PDF download request to latextai service (preview for unverified users, full for verified)"""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -153,37 +200,47 @@ def get_pdf(user, data, project_id):
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
 
-    # Check user verification status to determine which PDF to serve
-    if user.get('is_verified', False):
-        # Verified user - serve full PDF
-        pdf_filename = project.get('pdf_filename')
-        if not pdf_filename:
-            return jsonify({'error': 'PDF not available'}), 404
-    else:
-        # Unverified/anonymous user - serve preview only (first 3 pages)
-        pdf_filename = f'preview_{project_id}.pdf'
+    # Determine preview mode based on user verification status
+    preview = 'false' if user.get('is_verified', False) else 'true'
 
-    # Build PDF path
-    pdf_path = os.path.join(
-        USER_PROJECTS_DIR,
-        str(project.get('user_id')),
-        str(project_id),
-        pdf_filename
-    )
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id,
+            'preview': preview
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
 
-    if not os.path.exists(pdf_path):
-        return jsonify({'error': 'PDF not found'}), 404
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
 
-    return send_file(pdf_path, mimetype='application/pdf')
+        if response.status_code == 200:
+            # Stream the PDF file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='application/pdf',
+                headers={
+                    'Content-Disposition': f'inline; filename="{project_id}.pdf"'
+                }
+            )
+        else:
+            return jsonify({'error': 'PDF not found'}), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download PDF: {str(e)}'}), 500
 
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
 @requires_auth
-def get_tex(user, data, project_id):
-    """Download the .tex file for a project (only for verified users)
-
-    NOTE: This endpoint will be replaced by a proxy to latextai service.
-    Currently returns 404 if TEX doesn't exist (no more mock files).
-    """
+def get_tex(user, project_id):
+    """Proxy TEX download request to latextai service (only for verified users)"""
     # Check user verification status first
     if not user.get('is_verified', False):
         return jsonify({'error': 'Please sign up to download LaTeX files'}), 403
@@ -201,28 +258,41 @@ def get_tex(user, data, project_id):
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
 
-    # Check if tex filename is set
-    tex_filename = project.get('tex_filename')
-    if not tex_filename:
-        return jsonify({'error': 'LaTeX file not available'}), 404
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
 
-    # Build tex path
-    tex_path = os.path.join(
-        USER_PROJECTS_DIR,
-        str(project.get('user_id')),
-        str(project_id),
-        tex_filename
-    )
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/tex",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
 
-    if not os.path.exists(tex_path):
-        return jsonify({'error': 'LaTeX file not found'}), 404
+        if response.status_code == 200:
+            # Get filename from uploaded file
+            filename = project.get('upload_filename', 'document').rsplit('.', 1)[0] + '.tex'
 
-    return send_file(
-        tex_path,
-        mimetype='text/plain',
-        as_attachment=True,
-        download_name=f"{project.get('upload_filename', 'document').rsplit('.', 1)[0]}.tex"
-    )
+            # Stream the TEX file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='text/plain',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"'
+                }
+            )
+        else:
+            return jsonify({'error': 'LaTeX file not found'}), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download LaTeX file: {str(e)}'}), 500
 
 # Support Ticket Endpoints
 
@@ -288,7 +358,7 @@ def create_support_ticket(user, data, project_id):
 
 @api_latext.route('/project/<project_id>/tickets', methods=['GET'])
 @requires_auth
-def get_project_tickets(user, data, project_id):
+def get_project_tickets(user, project_id):
     """Get all tickets for a project"""
     # Check if project exists and belongs to user
     project = Project.find_by_id(project_id)
@@ -319,7 +389,7 @@ def get_project_tickets(user, data, project_id):
 
 @api_latext.route('/ticket/<ticket_id>', methods=['GET'])
 @requires_auth
-def get_ticket_details(user, data, ticket_id):
+def get_ticket_details(user, ticket_id):
     """Get full ticket details with all messages"""
     # Find the ticket
     ticket_data = Ticket.find_by_id(ticket_id)
