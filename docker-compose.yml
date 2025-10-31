@@ -18,7 +18,7 @@ services:
       # Mount TLS certificates from Let's Encrypt
       - /etc/letsencrypt/live/latext.ai:/certs:ro
     # TLS enabled with Let's Encrypt certificates
-    command: mongod --tlsMode requireTLS --tlsCertificateKeyFile /certs/mongodb.pem --bind_ip_all
+    command: mongod --tlsMode requireTLS --tlsCertificateKeyFile /certs/mongodb.pem --tlsCAFile /certs/fullchain.pem --bind_ip_all
     networks:
       - latext-network
 
