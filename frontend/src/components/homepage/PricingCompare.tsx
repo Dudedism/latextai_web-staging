@@ -27,27 +27,27 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
 
             <div className="pc-price">
               <span className="pc-price-currency">$</span>
-              <span className="pc-price-value">1</span>
-              <span className="pc-price-unit">/page</span>
+              <span className="pc-price-value">4.99</span>
+              <span className="pc-price-unit">/document</span>
             </div>
 
             <div className="pc-includes">Includes</div>
             <ul className="pc-features">
-              <li>Free first time conversion</li>
+              <li>Up to 15 pages (one-sided) or 7 pages (two-sided)</li>
+              <li>+$0.50 per additional page</li>
               <li>Delivery in minutes, not days</li>
-              <li>Templates</li>
-              <li>Editing</li>
-              <li>Raw LaTeX code download</li>
-              <li>Perfect for small projects</li>
+              <li>Professional templates</li>
+              <li>Complete LaTeX package download</li>
+              <li>Superior quality output</li>
             </ul>
 
             <button
               className="btn-outline pc-cta"
               onClick={onTryFree}
               type="button"
-              aria-label="Try it free now"
+              aria-label="Get started now"
             >
-              Try it free now ↗
+              Get started now ↗
             </button>
           </div>
 
@@ -68,10 +68,11 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
               <h3 className="pc-card-title">Competitor B</h3>
               <div className="pc-price">
                 <span className="pc-price-currency">$</span>
-                <span className="pc-price-value">4</span>
-                <span className="pc-price-unit">/page</span>
+                <span className="pc-price-value">2.99</span>
+                <span className="pc-price-unit">/document</span>
               </div>
-              <p className="pc-note">1 week delivery time</p>
+              <p className="pc-note">Limited features</p>
+              <p className="pc-note">Lower quality output</p>
             </div>
           </div>
         </div>

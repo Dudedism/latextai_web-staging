@@ -1,4 +1,4 @@
-import { getToken, logout } from './auth';
+import { getToken } from './auth';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 

@@ -26,17 +26,26 @@ const PreviewPage: React.FC = () => {
       const project = await apiRequest<{ status: string }>(`/api/latex/project/${paperId}`);
       const projectStatus = project.status;
 
-      if (projectStatus === 'converted') {
-        setStatus('completed');
-        fetchPdf();
-      } else if (projectStatus === 'failed') {
-        setStatus('failed');
-        setError('Document processing failed');
-        setLoading(false);
+      // Only update status if we're currently viewing this project
+      const currentPath = window.location.pathname;
+      const isViewingThisProject = currentPath === `/papers/${paperId}/view`;
+
+      if (isViewingThisProject) {
+        if (projectStatus === 'converted') {
+          setStatus('completed');
+          fetchPdf();
+        } else if (projectStatus === 'failed') {
+          setStatus('failed');
+          setError('Document processing failed');
+          setLoading(false);
+        } else {
+          // Still processing
+          setStatus('processing');
+          // Continue polling while viewing this project
+          setTimeout(checkStatus, 60000);
+        }
       } else {
-        // Still processing - poll again
-        setStatus('processing');
-        setTimeout(checkStatus, 60000); // Check again in 60 seconds (1 minute)
+        console.log('🧹 [PREVIEW] User navigated away from this project view, stopping polling');
       }
     } catch (error) {
       console.error('Error checking status:', error);

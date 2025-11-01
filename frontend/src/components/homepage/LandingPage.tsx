@@ -47,7 +47,7 @@ const LandingPage: React.FC = () => {
       <ValueProp
         cta={{ label: 'Try it free now', onClick: handleTryFree }}
       />
-      <PricingCompare />
+      <PricingCompare onTryFree={handleTryFree} />
     </div>
   );
 };

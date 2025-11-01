@@ -39,14 +39,6 @@ const AccountPage: React.FC<AccountPageProps> = () => {
     console.log('Sign out clicked');
   };
 
-  const handleRemoveCard = () => {
-    console.log('Remove card clicked');
-  };
-
-  const handleAddCard = () => {
-    console.log('Add card clicked');
-  };
-
   return (
     <div className="account-page">
       <Banner isAuthenticated={isAuthenticated} userName={user?.name} />
@@ -69,30 +61,9 @@ const AccountPage: React.FC<AccountPageProps> = () => {
           )}
         </div>
 
-        {!isAnonymous && (
-          <div className="account-section">
-            <label>Saved Cards</label>
-            <div className="saved-cards">
-              <div className="credit-card">
-                <button className="remove-card-btn" onClick={handleRemoveCard}>
-                  Remove
-                </button>
-                <div className="card-info">
-                  <div className="card-name">{userName}</div>
-                  <div className="card-number">**** **** **** 7568</div>
-                </div>
-              </div>
-              <button className="add-card-btn" onClick={handleAddCard}>
-                <span className="plus-icon">+</span>
-                Add Card
-              </button>
-            </div>
-          </div>
-        )}
-
-          <button className="sign-out-btn" onClick={handleSignOut}>
-            Sign Out
-          </button>
+        <button className="sign-out-btn" onClick={handleSignOut}>
+          Sign Out
+        </button>
         </div>
       </section>
 

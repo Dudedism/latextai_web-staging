@@ -10,7 +10,7 @@ const PricingPage: React.FC = () => {
 
   const handleGetStarted = (plan: string) => {
     console.log(`Selected plan: ${plan}`);
-    navigate('/signin');
+    navigate('/papers/new');
   };
 
   return (
@@ -21,21 +21,22 @@ const PricingPage: React.FC = () => {
         <div className="static-container">
         <h1 className="static-title">Simple, Transparent Pricing</h1>
         <p style={{ textAlign: 'center', fontSize: '18px', color: '#666', marginBottom: '40px' }}>
-          Choose the plan that works best for you. No hidden fees.
+          One-time payment. No subscriptions. No hidden fees.
         </p>
-        
+
         <div className="pricing-grid">
           <div className="pricing-card featured">
-            <h3 className="pricing-title">Our Service</h3>
-            <div className="pricing-price">$1</div>
-            <div className="pricing-unit">per page</div>
+            <h3 className="pricing-title">Pay Per Document</h3>
+            <div className="pricing-price">$4.99</div>
+            <div className="pricing-unit">base price</div>
             <ul className="pricing-features">
-              <li>Free first time conversion</li>
+              <li>Up to 15 pages (one-sided PDF)</li>
+              <li>Or up to 7 pages (two-sided PDF)</li>
+              <li>+$0.50 per additional page</li>
               <li>Delivery in minutes, not days</li>
-              <li>Templates</li>
-              <li>Editing</li>
-              <li>Raw LaTeX code download</li>
-              <li>Perfect for small projects</li>
+              <li>Professional templates</li>
+              <li>Complete LaTeX package download</li>
+              <li>Superior quality output</li>
             </ul>
             <button className="pricing-btn" onClick={() => handleGetStarted('perpage')}>
               Get Started
@@ -66,8 +67,10 @@ const PricingPage: React.FC = () => {
 
           <h3>How does the pricing work?</h3>
           <p>
-            We charge $1 per page of your document. Your first conversion is completely free to try
-            our service. Payment is only required after you're satisfied with the conversion quality.
+            We use a one-time payment model. The base price is $4.99 for documents up to 15 pages
+            (one-sided PDF) or 7 pages (two-sided PDF). Each additional page costs $0.50. This
+            page-based pricing ensures you only pay for what you need, accounting for the complexity
+            of tables, equations, and figures in your document.
           </p>
 
           <h3>What's included in the download?</h3>
