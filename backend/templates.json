@@ -1,0 +1,62 @@
+{
+  "templates": [
+    {
+      "id": "ieee",
+      "name": "IEEE Transactions",
+      "publisher": "IEEE",
+      "year": "2025",
+      "thumbnail": "/ieee.svg",
+      "latextai_name": "IEEE",
+      "enabled": true
+    },
+    {
+      "id": "mq",
+      "name": "Mankind Quarterly",
+      "publisher": "MQ",
+      "year": "2025",
+      "thumbnail": "/MQ_logo_rectangular_small.png",
+      "latextai_name": "MQ",
+      "enabled": true
+    },
+    {
+      "id": "nature",
+      "name": "Nature Communications",
+      "publisher": "Nature",
+      "year": "2025",
+      "thumbnail": "/nature.svg",
+      "latextai_name": "Nature",
+      "enabled": false,
+      "comment": "Not yet implemented in latextai"
+    },
+    {
+      "id": "lancet",
+      "name": "The Lancet",
+      "publisher": "Lancet",
+      "year": "2025",
+      "thumbnail": "/lancet.svg",
+      "latextai_name": "Lancet",
+      "enabled": false,
+      "comment": "Not yet implemented in latextai"
+    },
+    {
+      "id": "springer",
+      "name": "Springer Journal",
+      "publisher": "Springer",
+      "year": "2025",
+      "thumbnail": "/springer.svg",
+      "latextai_name": "Springer",
+      "enabled": false,
+      "comment": "Not yet implemented in latextai"
+    },
+    {
+      "id": "elsevier",
+      "name": "Elsevier Journal",
+      "publisher": "Elsevier",
+      "year": "2025",
+      "thumbnail": "/elsevier.svg",
+      "latextai_name": "Elsevier",
+      "enabled": false,
+      "comment": "Not yet implemented in latextai"
+    }
+  ]
+}

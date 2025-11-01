@@ -1,6 +1,7 @@
 import os
 import shutil
 import uuid
+import json
 import requests
 from flask import jsonify, Blueprint, request, send_file, Response
 from werkzeug.utils import secure_filename
@@ -13,6 +14,40 @@ api_latext = Blueprint('api_latext_blueprint', __name__, url_prefix='/api/latex'
 
 # Base directory for user projects (local temporary storage before sending to latextai)
 USER_PROJECTS_DIR = 'user_projects'
+
+# Templates configuration file
+TEMPLATES_FILE = 'templates.json'
+
+def load_templates():
+    """Load templates from JSON configuration file"""
+    try:
+        with open(TEMPLATES_FILE, 'r') as f:
+            data = json.load(f)
+            return data['templates']
+    except Exception as e:
+        print(f"Error loading templates: {e}")
+        return []
+
+def get_enabled_templates():
+    """Get only enabled templates"""
+    return [t for t in load_templates() if t.get('enabled', False)]
+
+def get_template_by_id(template_id):
+    """Get template configuration by ID"""
+    templates = load_templates()
+    for template in templates:
+        if template['id'].lower() == template_id.lower():
+            return template
+    return None
+
+def validate_template(template_id):
+    """Validate that template exists and is enabled"""
+    template = get_template_by_id(template_id)
+    if not template:
+        return False, "Template not found"
+    if not template.get('enabled', False):
+        return False, f"Template '{template['name']}' is not yet available"
+    return True, template
 
 def create_user_directory(user_id):
     """Create a directory for a user's projects if it doesn't exist"""
@@ -29,8 +64,24 @@ def create_project_directory(user_id, project_id):
         os.makedirs(project_dir, exist_ok=True)
     return project_dir
 
+@api_latext.route('/templates', methods=['GET'])
+def get_templates():
+    """Get list of available templates (public endpoint, no auth required)"""
+    templates = get_enabled_templates()
+
+    # Return only frontend-needed fields
+    formatted_templates = [{
+        'id': t['id'],
+        'name': t['name'],
+        'publisher': t['publisher'],
+        'year': t['year'],
+        'thumbnail': t['thumbnail']
+    } for t in templates]
+
+    return jsonify({'templates': formatted_templates}), 200
+
 @api_latext.route('/upload', methods=['POST'])
-@requires_auth
+@requires_auth(use_form=True)
 def upload_file(user, data):
     """Handle file upload and forward to latextai service for processing"""
     if 'file' not in request.files:
@@ -40,8 +91,16 @@ def upload_file(user, data):
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    # Get template from form data (but always use MQ for now)
-    template = 'MQ'  # Always use MQ template for now
+    # Get and validate template from form data
+    template_id = request.form.get('template', 'mq').lower()
+
+    # Validate template
+    is_valid, result = validate_template(template_id)
+    if not is_valid:
+        return jsonify({'error': result}), 400
+
+    template_config = result
+    latextai_template_name = template_config['latextai_name']
 
     # Generate unique project ID
     project_id = str(uuid.uuid4())
@@ -56,7 +115,7 @@ def upload_file(user, data):
         upload_filename=filename,
         tex_filename=None,  # Will be set after processing by latextai
         pdf_filename=None,  # Will be set after processing by latextai
-        template=template,
+        template=template_id,  # Store template ID in database
         status='processing'  # Start as processing
     )
     project.insert()
@@ -67,7 +126,7 @@ def upload_file(user, data):
         form_data = {
             'user_email': user['email'],
             'project_id': project_id,
-            'template': template
+            'template': latextai_template_name  # Use latextai template name
         }
         headers = {
             'X-API-Key': LATEXTAI_API_KEY
@@ -81,6 +140,9 @@ def upload_file(user, data):
             timeout=30
         )
 
+        print(f"LatextAI response status: {response.status_code}")
+        print(f"LatextAI response: {response.text[:500]}")
+
         if response.status_code == 202:
             # Successfully forwarded to latextai
             return jsonify({
@@ -91,11 +153,8 @@ def upload_file(user, data):
         else:
             # Failed to forward to latextai
             # Update project status to failed
-            project_obj = Project.find_by_id(project_id)
-            if project_obj:
-                p = Project(**project_obj)
-                p.data['status'] = 'failed'
-                p.save()
+            project.data['status'] = 'failed'
+            project.save()
 
             return jsonify({
                 'error': f'Failed to process file: {response.text}'
@@ -104,11 +163,8 @@ def upload_file(user, data):
     except requests.exceptions.RequestException as e:
         # Network error or timeout
         # Update project status to failed
-        project_obj = Project.find_by_id(project_id)
-        if project_obj:
-            p = Project(**project_obj)
-            p.data['status'] = 'failed'
-            p.save()
+        project.data['status'] = 'failed'
+        project.save()
 
         return jsonify({
             'error': f'Failed to connect to processing service: {str(e)}'
@@ -141,11 +197,12 @@ def get_projects(user):
             'springer': {'name': 'Springer Journal', 'thumbnail': '/springer.svg'},
             'elsevier': {'name': 'Elsevier Journal', 'thumbnail': '/elsevier.svg'},
             'ieee': {'name': 'IEEE Transactions', 'thumbnail': '/ieee.svg'},
+            'mq': {'name': 'Mankind Quarterly', 'thumbnail': '/MQ_logo_rectangular_small.png'},
         }
 
         template_info = template_map.get(
-            proj.get('template', 'nature'),
-            {'name': 'Nature Communications', 'thumbnail': '/nature.svg'}
+            proj.get('template', '').lower(),
+            {'name': 'Unknown Template', 'thumbnail': '/default.svg'}
         )
 
         # Map database status to frontend status

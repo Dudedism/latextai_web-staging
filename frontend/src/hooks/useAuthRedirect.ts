@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { isAuthenticated, getAnonymousKey, anonSpawn } from '../utils/auth';
+import { useAuth } from '../contexts/AuthContext';
+import { anonSpawn } from '../utils/auth';
 
 const useAuthRedirect = () => {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     // Don't do anything on public pages that don't require authentication
@@ -13,18 +15,14 @@ const useAuthRedirect = () => {
     }
 
     // Don't do anything if user is already authenticated
-    if (isAuthenticated()) {
-      return;
-    }
-
-    // Don't do anything if user already has anonymous account
-    if (getAnonymousKey()) {
+    if (isAuthenticated) {
       return;
     }
 
     // Create anonymous account for auth pages if no authentication exists
+    // Note: anonSpawn checks if user is already authenticated
     anonSpawn();
-  }, [location.pathname]);
+  }, [location.pathname, isAuthenticated]);
 };
 
 export default useAuthRedirect;

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
+import { apiRequest } from '../../utils/api';
+import { formatDate, getStatusColor } from '../../utils/formatting';
 import '../../styles/common.css';
 import './SupportPage.css';
 
@@ -42,9 +43,6 @@ const SupportPage: React.FC = () => {
   const [error, setError] = useState('');
   const [messageCount, setMessageCount] = useState(0);
 
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
-
   useEffect(() => {
     if (projectId) {
       fetchProjectAndTickets();
@@ -53,34 +51,16 @@ const SupportPage: React.FC = () => {
 
   const fetchProjectAndTickets = async () => {
     try {
-      const token = getToken();
-
       // Fetch project details
-      const projectResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${projectId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const projectData = await apiRequest<Project>(`/api/latex/project/${projectId}`);
+      setProject({
+        project_id: projectData.project_id,
+        upload_filename: projectData.upload_filename
       });
-
-      if (projectResponse.ok) {
-        const projectData = await projectResponse.json();
-        setProject({
-          project_id: projectData.project_id,
-          upload_filename: projectData.upload_filename
-        });
-      }
 
       // Fetch tickets for this project
-      const ticketsResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${projectId}/tickets`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (ticketsResponse.ok) {
-        const ticketsData = await ticketsResponse.json();
-        setTickets(ticketsData.tickets || []);
-      }
+      const ticketsData = await apiRequest<{ tickets: Ticket[] }>(`/api/latex/project/${projectId}/tickets`);
+      setTickets(ticketsData.tickets || []);
     } catch (error) {
       console.error('Error fetching project and tickets:', error);
       setError('Failed to load support tickets');
@@ -91,25 +71,16 @@ const SupportPage: React.FC = () => {
 
   const fetchTicketDetails = async (ticketId: string) => {
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/ticket/${ticketId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const ticketData = await apiRequest<Ticket>(`/api/latex/ticket/${ticketId}`);
+      setSelectedTicket(ticketData);
+      // Count user messages for rate limiting display
+      const userMessages = ticketData.messages?.filter((m: Message) => m.sender === 'user') || [];
+      const recentMessages = userMessages.filter((m: Message) => {
+        const msgTime = new Date(m.timestamp).getTime();
+        const hourAgo = Date.now() - 3600000;
+        return msgTime > hourAgo;
       });
-
-      if (response.ok) {
-        const ticketData = await response.json();
-        setSelectedTicket(ticketData);
-        // Count user messages for rate limiting display
-        const userMessages = ticketData.messages?.filter((m: Message) => m.sender === 'user') || [];
-        const recentMessages = userMessages.filter((m: Message) => {
-          const msgTime = new Date(m.timestamp).getTime();
-          const hourAgo = Date.now() - 3600000;
-          return msgTime > hourAgo;
-        });
-        setMessageCount(recentMessages.length);
-      }
+      setMessageCount(recentMessages.length);
     } catch (error) {
       console.error('Error fetching ticket details:', error);
     }
@@ -120,29 +91,19 @@ const SupportPage: React.FC = () => {
     setError('');
 
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${projectId}/support`, {
+      await apiRequest(`/api/latex/project/${projectId}/support`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           subject: newTicketSubject,
           message: newTicketMessage,
         }),
       });
 
-      if (response.ok) {
-        // Reset form and refresh tickets
-        setNewTicketSubject('');
-        setNewTicketMessage('');
-        setShowCreateForm(false);
-        await fetchProjectAndTickets();
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to create ticket');
-      }
+      // Reset form and refresh tickets
+      setNewTicketSubject('');
+      setNewTicketMessage('');
+      setShowCreateForm(false);
+      await fetchProjectAndTickets();
     } catch (error) {
       console.error('Error creating ticket:', error);
       setError('Failed to create ticket');
@@ -154,59 +115,29 @@ const SupportPage: React.FC = () => {
     if (!selectedTicket) return;
 
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/ticket/${selectedTicket.ticket_id}/message`, {
+      await apiRequest(`/api/latex/ticket/${selectedTicket.ticket_id}/message`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: newMessage,
-        }),
+        body: JSON.stringify({ message: newMessage }),
       });
 
-      if (response.ok) {
-        setNewMessage('');
-        // Refresh ticket details
-        await fetchTicketDetails(selectedTicket.ticket_id);
-      } else if (response.status === 429) {
+      setNewMessage('');
+      // Refresh ticket details
+      await fetchTicketDetails(selectedTicket.ticket_id);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      if (error.message?.includes('429')) {
         setError('Rate limit reached. You can only send 5 messages per hour.');
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to send message');
+        setError('Failed to send message');
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Failed to send message');
     }
   };
 
   const hasOpenTicket = tickets.some(t => t.status === 'open' || t.status === 'in_progress');
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'status-open';
-      case 'in_progress': return 'status-progress';
-      case 'resolved': return 'status-resolved';
-      case 'closed': return 'status-closed';
-      default: return '';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
     <div className="support-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
 
       <section className="support-main-section">
         <div className="support-container">

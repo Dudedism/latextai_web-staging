@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
+import { apiRequest } from '../../utils/api';
+import { downloadFile } from '../../utils/download';
 import '../../styles/common.css';
 import './YourPapersPage.css';
 
@@ -21,28 +22,14 @@ const YourPapersPage: React.FC = () => {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
-
   useEffect(() => {
     fetchProjects();
   }, []);
 
   const fetchProjects = async () => {
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/projects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPapers(data);
-      } else {
-        console.error('Failed to fetch projects');
-      }
+      const data = await apiRequest<Paper[]>('/api/latex/projects');
+      setPapers(data);
     } catch (error) {
       console.error('Error fetching projects:', error);
     } finally {
@@ -56,26 +43,7 @@ const YourPapersPage: React.FC = () => {
 
   const handleDownload = async (paperId: string) => {
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${paperId}/tex`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `document.tex`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        console.error('Failed to download .tex file');
-      }
+      await downloadFile(`/api/latex/project/${paperId}/tex`, `document.tex`);
     } catch (error) {
       console.error('Error downloading .tex file:', error);
     }
@@ -91,7 +59,7 @@ const YourPapersPage: React.FC = () => {
 
   return (
     <div className="papers-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="papers-main-section">
         <div className="papers-container">
@@ -133,7 +101,6 @@ const YourPapersPage: React.FC = () => {
             <div key={paper.id} className="paper-card">
               <div className="paper-thumbnail">
                 <img src={paper.thumbnail} alt={paper.template} />
-                <span className="template-badge">nature</span>
               </div>
               
               <div className="paper-info">

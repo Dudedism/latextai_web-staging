@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated, getAnonymousKey, isAnonymousUser } from '../../utils/auth';
+import { useAuth } from '../../contexts/AuthContext';
 import '../../styles/common.css';
 import './SignInPage.css';
 
@@ -45,15 +45,14 @@ const SignInPage: React.FC = () => {
     }
   }, [location.pathname]);
   
-  const user = getAuthenticatedUser();
-  const isAnonymous = isAnonymousUser();
-  
+  const { user, isAnonymous, isAuthenticated, login: authLogin, setAuthData } = useAuth();
+
   // Redirect only if authenticated as a real user (not anonymous)
   useEffect(() => {
-    if (user && !isAnonymous) {
+    if (isAuthenticated && !isAnonymous) {
       navigate('/papers');
     }
-  }, [user, isAnonymous, navigate]);
+  }, [isAuthenticated, isAnonymous, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,54 +80,67 @@ const SignInPage: React.FC = () => {
     }
 
     try {
-      const endpoint = authMode === 'signin' ? '/api/login' : '/api/signup';
-      const baseUrl = import.meta.env.VITE_BACKEND_URL;
-      
-      // Check if there's an anonymous key for account merging
-      const anonymousKey = getAnonymousKey();
-      
-      const body: any = authMode === 'signin' 
-        ? { email, password }
-        : { name, email, password };
-      
-      // Add anonymous key if it exists (for account merging)
-      if (anonymousKey && authMode === 'signin') {
-        body.anon_key = anonymousKey;
-      }
+      if (authMode === 'signin') {
+        // Use AuthContext login for signin
+        // Pass current email if anonymous for account merging
+        const result = await authLogin(email, password, user?.email);
 
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (authMode === 'signin') {
-          // Store JWT token in localStorage
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('userEmail', email);
-          localStorage.setItem('userName', data.name);
-          localStorage.setItem('isAdmin', data.admin?.toString() || 'false');
-          
+        if (result.success) {
           // Navigate to papers page
           navigate('/papers');
         } else {
-          // Signup successful - show success message
-          setError('');
-          // WARNING: Placeholder - Email verification disabled until email API developed
-          // In production, should mention checking email for verification
-          alert(data.message || 'Registration successful! You can now sign in.');
-          // Set flag to preserve email when switching to signin
-          setJustRegistered(true);
-          // Navigate to signin page (this also switches mode)
-          navigate('/signin');
+          setError(result.error || 'Login failed');
         }
       } else {
-        setError(data.message || 'An error occurred');
+        // Handle signup with direct fetch (now with auto-login)
+        const body: any = { name, email, password };
+
+        // If currently logged in as anonymous, send email for account merge
+        if (user?.email && user.email.endsWith('@anonymous.user')) {
+          body.current_email = user.email;
+          console.log('🔀 [SIGNUP] Sending anonymous email for merge:', user.email);
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/signup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Signup successful with auto-login - store auth data
+          setError('');
+
+          if (data.access_token && data.refresh_token) {
+            // Auto-login: Store tokens and user data using AuthContext
+            setAuthData({
+              access_token: data.access_token,
+              refresh_token: data.refresh_token,
+              email: data.email,
+              name: data.name,
+              admin: data.admin || false
+            });
+
+            console.log('✅ [SIGNUP] Registration and auto-login successful');
+            if (data.merge_successful) {
+              console.log('✅ [SIGNUP] Anonymous account merged successfully');
+            }
+
+            // Navigate to papers page
+            navigate('/papers');
+          } else {
+            // Fallback: Old behavior (shouldn't happen with updated backend)
+            alert(data.message || 'Registration successful! You can now sign in.');
+            setJustRegistered(true);
+            navigate('/signin');
+          }
+        } else {
+          setError(data.message || 'An error occurred');
+        }
       }
     } catch (err) {
       setError('Network error. Please check if the backend server is running.');
@@ -140,7 +152,7 @@ const SignInPage: React.FC = () => {
 
   return (
     <div className="signin-page">
-      <Banner isAuthenticated={isAuthenticated()} userName={user?.name} />
+      <Banner isAuthenticated={isAuthenticated} userName={user?.name} />
       
       <section className="signin-section">
         <div className="signin-form-container">

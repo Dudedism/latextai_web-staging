@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import { apiRequest } from '../../utils/api';
 import '../../styles/common.css';
 import './ChooseTemplatePage.css';
 
@@ -14,37 +14,53 @@ interface Template {
 }
 
 interface ChooseTemplatePageProps {
-  onSelectTemplate?: (templateId: string) => void;
+  onSelectTemplate?: (templateId: string, templateName?: string) => void;
 }
 
 const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
 
-  const templates: Template[] = [
-    { id: '1', name: 'Nature Communications', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '2', name: 'The Lancet', publisher: 'the lancet', year: '2025', thumbnail: '/lancet.svg' },
-    { id: '3', name: 'Springer Journal', publisher: 'springer', year: '2025', thumbnail: '/springer.svg' },
-    { id: '4', name: 'Elsevier Journal', publisher: 'elsevier', year: '2025', thumbnail: '/elsevier.svg' },
-    { id: '5', name: 'IEEE Transactions', publisher: 'ieee', year: '2025', thumbnail: '/ieee.svg' },
-    { id: '6', name: 'Nature Physics', publisher: 'nature', year: '2025', thumbnail: '/nature.svg' },
-    { id: '7', name: 'Lancet Oncology', publisher: 'the lancet', year: '2025', thumbnail: '/lancet.svg' },
-    { id: '8', name: 'Springer Mathematics', publisher: 'springer', year: '2025', thumbnail: '/springer.svg' },
-  ];
-
-  const handleTemplateClick = (templateId: string) => {
-    setSelectedTemplate(templateId);
-    if (onSelectTemplate) {
-      onSelectTemplate(templateId);
+  const fetchTemplates = async () => {
+    try {
+      const data = await apiRequest<{ templates: Template[] }>('/api/latex/templates');
+      setTemplates(data.templates);
+    } catch (error) {
+      setError('Failed to load templates');
+      console.error('Error fetching templates:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleTemplateClick = (template: Template) => {
+    setSelectedTemplate(template.id);
+    if (onSelectTemplate) {
+      onSelectTemplate(template.id, template.name);
+    }
+  };
+
+  // Filter templates based on search query
+  const filteredTemplates = templates.filter(template => {
+    const query = searchQuery.toLowerCase().trim().replace(/\s+/g, ' ');
+    const name = template.name.toLowerCase().replace(/\s+/g, ' ');
+    const publisher = template.publisher.toLowerCase().replace(/\s+/g, ' ');
+    return (
+      name.includes(query) ||
+      publisher.includes(query)
+    );
+  });
+
   return (
     <div className="choose-template-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="template-main-section">
         <div className="template-container">
@@ -73,11 +89,16 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
         </div>
 
         <div className="templates-grid">
-          {templates.map((template) => (
+          {loading ? (
+            <p>Loading templates...</p>
+          ) : error ? (
+            <p className="error-message">{error}</p>
+          ) : (
+            filteredTemplates.map((template) => (
             <div
               key={template.id}
               className={`template-card ${selectedTemplate === template.id ? 'selected' : ''}`}
-              onClick={() => handleTemplateClick(template.id)}
+              onClick={() => handleTemplateClick(template)}
             >
               <div className="template-preview">
                 <img src={template.thumbnail} alt={template.name} />
@@ -88,7 +109,8 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
                 <span className="template-year">{template.year}</span>
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
         </div>
       </section>

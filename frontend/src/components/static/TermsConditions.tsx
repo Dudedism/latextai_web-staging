@@ -1,129 +1,185 @@
 import React from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './StaticPages.css';
 
 const TermsConditions: React.FC = () => {
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
   return (
     <div className="static-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
-      
+      <Banner />
+
       <section className="static-main-section">
         <div className="static-container">
-        <h1 className="static-title">Terms & Conditions</h1>
+        <h1 className="static-title">Terms of Service</h1>
         <p className="static-date">Effective Date: January 2025</p>
-        
+
+        <p>
+          These Terms of Service ("Terms") govern your access to and use of OpenTypesetter ("the Service"),
+          operated by OpenTypesetter LLC, a Wyoming Limited Liability Company ("OpenTypesetter," "we," "our,"
+          or "us"). By accessing or using the Service, you agree to be bound by these Terms. If you do not agree,
+          you may not use the Service.
+        </p>
+
         <section className="static-section">
-          <h2>1. Acceptance of Terms</h2>
+          <h2>1. Eligibility & Accounts</h2>
+          <p><strong>1.1 Eligibility:</strong> You must be at least 18 years old to use the Service.</p>
           <p>
-            By accessing or using LaTexT's services, you agree to be bound by these Terms and Conditions. 
-            If you do not agree to these terms, please do not use our services.
+            <strong>1.2 Account Registration:</strong> To access the Service, you must create an account using
+            Google Authentication. You are responsible for safeguarding your account credentials and for all
+            activities under your account.
+          </p>
+          <p>
+            <strong>1.3 Account Deletion:</strong> You may delete your account at any time through your account settings.
+            When you delete your account, all associated documents will be permanently removed from our systems within 30 days.
+            If you prefer your documents and personal data to be deleted immediately and irreversibly upon account deletion,
+            you may request this by contacting us at support@opentypesetter.com. Once such a request is received, we will
+            permanently remove your data from our active systems without delay, subject only to legal or security-related
+            retention obligations.
           </p>
         </section>
 
         <section className="static-section">
-          <h2>2. Service Description</h2>
+          <h2>2. Description of Service</h2>
           <p>
-            LaTexT provides an AI-powered document conversion service that transforms Word documents into 
-            professionally typeset LaTeX documents. The service includes:
+            <strong>2.1 Service Offered:</strong> OpenTypesetter allows users to upload documents (currently .doc and .docx)
+            for automated conversion into LaTeX format, including formatting of text, tables, equations, and citations.
           </p>
-          <ul>
-            <li>Document upload and processing</li>
-            <li>Template selection from various journal formats</li>
-            <li>Preview of converted documents</li>
-            <li>Download of LaTeX source files (paid feature)</li>
-          </ul>
-        </section>
-
-        <section className="static-section">
-          <h2>3. User Accounts</h2>
           <p>
-            You may use our services as an anonymous user or create an account. Account holders are responsible for:
-          </p>
-          <ul>
-            <li>Maintaining the confidentiality of their account credentials</li>
-            <li>All activities that occur under their account</li>
-            <li>Providing accurate and complete information</li>
-            <li>Updating information to keep it current</li>
-          </ul>
-        </section>
-
-        <section className="static-section">
-          <h2>4. Payment Terms</h2>
-          <p>
-            Payment is required to download converted LaTeX documents. All payments are processed through Stripe. 
-            By making a payment, you agree to:
-          </p>
-          <ul>
-            <li>Pay all applicable fees</li>
-            <li>Provide valid payment information</li>
-            <li>Authorize us to charge your payment method</li>
-          </ul>
-        </section>
-
-        <section className="static-section">
-          <h2>5. Refund Policy</h2>
-          <p>
-            We offer refunds within 7 days of purchase if you are not satisfied with the conversion quality. 
-            Refund requests must include specific details about the quality issues encountered.
+            <strong>2.2 Free and Paid Use:</strong> The first uploaded document may be processed free of charge. Thereafter,
+            the Service operates on a pay-per-document basis.
           </p>
         </section>
 
         <section className="static-section">
-          <h2>6. Intellectual Property</h2>
+          <h2>3. User Content & Intellectual Property</h2>
           <p>
-            You retain all rights to your uploaded documents. By using our service, you grant us a limited 
-            license to process your documents for the purpose of providing our services. We do not claim 
-            ownership of your content.
+            <strong>3.1 User Ownership:</strong> You retain all rights, title, and interest in and to the documents
+            you upload ("User Content").
+          </p>
+          <p>
+            <strong>3.2 License to Process:</strong> By uploading content, you grant OpenTypesetter a limited, non-exclusive
+            license to process and convert your User Content solely for the purpose of providing the Service.
+          </p>
+          <p>
+            <strong>3.3 Optional Consent for Service Improvement:</strong> When creating an account, you may choose to
+            consent to allow OpenTypesetter to use your uploaded and typeset documents for internal research and service
+            improvement purposes. This consent is entirely opt-in, can be withdrawn at any time in your account settings,
+            and never involves sharing or selling documents to third parties. If you do not consent, your documents will
+            only be used to provide the Service.
           </p>
         </section>
 
         <section className="static-section">
-          <h2>7. Acceptable Use</h2>
+          <h2>4. Payments, Refunds, and Credits</h2>
+          <p>
+            <strong>4.1 Payments:</strong> The Service operates on a pay-per-document basis. Payment is required before
+            processing, except for the first free document.
+          </p>
+          <p>
+            <strong>4.2 Payment Processing:</strong> Payments are processed securely through Stripe, Inc. ("Stripe").
+            By making a payment, you also agree to Stripe's own terms of service and privacy policy.
+          </p>
+          <p>
+            <strong>4.3 Refunds:</strong> Refunds are available only in cases where (a) a paid document fails to process,
+            or (b) the output file is materially unusable due to a system error attributable to OpenTypesetter.
+          </p>
+          <p>
+            <strong>4.4 Credits for Feedback:</strong> We may, at our discretion, issue credits to users who provide
+            feedback about the Service. These credits have no monetary value and may be used only for additional document
+            submissions. The availability of such credits is not a guaranteed right.
+          </p>
+        </section>
+
+        <section className="static-section">
+          <h2>5. Data Storage & Deletion</h2>
+          <p>
+            <strong>5.1 Storage:</strong> Uploaded documents remain available in your account until you delete them.
+          </p>
+          <p>
+            <strong>5.2 Recycle Bin and Deletion:</strong> Deleted documents are first moved to a recycle bin accessible
+            from your account. They will be permanently deleted 30 days after being placed there, unless you choose to
+            restore them. You may also request immediate permanent deletion at any time through your account settings.
+          </p>
+          <p>
+            <strong>5.3 Privacy Policy:</strong> Our Privacy Policy, which explains in detail how we handle your data,
+            forms part of these Terms.
+          </p>
+        </section>
+
+        <section className="static-section">
+          <h2>6. Acceptable Use</h2>
           <p>You agree not to:</p>
           <ul>
-            <li>Upload malicious files or content</li>
-            <li>Attempt to reverse engineer our service</li>
-            <li>Use the service for illegal purposes</li>
-            <li>Violate intellectual property rights of others</li>
-            <li>Exceed reasonable usage limits</li>
+            <li>Upload illegal, infringing, or harmful content;</li>
+            <li>Interfere with or disrupt the Service or its servers;</li>
+            <li>Attempt to reverse engineer, decompile, or exploit the Service.</li>
           </ul>
         </section>
 
         <section className="static-section">
-          <h2>8. Limitation of Liability</h2>
+          <h2>7. Termination</h2>
           <p>
-            LaTexT is provided "as is" without warranties of any kind. We are not liable for any indirect, 
-            incidental, special, or consequential damages arising from your use of our services.
+            <strong>7.1 By Company:</strong> We may suspend or terminate your account (i) for violation of these Terms,
+            (ii) to comply with legal obligations, or (iii) at our sole discretion, for any reason or no reason.
+          </p>
+          <p>
+            <strong>7.2 By User:</strong> You may terminate your account at any time by deleting it.
           </p>
         </section>
 
         <section className="static-section">
-          <h2>9. Termination</h2>
+          <h2>8. Disclaimers</h2>
           <p>
-            We reserve the right to suspend or terminate your account if you violate these terms. 
-            You may delete your account at any time through your account settings.
+            The Service is provided "as is" and "as available." We make no warranties, express or implied, including
+            but not limited to merchantability, fitness for a particular purpose, or non-infringement. We do not warrant
+            that the Service will be uninterrupted or error-free.
           </p>
         </section>
 
         <section className="static-section">
-          <h2>10. Changes to Terms</h2>
+          <h2>9. Limitation of Liability</h2>
           <p>
-            We may update these terms from time to time. Continued use of our services after changes 
-            constitutes acceptance of the new terms.
+            <strong>9.1</strong> To the fullest extent permitted by law, OpenTypesetter LLC, its members, and affiliates
+            shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of
+            the Service.
+          </p>
+          <p>
+            <strong>9.2</strong> Our total liability for any claim related to the Service shall not exceed the greater of
+            (a) the amount you paid for the affected document or (b) one hundred U.S. dollars (US $100).
           </p>
         </section>
 
         <section className="static-section">
-          <h2>11. Contact Information</h2>
+          <h2>10. Governing Law & Dispute Resolution</h2>
           <p>
-            For questions about these Terms & Conditions, please contact us at:
+            <strong>10.1 Governing Law:</strong> These Terms are governed by the laws of the State of Wyoming, without
+            regard to its conflict-of-laws principles.
+          </p>
+          <p>
+            <strong>10.2 Arbitration:</strong> Any dispute arising from these Terms or your use of the Service shall be
+            resolved by binding arbitration administered by the American Arbitration Association (AAA) under its Consumer
+            Arbitration Rules. The seat of arbitration shall be Cheyenne, Wyoming. Either party may bring an individual
+            action in a Wyoming small-claims court instead of arbitration.
+          </p>
+        </section>
+
+        <section className="static-section">
+          <h2>11. Changes to Terms</h2>
+          <p>
+            We may update these Terms from time to time. If material changes occur, we will notify you by email or within
+            the Service interface. Continued use of the Service after such notice constitutes your acceptance of the updated Terms.
+          </p>
+        </section>
+
+        <section className="static-section">
+          <h2>12. Contact Information</h2>
+          <p>
+            For questions or concerns, contact:
             <br />
-            <a href="mailto:legal@latex.com">legal@latex.com</a>
+            OpenTypesetter LLC
+            <br />
+            Email: <a href="mailto:support@opentypesetter.com">support@opentypesetter.com</a>
           </p>
         </section>
         </div>

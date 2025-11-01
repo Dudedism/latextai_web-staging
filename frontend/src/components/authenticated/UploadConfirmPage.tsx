@@ -2,20 +2,17 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
+import { apiFetch } from '../../utils/api';
 import '../../styles/common.css';
 import './UploadConfirmPage.css';
 
 const UploadConfirmPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { file, template } = location.state || {};
-
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
+  const { file, templateId, templateName } = location.state || {};
 
   const handleConfirmUpload = async () => {
-    if (!file || !template) {
+    if (!file || !templateId) {
       console.error('Missing file or template');
       navigate('/papers/new');
       return;
@@ -24,20 +21,15 @@ const UploadConfirmPage: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('template', template);
+      formData.append('template', templateId);
 
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/upload`, {
+      const response = await apiFetch('/api/latex/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
         body: formData,
       });
 
       if (response.ok) {
         const data = await response.json();
-        // Navigate to processing page with project ID
         navigate('/papers/processing', { state: { projectId: data.project_id } });
       } else {
         console.error('Failed to upload file');
@@ -53,7 +45,7 @@ const UploadConfirmPage: React.FC = () => {
 
   return (
     <div className="upload-confirm-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
 
       <section className="upload-confirm-section">
         <div className="upload-confirm-container">
@@ -74,7 +66,7 @@ const UploadConfirmPage: React.FC = () => {
             </div>
             <div className="summary-item">
               <span className="summary-label">Template:</span>
-              <span className="summary-value">{template || 'No template selected'}</span>
+              <span className="summary-value">{templateName || 'No template selected'}</span>
             </div>
           </div>
 

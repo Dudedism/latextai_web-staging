@@ -1,20 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import './Banner.css';
 
 interface BannerProps {
+  // Legacy props - kept for backward compatibility but not used
   isAuthenticated?: boolean;
   userName?: string;
 }
 
-const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) => {
+const Banner: React.FC<BannerProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { isAuthenticated, isAnonymous, logout } = useAuth();
 
   // Determine user state: registered users vs anonymous users (default)
-  const isRegisteredUser = isAuthenticated && !userName?.includes('Anonymous');
+  const isRegisteredUser = isAuthenticated && !isAnonymous;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -30,11 +33,7 @@ const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) =>
   }, []);
 
   const handleSignOut = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('isAdmin');
-    localStorage.removeItem('anonymousKey');
+    logout();
     navigate('/signin');
   };
 

@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
 import YourPapersPage from './components/authenticated/YourPapersPage';
 import NewPaperPage from './components/authenticated/NewPaperPage';
+import ConsentPage from './components/authenticated/ConsentPage';
 import ProcessingPage from './components/authenticated/ProcessingPage';
 import PreviewPage from './components/authenticated/PreviewPage';
 import UploadConfirmPage from './components/authenticated/UploadConfirmPage';
@@ -15,7 +17,7 @@ import PricingPage from './components/static/PricingPage';
 import SignInPage from './components/static/SignInPage';
 import AdminSupportPage from './components/admin/AdminSupportPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
-import { anonSpawn } from './utils/auth';
+import { anonSpawn, shouldRefreshToken, refreshAccessToken } from './utils/auth';
 import './App.css'
 
 const AppContent = () => {
@@ -25,6 +27,24 @@ const AppContent = () => {
   useEffect(() => {
     anonSpawn();
   }, []);
+
+  // Proactive token refresh: on mount and periodically every 10 minutes
+  useEffect(() => {
+    const checkAndRefresh = async () => {
+      if (shouldRefreshToken()) {
+        console.log('🔄 [APP] Token expiring soon, refreshing proactively');
+        await refreshAccessToken(true); // silent = true (don't redirect on failure)
+      }
+    };
+
+    // Check immediately on mount
+    checkAndRefresh();
+
+    // Check every 10 minutes (600000 ms)
+    const interval = setInterval(checkAndRefresh, 600000);
+
+    return () => clearInterval(interval);
+  }, []);
   
   return (
     <div className="App">
@@ -33,6 +53,7 @@ const AppContent = () => {
         <Route path="/account" element={<AccountPage />} />
         <Route path="/papers" element={<YourPapersPage />} />
         <Route path="/papers/new" element={<NewPaperPage />} />
+        <Route path="/papers/consent" element={<ConsentPage />} />
         <Route path="/papers/upload-confirm" element={<UploadConfirmPage />} />
         <Route path="/papers/processing" element={<ProcessingPage />} />
         <Route path="/papers/:id/view" element={<PreviewPage />} />
@@ -53,7 +74,9 @@ const AppContent = () => {
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </BrowserRouter>
   )
 }

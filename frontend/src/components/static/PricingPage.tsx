@@ -2,14 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './StaticPages.css';
 
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
 
   const handleGetStarted = (plan: string) => {
     console.log(`Selected plan: ${plan}`);
@@ -18,7 +15,7 @@ const PricingPage: React.FC = () => {
 
   return (
     <div className="static-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="static-main-section">
         <div className="static-container">

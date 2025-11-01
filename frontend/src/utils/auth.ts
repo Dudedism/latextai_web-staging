@@ -12,8 +12,12 @@ export const getAuthenticatedUser = (): User | null => {
   const isAdmin = localStorage.getItem('isAdmin') === 'true';
 
   if (!token || !email || !name) {
+    console.log('🔒 [AUTH] No authenticated user (missing token/email/name)');
     return null;
   }
+
+  const isAnon = email.endsWith('@anonymous.user');
+  console.log(`🔒 [AUTH] User: ${email} | Anonymous: ${isAnon} | Admin: ${isAdmin}`);
 
   return {
     email,
@@ -37,20 +41,95 @@ export const isAdmin = (): boolean => {
   return user !== null && user.isAdmin === true;
 };
 
-export const getAnonymousKey = (): string | null => {
-  return localStorage.getItem('anonymousKey');
-};
 
 export const getToken = (): string | null => {
   return localStorage.getItem('token');
 };
 
+export const getRefreshToken = (): string | null => {
+  return localStorage.getItem('refreshToken');
+};
+
+export const getTokenExpiry = (): number | null => {
+  const token = getToken();
+  if (!token) return null;
+
+  try {
+    // Decode JWT payload (base64 decode the middle part)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp; // Unix timestamp in seconds
+  } catch {
+    return null;
+  }
+};
+
+export const shouldRefreshToken = (): boolean => {
+  const exp = getTokenExpiry();
+  if (!exp) return false;
+
+  const now = Math.floor(Date.now() / 1000);
+  const timeLeft = exp - now;
+
+  // Refresh if token expires in less than 5 minutes (300 seconds)
+  return timeLeft > 0 && timeLeft < 300;
+};
+
+export const refreshAccessToken = async (silent: boolean = false): Promise<boolean> => {
+  const refreshToken = getRefreshToken();
+  const currentEmail = localStorage.getItem('userEmail');
+
+  console.log(`🔄 [AUTH] Refreshing token for: ${currentEmail || 'unknown'}${silent ? ' (silent)' : ''}`);
+
+  if (!refreshToken) {
+    console.log('❌ [AUTH] No refresh token available');
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/refresh`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${refreshToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      // Store new tokens
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('refreshToken', data.refresh_token);
+      console.log(`✅ [AUTH] Token refreshed successfully for: ${currentEmail}`);
+      return true;
+    } else {
+      console.log(`❌ [AUTH] Token refresh failed (${response.status})`);
+      // Only clear auth on silent refresh - let interceptor handle user-initiated actions
+      if (silent) {
+        console.log('   Silent refresh failed - clearing expired tokens');
+        logout();
+      }
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ [AUTH] Error refreshing token:', error);
+    return false;
+  }
+};
+
+export const clearAuthTokens = (): void => {
+  console.log('🧹 [AUTH] Clearing all auth tokens');
+  const oldEmail = localStorage.getItem('userEmail');
+  console.log(`🧹 [AUTH] Removing tokens for: ${oldEmail || 'unknown'}`);
+
+  ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin'].forEach(key => {
+    localStorage.removeItem(key);
+  });
+
+  console.log('✅ [AUTH] Tokens cleared');
+};
+
 export const logout = (): void => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('userEmail');
-  localStorage.removeItem('userName');
-  localStorage.removeItem('isAdmin');
-  // Don't remove anonymousKey - keep it for potential account merging
+  clearAuthTokens();
 };
 
 export const getAuthHeaders = () => {
@@ -64,46 +143,40 @@ export const getAuthHeaders = () => {
 };
 
 export const anonSpawn = async (): Promise<boolean> => {
-  // Don't create anonymous account if user is already registered
-  if (isAuthenticated() && !isAnonymousUser()) {
-    return true; // Already have registered account
-  }
-
-  // Check if anonymous account already exists
-  if (getAnonymousKey()) {
-    return true; // Already have anonymous account
+  // Don't create anonymous account if user is already authenticated
+  if (isAuthenticated()) {
+    console.log('🔒 [AUTH] User already authenticated, skipping anonymous spawn');
+    return true;
   }
 
   try {
-    // Generate a unique key for anonymous user
-    const anonymousKey = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Store the key in localStorage for later use
-    localStorage.setItem('anonymousKey', anonymousKey);
+    console.log('👤 [AUTH] Creating anonymous user session');
 
     const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/loginAnonymously`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ key: anonymousKey }),
+      }
     });
 
     const data = await response.json();
 
     if (response.ok) {
-      // Store anonymous token
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userEmail', `${anonymousKey}@anonymous.user`);
-      localStorage.setItem('userName', data.name || 'Anonymous');
+      console.log('✅ [AUTH] Anonymous session created:', data.email);
+
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('refreshToken', data.refresh_token);
+      localStorage.setItem('userEmail', data.email);
+      localStorage.setItem('userName', data.name || 'Anonymous User');
       localStorage.setItem('isAdmin', 'false');
+
       return true;
     } else {
-      console.error('Failed to create anonymous session:', data.message);
+      console.error('❌ [AUTH] Failed to create anonymous session:', data.message);
       return false;
     }
   } catch (error) {
-    console.error('Error creating anonymous session:', error);
+    console.error('❌ [AUTH] Error creating anonymous session:', error);
     return false;
   }
 };

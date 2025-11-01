@@ -1,16 +1,13 @@
 import React from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './StaticPages.css';
 
 const PrivacyPolicy: React.FC = () => {
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
   return (
     <div className="static-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="static-main-section">
         <div className="static-container">

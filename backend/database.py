@@ -53,14 +53,15 @@ class BaseModel:
 
 class User(BaseModel):
     collection_name = 'users'
-    
-    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, **kwargs):
+
+    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, **kwargs):
         super().__init__(
             name=name,
             email=email,
             password=password,
             is_verified=is_verified,
             admin=admin,
+            data_consent=data_consent,
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -126,6 +127,24 @@ class User(BaseModel):
         )
         return result.modified_count > 0
 
+    @classmethod
+    def update_data_consent(cls, email, consent):
+        """
+        Update user's data consent preference.
+
+        Args:
+            email: User email
+            consent: True (agreed), False (declined), or None (not yet asked)
+
+        Returns:
+            True if updated successfully, False otherwise
+        """
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email},
+            {'$set': {'data_consent': consent, 'consent_updated_at': datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+
 class Project(BaseModel):
     collection_name = 'projects'
 
@@ -144,9 +163,80 @@ class Project(BaseModel):
         )
 
     @classmethod
-    def find_by_user(cls, user_id):
-        """Find all projects for a specific user"""
-        return cls.find_all({'user_id': user_id})
+    def get_user_identifiers(cls, user):
+        """
+        Get all possible user identifiers (email and ObjectId) for backwards compatibility.
+
+        Args:
+            user: User dict from database
+
+        Returns:
+            list: List of possible user_id values [email, str(_id)]
+        """
+        identifiers = []
+        if user.get('email'):
+            identifiers.append(user['email'])
+        if user.get('_id'):
+            identifiers.append(str(user['_id']))
+        return identifiers
+
+    @classmethod
+    def find_by_user(cls, user):
+        """
+        Find all projects for a specific user.
+        Handles both email and ObjectId formats for backwards compatibility.
+
+        Args:
+            user: Either a user dict with 'email' and '_id', or a string (email/user_id)
+
+        Returns:
+            list: List of projects owned by the user
+        """
+        if isinstance(user, str):
+            # String passed - query for exact match
+            return cls.find_all({'user_id': user})
+        else:
+            # User dict passed - query for both email and _id
+            identifiers = cls.get_user_identifiers(user)
+            return cls.find_all({'user_id': {'$in': identifiers}})
+
+    @classmethod
+    def delete_by_user(cls, user):
+        """
+        Delete all projects for a specific user.
+        Handles both email and ObjectId formats for backwards compatibility.
+
+        Args:
+            user: User dict from database
+
+        Returns:
+            int: Number of projects deleted
+        """
+        identifiers = cls.get_user_identifiers(user)
+        result = mongo.db[cls.collection_name].delete_many({'user_id': {'$in': identifiers}})
+        return result.deleted_count
+
+    @classmethod
+    def transfer_to_user(cls, from_user, to_user):
+        """
+        Transfer all projects from one user to another.
+        Used during account merging.
+
+        Args:
+            from_user: Source user dict
+            to_user: Target user dict
+
+        Returns:
+            int: Number of projects transferred
+        """
+        from_identifiers = cls.get_user_identifiers(from_user)
+        to_email = to_user['email']  # Always use email for new assignments
+
+        result = mongo.db[cls.collection_name].update_many(
+            {'user_id': {'$in': from_identifiers}},
+            {'$set': {'user_id': to_email}}
+        )
+        return result.modified_count
 
     @classmethod
     def find_by_id(cls, project_id):
@@ -185,6 +275,24 @@ class Ticket(BaseModel):
         )
 
     @classmethod
+    def get_user_identifiers(cls, user):
+        """
+        Get all possible user identifiers (email and ObjectId) for backwards compatibility.
+
+        Args:
+            user: User dict from database
+
+        Returns:
+            list: List of possible user_id values [email, str(_id)]
+        """
+        identifiers = []
+        if user.get('email'):
+            identifiers.append(user['email'])
+        if user.get('_id'):
+            identifiers.append(str(user['_id']))
+        return identifiers
+
+    @classmethod
     def find_by_id(cls, ticket_id):
         """Find a ticket by its ticket_id"""
         ticket = cls()
@@ -202,9 +310,62 @@ class Ticket(BaseModel):
         return ticket.find({'project_id': project_id, 'status': {'$in': ['open', 'in_progress']}})
 
     @classmethod
-    def find_by_user(cls, user_id):
-        """Get all tickets created by a user"""
-        return cls.find_all({'user_id': user_id})
+    def find_by_user(cls, user):
+        """
+        Get all tickets created by a user.
+        Handles both email and ObjectId formats for backwards compatibility.
+
+        Args:
+            user: Either a user dict with 'email' and '_id', or a string (email/user_id)
+
+        Returns:
+            list: List of tickets created by the user
+        """
+        if isinstance(user, str):
+            # String passed - query for exact match
+            return cls.find_all({'user_id': user})
+        else:
+            # User dict passed - query for both email and _id
+            identifiers = cls.get_user_identifiers(user)
+            return cls.find_all({'user_id': {'$in': identifiers}})
+
+    @classmethod
+    def delete_by_user(cls, user):
+        """
+        Delete all tickets for a specific user.
+        Handles both email and ObjectId formats for backwards compatibility.
+
+        Args:
+            user: User dict from database
+
+        Returns:
+            int: Number of tickets deleted
+        """
+        identifiers = cls.get_user_identifiers(user)
+        result = mongo.db[cls.collection_name].delete_many({'user_id': {'$in': identifiers}})
+        return result.deleted_count
+
+    @classmethod
+    def transfer_to_user(cls, from_user, to_user):
+        """
+        Transfer all tickets from one user to another.
+        Used during account merging.
+
+        Args:
+            from_user: Source user dict
+            to_user: Target user dict
+
+        Returns:
+            int: Number of tickets transferred
+        """
+        from_identifiers = cls.get_user_identifiers(from_user)
+        to_email = to_user['email']  # Always use email for new assignments
+
+        result = mongo.db[cls.collection_name].update_many(
+            {'user_id': {'$in': from_identifiers}},
+            {'$set': {'user_id': to_email}}
+        )
+        return result.modified_count
 
     def add_message(self, content, sender, sender_id):
         """Add a new message to the ticket's messages array"""

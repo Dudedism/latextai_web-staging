@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './NewPaperPage.css';
 
@@ -16,9 +15,6 @@ const NewPaperPage: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -61,27 +57,59 @@ const NewPaperPage: React.FC = () => {
     setUploadState('template');
   };
 
-  const handleTemplateSelect = (templateId: string) => {
-    // Map template IDs to template names
-    const templateMap: { [key: string]: string } = {
-      '1': 'nature',
-      '2': 'the lancet',
-      '3': 'springer',
-      '4': 'elsevier',
-      '5': 'ieee',
-      '6': 'nature',
-      '7': 'the lancet',
-      '8': 'springer'
-    };
+  const handleTemplateSelect = async (templateId: string, templateName?: string) => {
+    if (!uploadedFile) return;
 
-    const template = templateMap[templateId] || 'nature';
+    // Check consent status before proceeding
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/user/data-consent`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    // Navigate to upload confirmation page
-    if (uploadedFile) {
-      navigate('/papers/upload-confirm', {
+      if (response.ok) {
+        const data = await response.json();
+
+        // If consent is true, skip consent page and go directly to upload confirm
+        if (data.consent === true) {
+          navigate('/papers/upload-confirm', {
+            state: {
+              file: uploadedFile,
+              templateId: templateId,
+              templateName: templateName || templateId
+            }
+          });
+        } else {
+          // If consent is false or null, show consent page
+          navigate('/papers/consent', {
+            state: {
+              file: uploadedFile,
+              templateId: templateId,
+              templateName: templateName || templateId
+            }
+          });
+        }
+      } else {
+        // On error, show consent page to be safe
+        navigate('/papers/consent', {
+          state: {
+            file: uploadedFile,
+            templateId: templateId,
+            templateName: templateName || templateId
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error checking consent:', error);
+      // On error, show consent page
+      navigate('/papers/consent', {
         state: {
           file: uploadedFile,
-          template: template
+          templateId: templateId,
+          templateName: templateName || templateId
         }
       });
     }
@@ -93,7 +121,7 @@ const NewPaperPage: React.FC = () => {
 
   return (
     <div className="new-paper-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="new-paper-main-section">
         <div className="new-paper-container">
