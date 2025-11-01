@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
 import YourPapersPage from './components/authenticated/YourPapersPage';
@@ -17,16 +17,17 @@ import PricingPage from './components/static/PricingPage';
 import SignInPage from './components/static/SignInPage';
 import AdminSupportPage from './components/admin/AdminSupportPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
-import { anonSpawn, shouldRefreshToken, refreshAccessToken } from './utils/auth';
+import { shouldRefreshToken, refreshAccessToken } from './utils/auth';
 import './App.css'
 
 const AppContent = () => {
+  const { anonSpawn } = useAuth();
   useAuthRedirect();
 
   // Create anonymous account on site load
   useEffect(() => {
     anonSpawn();
-  }, []);
+  }, [anonSpawn]);
 
   // Proactive token refresh: on mount and periodically every 10 minutes
   useEffect(() => {

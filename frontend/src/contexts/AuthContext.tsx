@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 interface User {
@@ -16,6 +16,7 @@ interface AuthContextType {
   logout: () => void;
   setAuthData: (data: { access_token: string; refresh_token: string; email: string; name: string; admin: boolean }, options?: { cleanupKeys?: string[] }) => void;
   clearAuth: () => void;
+  anonSpawn: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,6 +35,8 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const isCreatingAnon = useRef(false);
+  const anonSpawnPromise = useRef<Promise<boolean> | null>(null);
 
   // Initialize auth state from localStorage
   useEffect(() => {
@@ -192,6 +195,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     clearAuth();
   };
 
+  const anonSpawn = async (): Promise<boolean> => {
+    // Check localStorage directly to avoid race condition with React state initialization
+    const existingToken = localStorage.getItem('token');
+    const existingEmail = localStorage.getItem('userEmail');
+
+    if (existingToken && existingEmail) {
+      console.log('🔒 [AUTH CONTEXT] User already authenticated (from localStorage), skipping anonymous spawn');
+      return true;
+    }
+
+    // If already creating an anonymous user, return the existing promise
+    if (isCreatingAnon.current && anonSpawnPromise.current) {
+      console.log('⏳ [AUTH CONTEXT] Anonymous user creation already in progress, waiting...');
+      return anonSpawnPromise.current;
+    }
+
+    // Set flag and create promise
+    isCreatingAnon.current = true;
+    anonSpawnPromise.current = (async () => {
+      try {
+        console.log('👤 [AUTH CONTEXT] Creating anonymous user session');
+
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/loginAnonymously`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          console.log('✅ [AUTH CONTEXT] Anonymous session created:', data.email);
+
+          // Use setAuthData to update both localStorage and React state
+          setAuthData({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            email: data.email,
+            name: data.name || 'Anonymous User',
+            admin: false
+          });
+
+          return true;
+        } else {
+          console.error('❌ [AUTH CONTEXT] Failed to create anonymous session:', data.message);
+          return false;
+        }
+      } catch (error) {
+        console.error('❌ [AUTH CONTEXT] Error creating anonymous session:', error);
+        return false;
+      } finally {
+        // Reset flags
+        isCreatingAnon.current = false;
+        anonSpawnPromise.current = null;
+      }
+    })();
+
+    return anonSpawnPromise.current;
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated,
@@ -200,7 +264,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     setAuthData,
-    clearAuth
+    clearAuth,
+    anonSpawn
   };
 
   return (
