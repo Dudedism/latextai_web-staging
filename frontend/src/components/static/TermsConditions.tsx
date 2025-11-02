@@ -25,9 +25,10 @@ const TermsConditions: React.FC = () => {
           <h2>1. Eligibility & Accounts</h2>
           <p><strong>1.1 Eligibility:</strong> You must be at least 18 years old to use the Service.</p>
           <p>
-            <strong>1.2 Account Registration:</strong> To access the Service, you must create an account using
-            Google Authentication. You are responsible for safeguarding your account credentials and for all
-            activities under your account.
+            <strong>1.2 Account Registration:</strong> To access the Service, you must create an account by registering
+            with your email address and password, or through third-party authentication providers (such as Google).
+            You are responsible for maintaining the confidentiality of your account credentials and for all activities
+            that occur under your account. You agree to notify us immediately of any unauthorized use of your account.
           </p>
           <p>
             <strong>1.3 Account Deletion:</strong> You may delete your account at any time through your account settings.

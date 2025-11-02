@@ -11,35 +11,31 @@ BACKEND_URL = os.getenv('BACKEND_URL')
 FRONTEND_URL = os.getenv('FRONTEND_URL')
 
 MONGO_URI = os.getenv('MONGO_URI')
-SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
+SECRET_KEY = os.getenv('SECRET_KEY')
+EMAIL_VERIFICATION_SALT = os.getenv('EMAIL_VERIFICATION_SALT')
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
 # Flask-JWT-Extended Configuration
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 
-# Regular users: 15 minutes access, 7 days refresh (industry standard)
+# Token expiry: 15 minutes access, 7 days refresh (industry standard)
 JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', '900'))  # 15 minutes
 JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', '604800'))  # 7 days
 
-# Anonymous users: 1 hour access, NEVER expires refresh (no password to recover access)
-JWT_ANON_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ANON_ACCESS_TOKEN_EXPIRES', '3600'))  # 1 hour
-JWT_ANON_REFRESH_TOKEN_EXPIRES = False  # Never expires - anonymous users can't log back in!
-
 ADMIN_IMAGES_DIR = os.getenv('ADMIN_IMAGES_DIR', './images')
 
-# SMTP Configuration
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
-SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
-SMTP_FROM = os.getenv('SMTP_FROM', SMTP_USERNAME)
+# Brevo Email Configuration
+BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL')
+BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME')
+VERIFICATION_BASE_URL = os.getenv('VERIFICATION_BASE_URL')
 
 # Google OAuth Configuration
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 
 # LatextAI Microservice Configuration
 LATEXTAI_SERVICE_URL = os.getenv('LATEXTAI_SERVICE_URL', 'http://localhost:8001')
-LATEXTAI_API_KEY = os.getenv('LATEXTAI_API_KEY', '')
+LATEXTAI_API_KEY = os.getenv('LATEXTAI_API_KEY')
 
 limiter = Limiter(
     key_func=get_remote_address,

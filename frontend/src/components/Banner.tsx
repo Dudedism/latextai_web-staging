@@ -14,10 +14,7 @@ const Banner: React.FC<BannerProps> = () => {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { isAuthenticated, isAnonymous, logout } = useAuth();
-
-  // Determine user state: registered users vs anonymous users (default)
-  const isRegisteredUser = isAuthenticated && !isAnonymous;
+  const { isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -70,8 +67,8 @@ const Banner: React.FC<BannerProps> = () => {
           </button>
           {isDropdownOpen && (
             <div className="dropdown-menu">
-              {isRegisteredUser ? (
-                // Registered user menu
+              {isAuthenticated ? (
+                // Authenticated user menu
                 <>
                   <Link to="/account" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Profile
@@ -87,14 +84,8 @@ const Banner: React.FC<BannerProps> = () => {
                   </button>
                 </>
               ) : (
-                // Anonymous user menu (default)
+                // Unauthenticated user menu
                 <>
-                  <Link to="/papers" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Your Papers
-                  </Link>
-                  <Link to="/papers/new" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Upload Paper
-                  </Link>
                   <Link to="/signin" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Sign In
                   </Link>

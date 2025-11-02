@@ -3,43 +3,17 @@ import { getToken } from './auth';
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 /**
- * Wait for authentication token to be available
- * Used to prevent API calls before anonymous user creation completes
- */
-const waitForToken = async (maxWaitMs: number = 5000): Promise<string | null> => {
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < maxWaitMs) {
-    const token = getToken();
-    if (token) {
-      return token;
-    }
-    // Wait 50ms before checking again
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-
-  return null;
-};
-
-/**
  * Centralized fetch wrapper that handles authentication and redirects on 401
  */
 export const apiFetch = async (
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> => {
-  // Wait for token to be available (handles anonymous user creation race condition)
-  let token = getToken();
-  if (!token) {
-    console.log('⏳ [API] No token yet, waiting for authentication...');
-    token = await waitForToken();
-  }
-
+  const token = getToken();
   const userEmail = localStorage.getItem('userEmail');
-  const isAnon = userEmail?.endsWith('@anonymous.user') || false;
 
   console.log(`📡 [API] ${options.method || 'GET'} ${endpoint}`);
-  console.log(`📡 [API] User: ${userEmail || 'none'} | Anonymous: ${isAnon}`);
+  console.log(`📡 [API] User: ${userEmail || 'none'}`);
 
   // Add Authorization header if token exists
   const headers: Record<string, string> = {
@@ -50,7 +24,7 @@ export const apiFetch = async (
     headers['Authorization'] = `Bearer ${token}`;
     console.log(`📡 [API] Token: ${token.substring(0, 20)}...`);
   } else {
-    console.log('⚠️  [API] No token available after waiting');
+    console.log('⚠️  [API] No token available');
   }
 
   // Make the request

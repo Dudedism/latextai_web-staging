@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
 import YourPapersPage from './components/authenticated/YourPapersPage';
@@ -21,13 +21,7 @@ import { shouldRefreshToken, refreshAccessToken } from './utils/auth';
 import './App.css'
 
 const AppContent = () => {
-  const { anonSpawn } = useAuth();
   useAuthRedirect();
-
-  // Create anonymous account on site load
-  useEffect(() => {
-    anonSpawn();
-  }, [anonSpawn]);
 
   // Proactive token refresh: on mount and periodically every 10 minutes
   useEffect(() => {

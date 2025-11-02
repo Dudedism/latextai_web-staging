@@ -49,15 +49,7 @@ const PrivacyPolicy: React.FC = () => {
         </section>
 
         <section className="static-section">
-          <h2>4. Anonymous Users</h2>
-          <p>
-            Anonymous users can upload and preview documents without creating an account. We use cookies 
-            to maintain your session and store your documents for up to 7 days.
-          </p>
-        </section>
-
-        <section className="static-section">
-          <h2>5. Third-Party Services</h2>
+          <h2>4. Third-Party Services</h2>
           <p>We use the following third-party services:</p>
           <ul>
             <li><strong>Stripe:</strong> For payment processing</li>
@@ -67,7 +59,7 @@ const PrivacyPolicy: React.FC = () => {
         </section>
 
         <section className="static-section">
-          <h2>6. Your Rights</h2>
+          <h2>5. Your Rights</h2>
           <p>You have the right to:</p>
           <ul>
             <li>Access your personal information</li>
@@ -79,7 +71,7 @@ const PrivacyPolicy: React.FC = () => {
         </section>
 
         <section className="static-section">
-          <h2>7. Contact Us</h2>
+          <h2>6. Contact Us</h2>
           <p>
             If you have questions about this Privacy Policy, please contact us at:
             <br />

@@ -1,27 +1,11 @@
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-
+/**
+ * Auth redirect hook - currently a no-op since fetchInterceptor handles
+ * automatic redirects to /signin when API requests fail with 401.
+ *
+ * Kept for potential future use.
+ */
 const useAuthRedirect = () => {
-  const location = useLocation();
-  const { isAuthenticated, anonSpawn } = useAuth();
-
-  useEffect(() => {
-    // Don't do anything on public pages that don't require authentication
-    const allowedPagesWithoutAuth = ['/', '/signin', '/signup', '/pricing', '/about', '/terms', '/privacy'];
-    if (allowedPagesWithoutAuth.includes(location.pathname)) {
-      return;
-    }
-
-    // Don't do anything if user is already authenticated
-    if (isAuthenticated) {
-      return;
-    }
-
-    // Create anonymous account for auth pages if no authentication exists
-    // Note: anonSpawn checks if user is already authenticated
-    anonSpawn();
-  }, [location.pathname, isAuthenticated, anonSpawn]);
+  // No-op: fetchInterceptor handles authentication redirects automatically
 };
 
 export default useAuthRedirect;

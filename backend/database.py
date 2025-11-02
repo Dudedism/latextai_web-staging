@@ -54,7 +54,7 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, **kwargs):
+    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_upload_used=False, is_deleted=False, **kwargs):
         super().__init__(
             name=name,
             email=email,
@@ -62,15 +62,37 @@ class User(BaseModel):
             is_verified=is_verified,
             admin=admin,
             data_consent=data_consent,
+            free_upload_used=free_upload_used,
+            is_deleted=is_deleted,
             created_at=datetime.utcnow(),
             **kwargs
         )
     
     @classmethod
-    def find_by_email(cls, email):
-        """Find a user by email address only"""
+    def find_by_email(cls, email, include_deleted=False):
+        """
+        Find a user by email address.
+
+        Args:
+            email: User email to search for
+            include_deleted: If True, includes deleted accounts in search. Default False.
+
+        Returns:
+            User document or None
+        """
         user = cls()
-        return user.find({'email': email})
+        query = {'email': email}
+        if not include_deleted:
+            query['is_deleted'] = {'$ne': True}  # Exclude deleted accounts
+        return user.find(query)
+
+    @classmethod
+    def find_deleted_by_email(cls, email):
+        """Find deleted user accounts by email"""
+        return list(mongo.db[cls.collection_name].find({
+            'email': email,
+            'is_deleted': True
+        }))
     
     @classmethod
     def insertdate(cls, email, data):
@@ -142,6 +164,42 @@ class User(BaseModel):
         result = mongo.db[cls.collection_name].update_one(
             {'email': email},
             {'$set': {'data_consent': consent, 'consent_updated_at': datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def mark_free_upload_used(cls, email):
+        """Mark that user has used their free upload"""
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email},
+            {'$set': {'free_upload_used': True, 'free_upload_used_at': datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def has_used_free_upload(cls, email):
+        """Check if user has already used their free upload"""
+        user = cls.find_by_email(email)
+        return user.get('free_upload_used', False) if user else False
+
+    @classmethod
+    def set_upload_lock(cls, email):
+        """
+        Set upload lock for user to prevent simultaneous uploads.
+        Returns True if lock was successfully acquired, False if already locked.
+        """
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email, 'upload_in_progress': {'$ne': True}},
+            {'$set': {'upload_in_progress': True, 'upload_lock_at': datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def release_upload_lock(cls, email):
+        """Release upload lock for user"""
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email},
+            {'$unset': {'upload_in_progress': '', 'upload_lock_at': ''}}
         )
         return result.modified_count > 0
 

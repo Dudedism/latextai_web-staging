@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
 import traceback
+import os
 
 from api_admin import api_admin
-from api_anon import api_anon
+from api_public import api_public
 from api_auth import api_auth
 from api_latext import api_latext
 from api_user import api_user
@@ -15,6 +16,43 @@ from database import mongo
 app = Flask(__name__)
 
 CORS(app)
+
+# Security: Block access to sensitive files
+BLOCKED_EXTENSIONS = {'.env', '.yml', '.yaml', '.json', '.py', '.pyc', '.sh', '.md', '.txt', '.log', '.sql', '.db', '.sqlite', '.html'}
+BLOCKED_FILENAMES = {
+    '.env', '.env.local', '.env.development', '.env.staging', '.env.production',
+    'docker-compose.yml', 'docker-compose.yaml', 'Dockerfile', '.dockerignore',
+    'requirements.txt', 'package.json', 'package-lock.json',
+    '.gitignore', '.git', 'config.py', 'database.py',
+    'api_auth.py', 'api_admin.py', 'api_user.py', 'api_latext.py', 'api_public.py',
+    'app.py', 'email_service.py', 'templates.json', 'verification_email.html',
+    'deploy.sh', 'diagnose.py'
+}
+BLOCKED_PATTERNS = {'/api', '/.env', '/docker', '/config', '/database', '/__pycache__'}
+
+@app.before_request
+def block_sensitive_files():
+    """Block access to sensitive configuration and source files"""
+    path = request.path.lower()
+
+    # Check for blocked filenames
+    for blocked in BLOCKED_FILENAMES:
+        if blocked.lower() in path:
+            print(f"🚨 [SECURITY] Blocked attempt to access sensitive file: {request.path}")
+            return jsonify({'error': 'Forbidden'}), 403
+
+    # Check for blocked file extensions (except for allowed routes)
+    if not path.startswith('/api/'):
+        for ext in BLOCKED_EXTENSIONS:
+            if path.endswith(ext):
+                print(f"🚨 [SECURITY] Blocked attempt to access file with sensitive extension: {request.path}")
+                return jsonify({'error': 'Forbidden'}), 403
+
+    # robots.txt is explicitly allowed
+    if path == '/robots.txt':
+        return None
+
+    return None
 
 # Add request logging
 @app.before_request
@@ -93,7 +131,7 @@ limiter.init_app(app)
 mongo.init_app(app)
 
 app.register_blueprint(api_user)
-app.register_blueprint(api_anon)
+app.register_blueprint(api_public)
 app.register_blueprint(api_admin)
 app.register_blueprint(api_auth)
 app.register_blueprint(api_latext)
@@ -113,6 +151,12 @@ except Exception as e:
 @app.route('/')
 def hello():
     return {'message': 'Hello from Flask LaTeX API!'}
+
+@app.route('/robots.txt')
+def robots():
+    """Serve robots.txt to prevent search engine indexing (staging)"""
+    robots_path = os.path.join(os.path.dirname(__file__), 'robots.txt')
+    return send_file(robots_path, mimetype='text/plain')
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)

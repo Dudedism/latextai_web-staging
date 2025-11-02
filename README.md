@@ -13,7 +13,7 @@ latext-site/
 │   ├── api_auth.py            # Authentication blueprint (login, register, JWT)
 │   ├── api_user.py            # User operations blueprint (profile, responses)
 │   ├── api_admin.py           # Admin operations blueprint (manage polls, users)
-│   ├── api_anon.py            # Anonymous/public endpoints blueprint
+│   ├── api_public.py          # Public endpoints blueprint (health, info)
 │   ├── requirements.txt       # Python dependencies
 │   └── venv/                  # Virtual environment
 ├── frontend/                  # React + Vite frontend
@@ -55,12 +55,8 @@ The Flask backend is organized using blueprints to separate different functional
   - `POST /api/admin/norms` - Create new norm
   - `GET /api/admin/stats` - Get system statistics
 
-- **`api_anon`** (`/api/*`): Public endpoints (no authentication required)
+- **`api_public`** (`/api/*`): Public endpoints (no authentication required)
   - `GET /api/health` - Health check
-  - `GET /api/polls/public` - List public polls
-  - `GET /api/polls/<id>/details` - Get poll details
-  - `GET /api/norms/public` - List public norms
-  - `GET /api/norms/<title>/details` - Get norm details
   - `GET /api/info` - App information
 
 ### Database Models

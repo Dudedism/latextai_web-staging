@@ -84,91 +84,133 @@ def get_templates():
 @requires_auth(use_form=True)
 def upload_file(user, data):
     """Handle file upload and forward to latextai service for processing"""
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
+    user_email = user['email']
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
+    # STEP 1: Check if user is verified
+    if not user.get('is_verified', False):
+        return jsonify({
+            'error': 'Please verify your account before uploading files.'
+        }), 403  # 403 Forbidden
 
-    # Get and validate template from form data
-    template_id = request.form.get('template', 'mq').lower()
-
-    # Validate template
-    is_valid, result = validate_template(template_id)
-    if not is_valid:
-        return jsonify({'error': result}), 400
-
-    template_config = result
-    latextai_template_name = template_config['latextai_name']
-
-    # Generate unique project ID
-    project_id = str(uuid.uuid4())
-
-    # Get filename
-    filename = secure_filename(file.filename)
-
-    # Create database entry with 'processing' status
-    project = Project(
-        project_id=project_id,
-        user_id=user['email'],
-        upload_filename=filename,
-        tex_filename=None,  # Will be set after processing by latextai
-        pdf_filename=None,  # Will be set after processing by latextai
-        template=template_id,  # Store template ID in database
-        status='processing'  # Start as processing
-    )
-    project.insert()
+    # STEP 2: Acquire upload lock to prevent simultaneous uploads (race condition prevention)
+    lock_acquired = User.set_upload_lock(user_email)
+    if not lock_acquired:
+        return jsonify({
+            'error': 'Upload already in progress. Please wait for the current upload to complete.'
+        }), 409  # 409 Conflict
 
     try:
-        # Forward file to latextai service
-        files = {'file': (filename, file.stream, file.content_type)}
-        form_data = {
-            'user_email': user['email'],
-            'project_id': project_id,
-            'template': latextai_template_name  # Use latextai template name
-        }
-        headers = {
-            'X-API-Key': LATEXTAI_API_KEY
-        }
+        # STEP 3: Check free upload eligibility
+        has_used_free = User.has_used_free_upload(user_email)
 
-        response = requests.post(
-            f"{LATEXTAI_SERVICE_URL}/api/upload",
-            files=files,
-            data=form_data,
-            headers=headers,
-            timeout=30
-        )
-
-        print(f"LatextAI response status: {response.status_code}")
-        print(f"LatextAI response: {response.text[:500]}")
-
-        if response.status_code == 202:
-            # Successfully forwarded to latextai
+        # TODO: Add Stripe payment integration here for users who have used free upload
+        # For now, we'll allow only one free upload
+        if has_used_free:
+            # User has already used their free upload
+            # In the future, check for valid Stripe payment here
             return jsonify({
-                'message': 'File uploaded successfully. Processing started in background.',
+                'error': 'You have already used your free upload. Payment integration coming soon.',
+                'requires_payment': True
+            }), 402  # 402 Payment Required
+
+        # User hasn't used free upload yet - proceed with upload
+        print(f"📤 [UPLOAD] Processing free upload for {user_email}")
+
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        # Get and validate template from form data
+        template_id = request.form.get('template', 'mq').lower()
+
+        # Validate template
+        is_valid, result = validate_template(template_id)
+        if not is_valid:
+            return jsonify({'error': result}), 400
+
+        template_config = result
+        latextai_template_name = template_config['latextai_name']
+
+        # Generate unique project ID
+        project_id = str(uuid.uuid4())
+
+        # Get filename
+        filename = secure_filename(file.filename)
+
+        # Create database entry with 'processing' status
+        project = Project(
+            project_id=project_id,
+            user_id=user['email'],
+            upload_filename=filename,
+            tex_filename=None,  # Will be set after processing by latextai
+            pdf_filename=None,  # Will be set after processing by latextai
+            template=template_id,  # Store template ID in database
+            status='processing'  # Start as processing
+        )
+        project.insert()
+
+        try:
+            # Forward file to latextai service
+            files = {'file': (filename, file.stream, file.content_type)}
+            form_data = {
+                'user_email': user['email'],
                 'project_id': project_id,
-                'status': 'processing'
-            }), 202
-        else:
-            # Failed to forward to latextai
+                'template': latextai_template_name  # Use latextai template name
+            }
+            headers = {
+                'X-API-Key': LATEXTAI_API_KEY
+            }
+
+            response = requests.post(
+                f"{LATEXTAI_SERVICE_URL}/api/upload",
+                files=files,
+                data=form_data,
+                headers=headers,
+                timeout=30
+            )
+
+            print(f"LatextAI response status: {response.status_code}")
+            print(f"LatextAI response: {response.text[:500]}")
+
+            if response.status_code == 202:
+                # Successfully forwarded to latextai
+                # STEP 4: Mark free upload as used (only on successful upload initiation)
+                User.mark_free_upload_used(user_email)
+                print(f"✅ [UPLOAD] Marked free upload as used for {user_email}")
+
+                return jsonify({
+                    'message': 'File uploaded successfully. Processing started in background.',
+                    'project_id': project_id,
+                    'status': 'processing',
+                    'was_free_upload': True
+                }), 202
+            else:
+                # Failed to forward to latextai
+                # Update project status to failed
+                project.data['status'] = 'failed'
+                project.save()
+
+                return jsonify({
+                    'error': f'Failed to process file: {response.text}'
+                }), response.status_code
+
+        except requests.exceptions.RequestException as e:
+            # Network error or timeout
             # Update project status to failed
             project.data['status'] = 'failed'
             project.save()
 
             return jsonify({
-                'error': f'Failed to process file: {response.text}'
-            }), response.status_code
+                'error': f'Failed to connect to processing service: {str(e)}'
+            }), 500
 
-    except requests.exceptions.RequestException as e:
-        # Network error or timeout
-        # Update project status to failed
-        project.data['status'] = 'failed'
-        project.save()
-
-        return jsonify({
-            'error': f'Failed to connect to processing service: {str(e)}'
-        }), 500
+    finally:
+        # STEP 5: Always release upload lock, even if upload failed
+        User.release_upload_lock(user_email)
+        print(f"🔓 [UPLOAD] Released upload lock for {user_email}")
 
 @api_latext.route('/projects', methods=['GET'])
 @requires_auth

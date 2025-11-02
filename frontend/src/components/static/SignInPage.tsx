@@ -45,14 +45,14 @@ const SignInPage: React.FC = () => {
     }
   }, [location.pathname]);
   
-  const { user, isAnonymous, isAuthenticated, login: authLogin, setAuthData } = useAuth();
+  const { isAuthenticated, login: authLogin, setAuthData } = useAuth();
 
-  // Redirect only if authenticated as a real user (not anonymous)
+  // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated && !isAnonymous) {
+    if (isAuthenticated) {
       navigate('/papers');
     }
-  }, [isAuthenticated, isAnonymous, navigate]);
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,8 +82,7 @@ const SignInPage: React.FC = () => {
     try {
       if (authMode === 'signin') {
         // Use AuthContext login for signin
-        // Pass current email if anonymous for account merging
-        const result = await authLogin(email, password, user?.email);
+        const result = await authLogin(email, password);
 
         if (result.success) {
           // Navigate to papers page
@@ -93,13 +92,7 @@ const SignInPage: React.FC = () => {
         }
       } else {
         // Handle signup with direct fetch (now with auto-login)
-        const body: any = { name, email, password };
-
-        // If currently logged in as anonymous, send email for account merge
-        if (user?.email && user.email.endsWith('@anonymous.user')) {
-          body.current_email = user.email;
-          console.log('🔀 [SIGNUP] Sending anonymous email for merge:', user.email);
-        }
+        const body = { name, email, password };
 
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/signup`, {
           method: 'POST',
@@ -126,9 +119,6 @@ const SignInPage: React.FC = () => {
             });
 
             console.log('✅ [SIGNUP] Registration and auto-login successful');
-            if (data.merge_successful) {
-              console.log('✅ [SIGNUP] Anonymous account merged successfully');
-            }
 
             // Navigate to papers page
             navigate('/papers');
@@ -152,7 +142,7 @@ const SignInPage: React.FC = () => {
 
   return (
     <div className="signin-page">
-      <Banner isAuthenticated={isAuthenticated} userName={user?.name} />
+      <Banner />
       
       <section className="signin-section">
         <div className="signin-form-container">

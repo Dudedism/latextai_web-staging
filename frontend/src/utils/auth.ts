@@ -16,8 +16,7 @@ export const getAuthenticatedUser = (): User | null => {
     return null;
   }
 
-  const isAnon = email.endsWith('@anonymous.user');
-  console.log(`🔒 [AUTH] User: ${email} | Anonymous: ${isAnon} | Admin: ${isAdmin}`);
+  console.log(`🔒 [AUTH] User: ${email} | Admin: ${isAdmin}`);
 
   return {
     email,
@@ -29,11 +28,6 @@ export const getAuthenticatedUser = (): User | null => {
 
 export const isAuthenticated = (): boolean => {
   return getAuthenticatedUser() !== null;
-};
-
-export const isAnonymousUser = (): boolean => {
-  const user = getAuthenticatedUser();
-  return user !== null && user.email.endsWith('@anonymous.user');
 };
 
 export const isAdmin = (): boolean => {

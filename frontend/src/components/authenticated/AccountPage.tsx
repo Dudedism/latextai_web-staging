@@ -1,5 +1,4 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,8 +11,7 @@ interface AccountPageProps {
 }
 
 const AccountPage: React.FC<AccountPageProps> = () => {
-  const navigate = useNavigate();
-  const { user, isAuthenticated, isAnonymous } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   // Use user data from context
   const userName = user?.name || 'User';
@@ -22,18 +20,8 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   console.log('👤 [ACCOUNT PAGE] Render state:', {
     isAuthenticated,
     userEmail,
-    userName,
-    isAnonymous
+    userName
   });
-
-  useEffect(() => {
-    // Redirect ONLY if the current logged-in user is anonymous
-    console.log('👤 [ACCOUNT PAGE] useEffect - isAnonymous:', isAnonymous);
-    if (isAnonymous) {
-      console.log('👤 [ACCOUNT PAGE] Redirecting anonymous user to /signin');
-      navigate('/signin');
-    }
-  }, [isAnonymous, navigate]);
 
   const handleSignOut = () => {
     console.log('Sign out clicked');
@@ -53,12 +41,10 @@ const AccountPage: React.FC<AccountPageProps> = () => {
             <div className="field-value">{userName}</div>
           </div>
 
-          {!isAnonymous && (
-            <div className="account-field">
-              <label>Email</label>
-              <div className="field-value">{userEmail}</div>
-            </div>
-          )}
+          <div className="account-field">
+            <label>Email</label>
+            <div className="field-value">{userEmail}</div>
+          </div>
         </div>
 
         <button className="sign-out-btn" onClick={handleSignOut}>
