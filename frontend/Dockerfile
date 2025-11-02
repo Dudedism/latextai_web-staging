@@ -11,6 +11,10 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Copy environment-specific .env file
+ARG ENV
+COPY .env.${ENV} .env
+
 # Build the application
 RUN npm run build
 

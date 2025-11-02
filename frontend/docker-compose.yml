@@ -10,6 +10,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - ENV=${ENV}
     container_name: latext-frontend
     restart: unless-stopped
     ports:
