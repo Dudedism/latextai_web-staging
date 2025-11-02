@@ -1,0 +1,23 @@
+# Exclude all .env files from Docker build context
+# They will be explicitly copied by the Dockerfile based on ENV argument
+.env
+.env.*
+
+# Exclude build artifacts
+dist
+node_modules
+
+# Exclude development files
+.vscode
+.idea
+*.log
+npm-debug.log*
+
+# Exclude git
+.git
+.gitignore
+
+# Exclude Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore

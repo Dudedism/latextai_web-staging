@@ -79,9 +79,6 @@ logs
 *.tmp
 *.temp
 
-# Docker (for future use)
-.dockerignore
-
 .claude
 
 # User project files (keep only mock_files)
