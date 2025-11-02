@@ -1,7 +1,10 @@
-# Exclude all .env files from Docker build context
-# They will be explicitly copied by the Dockerfile based on ENV argument
+# Exclude generic .env file (local development)
+# But INCLUDE environment-specific files (.env.staging, .env.production, .env.development)
+# These are needed by the Dockerfile COPY command
 .env
-.env.*
+!.env.staging
+!.env.production
+!.env.development
 
 # Exclude build artifacts
 dist
