@@ -29,18 +29,19 @@ api_auth = Blueprint('api_auth_blueprint', __name__, url_prefix='/api')
 
 s = URLSafeTimedSerializer(SECRET_KEY, salt=EMAIL_VERIFICATION_SALT)
 
-def requires_auth(func=None, require_admin=False, use_form=False):
+def requires_auth(func=None, require_admin=False, require_verified=False, use_form=False):
     """
     Decorator to apply user authentication using Flask-JWT-Extended.
     Decorator can also provide `data` and `user` parsed from the request body.
 
     :param func: The Flask API function to be decorated with authentication.
     :param require_admin: Optional boolean indicating whether admin access is required. Default is False.
+    :param require_verified: Optional boolean indicating whether email verification is required. Default is False.
     :param use_form: Optional boolean indicating whether to use form data. Default is False.
     :return: A wrapper function that authenticates the user before calling the decorated function.
     """
     if func is None:
-        return partial(requires_auth, require_admin=require_admin, use_form=use_form)
+        return partial(requires_auth, require_admin=require_admin, require_verified=require_verified, use_form=use_form)
 
     @wraps(func)
     @jwt_required()  # Flask-JWT-Extended handles token validation
@@ -54,6 +55,9 @@ def requires_auth(func=None, require_admin=False, use_form=False):
 
         if require_admin and not user.get('admin', False):
             return jsonify({'message': 'User not admin.'}), 403
+
+        if require_verified and not user.get('is_verified', False):
+            return jsonify({'message': 'Email verification required.'}), 403
 
         # Prepare extra parameters based on function signature
         params_dict = dict()

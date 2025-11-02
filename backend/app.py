@@ -9,6 +9,7 @@ from api_admin import api_admin
 from api_public import api_public
 from api_auth import api_auth
 from api_latext import api_latext
+from api_project import api_project
 from api_user import api_user
 from config import *
 from database import mongo
@@ -24,7 +25,7 @@ BLOCKED_FILENAMES = {
     'docker-compose.yml', 'docker-compose.yaml', 'Dockerfile', '.dockerignore',
     'requirements.txt', 'package.json', 'package-lock.json',
     '.gitignore', '.git', 'config.py', 'database.py',
-    'api_auth.py', 'api_admin.py', 'api_user.py', 'api_latext.py', 'api_public.py',
+    'api_auth.py', 'api_admin.py', 'api_user.py', 'api_latext.py', 'api_project.py', 'api_public.py',
     'app.py', 'email_service.py', 'templates.json', 'verification_email.html',
     'deploy.sh', 'diagnose.py'
 }
@@ -135,6 +136,7 @@ app.register_blueprint(api_public)
 app.register_blueprint(api_admin)
 app.register_blueprint(api_auth)
 app.register_blueprint(api_latext)
+app.register_blueprint(api_project)
 
 # Test MongoDB connection
 try:

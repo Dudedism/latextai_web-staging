@@ -40,6 +40,7 @@ pytest tests/test_refresh_tokens.py::test_token_reuse_no_rotation -v -s
 - **conftest.py** - Shared fixtures (test user creation, login)
 - **test_user_creation.py** - Tests for user signup and verification
 - **test_refresh_tokens.py** - Tests for JWT refresh token flow
+- **test_upload_race_condition.py** - Security tests for parallel upload race conditions
 
 ## Test User
 
@@ -85,3 +86,59 @@ These tests are designed to run in CI/CD pipelines:
 - The attacker is blocked with a 401 error and security message
 
 This implementation protects against token theft scenarios where an attacker steals a refresh token.
+
+---
+
+## Upload Race Condition Tests (test_upload_race_condition.py)
+
+### Architecture Overview
+
+This project has **two separate backend services**:
+
+1. **latext-site/backend** (Flask) - Main backend with auth, user management, free upload tracking
+2. **latextai** (Flask microservice) - Separate service that does document conversion
+
+```
+User → latext-site/backend → latextai service
+       (/api/latex/upload)    (/api/upload)
+       [Checks free_upload]   [Does conversion]
+```
+
+### Security Vulnerability Being Tested
+
+**Race Condition:** A user could spam the upload button to send multiple parallel requests. If the `free_upload_used` check and update are not atomic, multiple uploads could all pass the check before any marks it as used.
+
+### Test Requirements
+
+✅ **latext-site/backend running:** `python app.py` (port 5050)
+✅ **MongoDB accessible:** Tests connect to staging MongoDB
+❌ **latextai NOT required:** Tests will fail when forwarding to latextai, but that's expected
+
+### How the Tests Work
+
+The tests send multiple simultaneous requests to `/api/latex/upload`:
+
+1. Request hits latext-site/backend
+2. Backend checks `free_upload_used` and `upload_in_progress` lock
+3. Backend attempts to forward to latextai service
+4. **Test expects latextai to fail** (connection refused is fine)
+5. We verify only ONE request got past the lock/check
+
+### Running Tests
+
+```bash
+# Create test user and manually verify in MongoDB
+db.users.updateOne(
+  { email: /^racetest_.*@test.com$/ },
+  { $set: { is_verified: true } }
+)
+
+# Run the race condition tests
+pytest tests/test_upload_race_condition.py -v -s
+```
+
+### Expected Results
+
+1. Only **1 upload** gets HTTP 200/202 or passes the free_upload check
+2. Other **2 uploads** get HTTP 409 (upload in progress) or 402 (already used)
+3. Race condition is prevented by the `upload_in_progress` lock

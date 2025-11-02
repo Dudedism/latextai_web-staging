@@ -8,13 +8,38 @@ Run with output:
     pytest tests/test_refresh_tokens.py -v -s
 """
 
+import os
 import pytest
 import requests
-import time
-import os
+from pathlib import Path
+
+# Import test utilities
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from database import mongo
+from app import app
+from tests.test_utils import create_test_user, delete_test_user
 
 # Test configuration
 BASE_URL = os.getenv('BACKEND_URL')
+
+
+@pytest.fixture(scope="module")
+def test_user():
+    """Create a verified test user with tokens."""
+    with app.app_context():
+        user = create_test_user(
+            name="Refresh Token Test User",
+            is_verified=True,
+            free_upload_used=False,
+            mongo_db=mongo.db,
+            base_url=BASE_URL
+        )
+
+        yield user
+
+        # Cleanup: Delete user and all their projects
+        delete_test_user(user['email'], mongo.db)
 
 
 def test_normal_login(test_user):
@@ -23,6 +48,7 @@ def test_normal_login(test_user):
     print("TEST 1: Normal Login Flow")
     print("="*60)
 
+    # User already has tokens from create_test_user, but let's test login again
     login_payload = {
         "email": test_user['email'],
         "password": test_user['password']
@@ -40,7 +66,7 @@ def test_normal_login(test_user):
     print("✅ TEST PASSED: User received both tokens")
 
 
-def test_access_protected_route(login_tokens):
+def test_access_protected_route(test_user):
     """Test 2: Access token works for protected routes"""
     print("\n" + "="*60)
     print("TEST 2: Access Protected Route")
@@ -48,7 +74,7 @@ def test_access_protected_route(login_tokens):
 
     print("🐱 User accessing protected route with access token")
 
-    headers = {"Authorization": f"Bearer {login_tokens['access_token']}"}
+    headers = {"Authorization": f"Bearer {test_user['access_token']}"}
     response = requests.get(f"{BASE_URL}/api/user/profile", headers=headers)
 
     assert response.status_code == 200, f"Protected route failed: {response.status_code}"
@@ -56,7 +82,7 @@ def test_access_protected_route(login_tokens):
     print("✅ TEST PASSED: Access token works for protected routes")
 
 
-def test_refresh_token_flow(login_tokens):
+def test_refresh_token_flow(test_user):
     """Test 3: Refresh token can be used to get new access token"""
     print("\n" + "="*60)
     print("TEST 3: Refresh Token Flow")
@@ -64,7 +90,7 @@ def test_refresh_token_flow(login_tokens):
 
     print("🐱 User uses refresh token to get new access token")
 
-    headers = {"Authorization": f"Bearer {login_tokens['refresh_token']}"}
+    headers = {"Authorization": f"Bearer {test_user['refresh_token']}"}
     response = requests.post(f"{BASE_URL}/api/refresh", headers=headers)
 
     assert response.status_code == 200, f"Refresh failed: {response.json()}"
@@ -85,7 +111,7 @@ def test_refresh_token_flow(login_tokens):
     print("✅ TEST PASSED: Refresh token flow works correctly")
 
 
-def test_token_reuse_detection_with_rotation(test_user_credentials):
+def test_token_reuse_detection_with_rotation(test_user):
     """
     Test 4: Token Reuse Detection with Rotation - Security Test
 
@@ -105,8 +131,8 @@ def test_token_reuse_detection_with_rotation(test_user_credentials):
     # Step 1: Legitimate user logs in
     print("\n🐱 Step 1: Legitimate user logs in")
     login_payload = {
-        "email": test_user_credentials['email'],
-        "password": test_user_credentials['password']
+        "email": test_user['email'],
+        "password": test_user['password']
     }
 
     response = requests.post(f"{BASE_URL}/api/login", json=login_payload)
@@ -173,7 +199,7 @@ def test_invalid_refresh_token():
     print("✅ TEST PASSED: Invalid tokens are rejected")
 
 
-def test_access_token_used_for_refresh(test_user_credentials):
+def test_access_token_used_for_refresh(test_user):
     """Test 6: Access token cannot be used for refresh (wrong token type)"""
     print("\n" + "="*60)
     print("TEST 6: Wrong Token Type")
@@ -181,8 +207,8 @@ def test_access_token_used_for_refresh(test_user_credentials):
 
     # Login
     login_payload = {
-        "email": test_user_credentials['email'],
-        "password": test_user_credentials['password']
+        "email": test_user['email'],
+        "password": test_user['password']
     }
 
     response = requests.post(f"{BASE_URL}/api/login", json=login_payload)

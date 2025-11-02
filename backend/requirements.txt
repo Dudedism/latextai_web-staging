@@ -10,7 +10,8 @@ dnspython
 google-auth
 google-auth-oauthlib
 itsdangerous
-PyPDF2
+pypdf
+python-docx
 pytest
 requests
 sib-api-v3-sdk

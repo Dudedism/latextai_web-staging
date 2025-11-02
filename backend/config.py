@@ -13,7 +13,7 @@ FRONTEND_URL = os.getenv('FRONTEND_URL')
 MONGO_URI = os.getenv('MONGO_URI')
 SECRET_KEY = os.getenv('SECRET_KEY')
 EMAIL_VERIFICATION_SALT = os.getenv('EMAIL_VERIFICATION_SALT')
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
+MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30MB (for DOCX files with many figures)
 
 # Flask-JWT-Extended Configuration
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')

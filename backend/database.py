@@ -207,7 +207,9 @@ class Project(BaseModel):
     collection_name = 'projects'
 
     def __init__(self, tex_filename=None, upload_filename=None, pdf_filename=None,
-                 user_id=None, status='unconverted', project_id=None, template='nature', **kwargs):
+                 user_id=None, status='unconverted', project_id=None, template=None,
+                 paid=False, is_free_project=False, total_cost=0.0, filesize=0,
+                 word_count=0, page_count=0, validated=False, **kwargs):
         super().__init__(
             tex_filename=tex_filename,
             upload_filename=upload_filename,
@@ -216,6 +218,13 @@ class Project(BaseModel):
             status=status,
             project_id=project_id,
             template=template,
+            paid=paid,  # Whether this project has been paid for
+            is_free_project=is_free_project,  # Whether this is the user's free project
+            total_cost=total_cost,  # Total cost in dollars
+            filesize=filesize,  # File size in bytes
+            word_count=word_count,  # Number of words in document
+            page_count=page_count,  # Number of pages in document
+            validated=validated,  # Whether file has been validated (LibreOffice conversion + word count)
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -302,12 +311,117 @@ class Project(BaseModel):
         project = cls()
         return project.find({'project_id': project_id})
 
+    @classmethod
+    def delete_with_files(cls, project_id, user_email, user_projects_dir='user_projects'):
+        """
+        Delete a project and its associated files.
+
+        Args:
+            project_id: Project UUID
+            user_email: User's email (for file path)
+            user_projects_dir: Base directory for user projects
+
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        import os
+        import shutil
+
+        try:
+            # Delete files
+            project_dir = os.path.join(user_projects_dir, user_email, project_id)
+            if os.path.exists(project_dir):
+                shutil.rmtree(project_dir, ignore_errors=True)
+                print(f"✅ [DELETE] Deleted files for project {project_id}")
+            else:
+                print(f"⚠️  [DELETE] No files found for project {project_id}")
+
+            # Delete from database
+            delete_result = mongo.db[cls.collection_name].delete_one({'project_id': project_id})
+            if delete_result.deleted_count > 0:
+                print(f"✅ [DELETE] Deleted project {project_id} from database")
+                return True, f"Project {project_id} deleted successfully"
+            else:
+                print(f"⚠️  [DELETE] Project {project_id} not found in database")
+                return False, f"Project {project_id} not found in database"
+
+        except Exception as e:
+            print(f"❌ [DELETE] Error deleting project {project_id}: {str(e)}")
+            return False, f"Error deleting project: {str(e)}"
+
     def update_status(self, new_status):
         """Update the status of a project"""
         self.data['status'] = new_status
         result = mongo.db[self.collection_name].update_one(
             {'project_id': self.data['project_id']},
             {'$set': {'status': new_status}}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def count_user_projects(cls, user):
+        """
+        Count total number of projects for a user.
+
+        Args:
+            user: User dict from database
+
+        Returns:
+            int: Total project count
+        """
+        identifiers = cls.get_user_identifiers(user)
+        return mongo.db[cls.collection_name].count_documents({'user_id': {'$in': identifiers}})
+
+    @classmethod
+    def has_paid_free_project(cls, user):
+        """
+        Check if user has at least one project that was both:
+        - is_free_project=True (marked as their free project)
+        - paid=True (processing was approved/paid for)
+
+        This is used in the freemium model where a user can upload one free file.
+        Once that free file is approved for processing (paid=True), they can upload
+        more than 10 files for payment.
+
+        Note: This may seem paradoxical (free AND paid), but it makes sense:
+        - is_free_project=True means this counted as their "one free upload"
+        - paid=True means they approved it for full download/processing
+
+        Args:
+            user: User dict from database
+
+        Returns:
+            bool: True if user has a paid free project
+        """
+        identifiers = cls.get_user_identifiers(user)
+        count = mongo.db[cls.collection_name].count_documents({
+            'user_id': {'$in': identifiers},
+            'is_free_project': True,
+            'paid': True
+        })
+        return count > 0
+
+    @classmethod
+    def mark_as_paid(cls, project_id, is_free=False, total_cost=0.0):
+        """
+        Mark a project as paid and optionally as the free project.
+
+        Args:
+            project_id: Project ID
+            is_free: Whether this is the user's free project
+            total_cost: Total cost (0.0 for free projects)
+
+        Returns:
+            bool: True if update successful
+        """
+        result = mongo.db[cls.collection_name].update_one(
+            {'project_id': project_id},
+            {'$set': {
+                'paid': True,
+                'is_free_project': is_free,
+                'total_cost': total_cost,
+                'paid_at': datetime.utcnow()
+            }}
         )
         return result.modified_count > 0
 
