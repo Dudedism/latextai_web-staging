@@ -5,16 +5,19 @@ interface User {
   email: string;
   name: string;
   isAdmin: boolean;
+  isVerified: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isVerified: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  setAuthData: (data: { access_token: string; refresh_token: string; email: string; name: string; admin: boolean }) => void;
+  setAuthData: (data: { access_token: string; refresh_token: string; email: string; name: string; admin: boolean; is_verified?: boolean }) => void;
   clearAuth: () => void;
+  refreshVerificationStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,6 +37,34 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
+  // Function to refresh verification status from the backend
+  const refreshVerificationStatus = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/user/verification-status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const isVerified = data.is_verified || false;
+
+        // Update localStorage and state
+        localStorage.setItem('isVerified', isVerified.toString());
+        setUser(prev => prev ? { ...prev, isVerified } : null);
+        console.log('🔒 [AUTH CONTEXT] Verification status refreshed:', isVerified);
+      }
+    } catch (error) {
+      console.error('Failed to fetch verification status:', error);
+    }
+  };
+
   // Initialize auth state from localStorage
   useEffect(() => {
     const initAuth = () => {
@@ -41,16 +72,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const email = localStorage.getItem('userEmail');
       const name = localStorage.getItem('userName');
       const isAdmin = localStorage.getItem('isAdmin') === 'true';
+      const cachedVerified = localStorage.getItem('isVerified');
 
       if (token && email && name) {
         console.log('🔒 [AUTH CONTEXT] Initializing auth state');
-        console.log(`🔒 [AUTH CONTEXT] User: ${email} | Admin: ${isAdmin}`);
+        console.log(`🔒 [AUTH CONTEXT] User: ${email} | Admin: ${isAdmin} | Verified: ${cachedVerified}`);
 
         setUser({
           email,
           name,
-          isAdmin
+          isAdmin,
+          isVerified: cachedVerified === 'true'
         });
+
+        // Only fetch verification status if not cached
+        if (cachedVerified === null) {
+          console.log('🔒 [AUTH CONTEXT] Verification status not cached, fetching...');
+          refreshVerificationStatus();
+        }
       } else {
         console.log('🔒 [AUTH CONTEXT] No auth state found');
         setUser(null);
@@ -62,13 +101,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = user !== null;
   const isAdmin = user?.isAdmin || false;
+  const isVerified = user?.isVerified || false;
 
   const setAuthData = (data: {
     access_token: string;
     refresh_token: string;
     email: string;
     name: string;
-    admin: boolean
+    admin: boolean;
+    is_verified?: boolean;
   }) => {
     console.log('✅ [AUTH CONTEXT] Setting auth state for:', data.email);
 
@@ -78,10 +119,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.setItem('userName', data.name);
     localStorage.setItem('isAdmin', data.admin.toString());
 
+    // Store verification status if provided
+    if (data.is_verified !== undefined) {
+      localStorage.setItem('isVerified', data.is_verified.toString());
+    }
+
     setUser({
       email: data.email,
       name: data.name,
-      isAdmin: data.admin
+      isAdmin: data.admin,
+      isVerified: data.is_verified || false
     });
 
     console.log('✅ [AUTH CONTEXT] Auth state set');
@@ -92,7 +139,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const oldEmail = localStorage.getItem('userEmail');
     console.log(`🧹 [AUTH CONTEXT] Removing tokens for: ${oldEmail || 'unknown'}`);
 
-    ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin'].forEach(key => {
+    ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin', 'isVerified'].forEach(key => {
       localStorage.removeItem(key);
     });
 
@@ -140,8 +187,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     console.log('🚪 [AUTH CONTEXT] Logout');
+
+    // Call backend to invalidate refresh token
+    try {
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log('✅ [AUTH CONTEXT] Server-side logout successful');
+    } catch (error) {
+      console.error('❌ [AUTH CONTEXT] Server-side logout failed:', error);
+    }
+
+    // Clear local auth state regardless of server response
     clearAuth();
   };
 
@@ -149,10 +212,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated,
     isAdmin,
+    isVerified,
     login,
     logout,
     setAuthData,
-    clearAuth
+    clearAuth,
+    refreshVerificationStatus
   };
 
   return (

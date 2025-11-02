@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import LoadingScreen from '../common/LoadingScreen';
 import { apiRequest } from '../../utils/api';
 import { formatDate, getStatusColor } from '../../utils/formatting';
 import '../../styles/common.css';
@@ -134,6 +135,10 @@ const SupportPage: React.FC = () => {
   };
 
   const hasOpenTicket = tickets.some(t => t.status === 'open' || t.status === 'in_progress');
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="support-page">

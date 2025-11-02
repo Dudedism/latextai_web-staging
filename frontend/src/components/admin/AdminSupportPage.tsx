@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import LoadingScreen from '../common/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '../../utils/api';
 import { formatDate, getStatusColor } from '../../utils/formatting';
@@ -143,6 +144,10 @@ const AdminSupportPage: React.FC = () => {
       setError('Failed to update status');
     }
   };
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="admin-support-page">

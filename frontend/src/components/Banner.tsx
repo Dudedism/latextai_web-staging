@@ -29,9 +29,9 @@ const Banner: React.FC<BannerProps> = () => {
     };
   }, []);
 
-  const handleSignOut = () => {
-    logout();
-    navigate('/signin');
+  const handleSignOut = async () => {
+    await logout();
+    navigate('/');
   };
 
   return (

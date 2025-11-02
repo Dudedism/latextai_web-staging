@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { useAuth } from '../../contexts/AuthContext';
+import { VerificationModal } from '../common/VerificationModal';
 import '../../styles/common.css';
 import './SignInPage.css';
 
@@ -11,7 +12,7 @@ type AuthMode = 'signin' | 'signup';
 const SignInPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [authMode, setAuthMode] = useState<AuthMode>(() => 
+  const [authMode, setAuthMode] = useState<AuthMode>(() =>
     location.pathname === '/signin' ? 'signin' : 'signup'
   );
   const [name, setName] = useState('');
@@ -22,6 +23,8 @@ const SignInPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [justRegistered, setJustRegistered] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
 
   useEffect(() => {
     // Set auth mode based on current path
@@ -115,13 +118,22 @@ const SignInPage: React.FC = () => {
               refresh_token: data.refresh_token,
               email: data.email,
               name: data.name,
-              admin: data.admin || false
+              admin: data.admin || false,
+              is_verified: false  // New users are not verified by default
             });
 
             console.log('✅ [SIGNUP] Registration and auto-login successful');
 
-            // Navigate to papers page
-            navigate('/papers');
+            // Store email for verification modal
+            setSignupEmail(data.email);
+
+            // Show verification modal
+            setShowVerificationModal(true);
+
+            // Navigate to papers page after a delay (so user sees modal)
+            setTimeout(() => {
+              navigate('/papers');
+            }, 500);
           } else {
             // Fallback: Old behavior (shouldn't happen with updated backend)
             alert(data.message || 'Registration successful! You can now sign in.');
@@ -255,6 +267,13 @@ const SignInPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <VerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        userEmail={signupEmail}
+        showOnSignup={true}
+      />
     </div>
   );
 };

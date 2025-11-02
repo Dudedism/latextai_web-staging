@@ -333,6 +333,21 @@ def login_google():
     except (ValueError, KeyError):
         return jsonify({'message': 'Authentication failed.'}), 401
 
+@api_auth.route('/logout', methods=['POST'])
+@requires_auth
+def logout(user, data):
+    """
+    Logout user by invalidating their refresh token.
+    This prevents the refresh token from being used to get new access tokens.
+    """
+    try:
+        User.invalidate_refresh_token(user['email'])
+        print(f"🚪 [LOGOUT] User {user['email']} logged out, tokens invalidated")
+        return jsonify({'message': 'Logged out successfully'}), 200
+    except Exception as e:
+        print(f"❌ [LOGOUT] Error logging out user {user['email']}: {e}")
+        return jsonify({'error': 'Failed to logout'}), 500
+
 @api_auth.route('/changePassword', methods=['POST'])
 @requires_auth
 def change_password(user, data):

@@ -1,0 +1,145 @@
+.verification-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.verification-modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.verification-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.verification-modal-close:hover {
+  color: #000;
+}
+
+.verification-modal-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: #000;
+}
+
+.verification-modal-description {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #666;
+  margin: 0 0 24px 0;
+}
+
+.verify-button {
+  background: #000;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  font-family: inherit;
+}
+
+.verify-button:hover:not(:disabled) {
+  background: #333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.verify-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.verification-error {
+  color: #d32f2f;
+  font-size: 14px;
+  margin: 16px 0 0 0;
+  text-align: center;
+}
+
+.verification-success {
+  color: #2e7d32;
+  font-size: 14px;
+  margin: 16px 0 0 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.verification-modal-footer {
+  font-size: 14px;
+  color: #999;
+  margin: 16px 0 0 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .verification-modal-content {
+    padding: 24px;
+    width: 95%;
+  }
+
+  .verification-modal-title {
+    font-size: 20px;
+  }
+
+  .verification-modal-description {
+    font-size: 14px;
+  }
+}

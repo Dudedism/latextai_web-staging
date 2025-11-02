@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import { ErrorModal } from '../common/ErrorModal';
 import { apiFetch } from '../../utils/api';
 import '../../styles/common.css';
 import './UploadConfirmPage.css';
@@ -10,6 +11,9 @@ const UploadConfirmPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { file, templateId, templateName } = location.state || {};
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorStatusCode, setErrorStatusCode] = useState<number | undefined>(undefined);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
   const handleConfirmUpload = async () => {
     if (!file || !templateId) {
@@ -32,11 +36,24 @@ const UploadConfirmPage: React.FC = () => {
         const data = await response.json();
         navigate('/papers/processing', { state: { projectId: data.project_id } });
       } else {
-        console.error('Failed to upload file');
+        // Show error modal with status code
+        setErrorStatusCode(response.status);
+        setErrorMessage(undefined);
+        setShowErrorModal(true);
+        console.error('Failed to upload file:', response.status);
       }
     } catch (error) {
+      // Show generic error modal
+      setErrorStatusCode(undefined);
+      setErrorMessage(undefined);
+      setShowErrorModal(true);
       console.error('Error uploading file:', error);
     }
+  };
+
+  const handleErrorModalClose = () => {
+    setShowErrorModal(false);
+    navigate('/');
   };
 
   const handleCancel = () => {
@@ -82,6 +99,13 @@ const UploadConfirmPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <ErrorModal
+        isOpen={showErrorModal}
+        onClose={handleErrorModalClose}
+        statusCode={errorStatusCode}
+        errorMessage={errorMessage}
+      />
     </div>
   );
 };

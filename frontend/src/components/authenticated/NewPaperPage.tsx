@@ -1,8 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
+import { ConsentModal } from '../common/ConsentModal';
+import { apiRequest } from '../../utils/api';
 import '../../styles/common.css';
 import './NewPaperPage.css';
 
@@ -10,11 +13,14 @@ type UploadState = 'upload' | 'preview' | 'template';
 
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<{ id: string; name?: string } | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -62,61 +68,62 @@ const NewPaperPage: React.FC = () => {
 
     // Check consent status before proceeding
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/user/data-consent`, {
+      const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-
-        // If consent is true, skip consent page and go directly to upload confirm
-        if (data.consent === true) {
-          navigate('/papers/upload-confirm', {
-            state: {
-              file: uploadedFile,
-              templateId: templateId,
-              templateName: templateName || templateId
-            }
-          });
-        } else {
-          // If consent is false or null, show consent page
-          navigate('/papers/consent', {
-            state: {
-              file: uploadedFile,
-              templateId: templateId,
-              templateName: templateName || templateId
-            }
-          });
-        }
-      } else {
-        // On error, show consent page to be safe
-        navigate('/papers/consent', {
+      // If consent is true, go directly to upload confirm
+      if (data.consent === true) {
+        navigate('/papers/upload-confirm', {
           state: {
             file: uploadedFile,
             templateId: templateId,
             templateName: templateName || templateId
           }
         });
+      } else {
+        // If consent is false or null, show consent modal
+        setPendingTemplate({ id: templateId, name: templateName });
+        setShowConsentModal(true);
       }
     } catch (error) {
       console.error('Error checking consent:', error);
-      // On error, show consent page
-      navigate('/papers/consent', {
+      // On error, show consent modal to be safe
+      setPendingTemplate({ id: templateId, name: templateName });
+      setShowConsentModal(true);
+    }
+  };
+
+  const handleConsentResult = (consented: boolean) => {
+    // If user declined consent, redirect to /papers
+    if (!consented) {
+      navigate('/papers');
+      return;
+    }
+
+    // If user consented, proceed to upload confirm
+    if (uploadedFile && pendingTemplate) {
+      navigate('/papers/upload-confirm', {
         state: {
           file: uploadedFile,
-          templateId: templateId,
-          templateName: templateName || templateId
+          templateId: pendingTemplate.id,
+          templateName: pendingTemplate.name || pendingTemplate.id
         }
       });
     }
   };
 
   if (uploadState === 'template') {
-    return <ChooseTemplatePage onSelectTemplate={handleTemplateSelect} />;
+    return (
+      <>
+        <ChooseTemplatePage onSelectTemplate={handleTemplateSelect} />
+        <ConsentModal
+          isOpen={showConsentModal}
+          onClose={() => setShowConsentModal(false)}
+          onConsent={handleConsentResult}
+        />
+      </>
+    );
   }
 
   return (
@@ -180,6 +187,12 @@ const NewPaperPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <ConsentModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConsent={handleConsentResult}
+      />
     </div>
   );
 };

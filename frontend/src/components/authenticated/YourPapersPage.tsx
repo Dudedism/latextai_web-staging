@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import LoadingScreen from '../common/LoadingScreen';
+import { useAuth } from '../../contexts/AuthContext';
+import { VerificationModal } from '../common/VerificationModal';
 import { apiRequest } from '../../utils/api';
 import { downloadFile } from '../../utils/download';
 import '../../styles/common.css';
@@ -18,9 +21,11 @@ interface Paper {
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isVerified } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -28,6 +33,7 @@ const YourPapersPage: React.FC = () => {
 
   const fetchProjects = async () => {
     try {
+      setLoading(true);
       const data = await apiRequest<Paper[]>('/api/latex/projects');
       setPapers(data);
     } catch (error) {
@@ -54,13 +60,22 @@ const YourPapersPage: React.FC = () => {
   };
 
   const handleNewPaper = () => {
+    // Check email verification status before allowing upload
+    if (!isVerified) {
+      setShowVerificationModal(true);
+      return;
+    }
     navigate('/papers/new');
   };
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="papers-page">
       <Banner />
-      
+
       <section className="papers-main-section">
         <div className="papers-container">
         <div className="papers-header">
@@ -87,14 +102,19 @@ const YourPapersPage: React.FC = () => {
         </div>
 
         <div className="papers-list">
-          {loading ? (
-            <p>Loading projects...</p>
-          ) : papers.length === 0 ? (
-            <div className="no-papers">
-              <p>You don't have any papers yet.</p>
-              <button className="new-paper-btn" onClick={handleNewPaper}>
-                Upload Your First Paper
-              </button>
+          {papers.length === 0 ? (
+            <div className="empty-paper-card" onClick={handleNewPaper}>
+              <div className="empty-paper-thumbnail">
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+                  <circle cx="40" cy="40" r="38" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4"/>
+                  <path d="M40 20V60M20 40H60" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              <div className="empty-paper-info">
+                <h3 className="empty-paper-title">Upload your first project</h3>
+                <p className="empty-paper-subtitle">Your first upload is free - get started now!</p>
+              </div>
             </div>
           ) : (
             papers.map((paper) => (
@@ -152,6 +172,12 @@ const YourPapersPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <VerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        userEmail={user?.email || ''}
+      />
     </div>
   );
 };

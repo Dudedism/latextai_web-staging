@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
+import LoadingScreen from '../common/LoadingScreen';
 import { apiRequest, apiFetch } from '../../utils/api';
 import { downloadFile } from '../../utils/download';
 import '../../styles/common.css';
 import './PreviewPage.css';
 
 const PreviewPage: React.FC = () => {
+  const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'processing' | 'completed' | 'failed'>('processing');
@@ -51,6 +53,8 @@ const PreviewPage: React.FC = () => {
       console.error('Error checking status:', error);
       setError('Failed to check project status');
       setLoading(false);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -106,10 +110,14 @@ const PreviewPage: React.FC = () => {
     }
   };
 
+  if (initialLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="preview-page">
       <Banner />
-      
+
       <section className="preview-main-section">
         <div className="preview-container">
           {/* Processing State - No Box */}

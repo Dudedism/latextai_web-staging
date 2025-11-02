@@ -1,7 +1,8 @@
 from flask import Blueprint, jsonify, request
-from api_auth import requires_auth
-from config import limiter
+from api_auth import requires_auth, s
+from config import limiter, VERIFICATION_BASE_URL
 from database import User
+from email_service import send_verification_email
 
 api_user = Blueprint('api_user_blueprint', __name__, url_prefix='/api/user')
 
@@ -80,3 +81,49 @@ def get_data_consent(user):
         'consent': user_data.get('data_consent'),
         'consent_updated_at': user_data.get('consent_updated_at')
     }), 200
+
+@api_user.route('/verification-status', methods=['GET'])
+@requires_auth
+def get_verification_status(user):
+    """
+    Get user's email verification status.
+    Returns: { "is_verified": true/false, "email": "user@example.com" }
+    """
+    user_data = User.find_by_email(user['email'])
+
+    if not user_data:
+        return jsonify({'error': 'User not found'}), 404
+
+    return jsonify({
+        'is_verified': user_data.get('is_verified', False),
+        'email': user_data.get('email')
+    }), 200
+
+@api_user.route('/send-verification-email', methods=['POST'])
+@requires_auth
+@limiter.limit("3 per hour")
+def resend_verification_email(user):
+    """
+    Resend verification email to the user.
+    Rate limited to prevent abuse.
+    """
+    user_data = User.find_by_email(user['email'])
+
+    if not user_data:
+        return jsonify({'error': 'User not found'}), 404
+
+    if user_data.get('is_verified', False):
+        return jsonify({'error': 'Email already verified'}), 400
+
+    # Generate verification token
+    token = s.dumps(user['email'])
+    verify_url = f"{VERIFICATION_BASE_URL}/verify?token={token}"
+
+    # Send verification email
+    try:
+        send_verification_email(user['email'], user_data.get('name', 'User'), verify_url)
+        print(f"📧 [RESEND] Verification email sent to {user['email']}")
+        return jsonify({'message': 'Verification email sent successfully'}), 200
+    except Exception as e:
+        print(f"❌ [RESEND] Failed to send verification email: {e}")
+        return jsonify({'error': 'Failed to send verification email'}), 500

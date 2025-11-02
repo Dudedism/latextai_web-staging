@@ -52,6 +52,98 @@
   font-weight: 400;
 }
 
+.verification-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.verified-badge {
+  display: inline-block;
+  color: #2e7d32;
+  font-weight: 500;
+  padding: 6px 16px;
+  background: #e8f5e9;
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+.unverified-badge {
+  display: inline-block;
+  color: #d32f2f;
+  font-weight: 500;
+  padding: 6px 16px;
+  background: #ffebee;
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+.verify-email-btn {
+  background: #000;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.verify-email-btn:hover:not(:disabled) {
+  background: #333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.verify-email-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.delete-account-btn {
+  background: #d32f2f;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.delete-account-btn:hover:not(:disabled) {
+  background: #b71c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.delete-account-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.password-reset-confirmation {
+  color: #2e7d32;
+  font-size: 14px;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .saved-cards {
   display: flex;
   gap: 20px;
