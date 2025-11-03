@@ -111,7 +111,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     admin: boolean;
     is_verified?: boolean;
   }) => {
-    console.log('✅ [AUTH CONTEXT] Setting auth state for:', data.email);
+    console.log('🔧 [AUTH CONTEXT] setAuthData CALLED!');
+    console.log('  - email:', data.email);
+    console.log('  - is_verified:', data.is_verified);
 
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('refreshToken', data.refresh_token);
@@ -121,7 +123,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Store verification status if provided
     if (data.is_verified !== undefined) {
-      localStorage.setItem('isVerified', data.is_verified.toString());
+      const verifiedString = data.is_verified.toString();
+      localStorage.setItem('isVerified', verifiedString);
+      console.log('💾 [AUTH CONTEXT] SAVED to localStorage: isVerified =', verifiedString);
+      console.log('💾 [AUTH CONTEXT] VERIFY localStorage now has:', localStorage.getItem('isVerified'));
+    } else {
+      console.log('⚠️  [AUTH CONTEXT] is_verified was undefined, NOT saving to localStorage');
     }
 
     setUser({
@@ -131,7 +138,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isVerified: data.is_verified || false
     });
 
-    console.log('✅ [AUTH CONTEXT] Auth state set');
+    console.log('✅ [AUTH CONTEXT] Auth state set. User isVerified:', data.is_verified || false);
   };
 
   const clearAuth = () => {

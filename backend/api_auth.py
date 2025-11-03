@@ -375,7 +375,7 @@ def login_google():
 
 @api_auth.route('/logout', methods=['POST'])
 @requires_auth
-def logout(user, data):
+def logout(user):
     """
     Logout user by invalidating their refresh token.
     This prevents the refresh token from being used to get new access tokens.

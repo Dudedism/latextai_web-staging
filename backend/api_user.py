@@ -101,7 +101,7 @@ def get_verification_status(user):
 
 @api_user.route('/send-verification-email', methods=['POST'])
 @requires_auth
-@limiter.limit("3 per hour")
+@limiter.limit("10 per hour")
 def resend_verification_email(user):
     """
     Resend verification email to the user.

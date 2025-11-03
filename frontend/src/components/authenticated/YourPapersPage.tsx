@@ -87,6 +87,17 @@ const YourPapersPage: React.FC = () => {
     return <LoadingScreen />;
   }
 
+  // Filter papers based on search query (matches ChooseTemplatePage implementation)
+  const filteredPapers = papers.filter(paper => {
+    const query = searchQuery.toLowerCase().trim().replace(/\s+/g, ' ');
+    const title = paper.title.toLowerCase().replace(/\s+/g, ' ');
+    const template = paper.template.toLowerCase().replace(/\s+/g, ' ');
+    return (
+      title.includes(query) ||
+      template.includes(query)
+    );
+  });
+
   return (
     <div className="papers-page">
       <Banner />
@@ -131,8 +142,12 @@ const YourPapersPage: React.FC = () => {
                 <p className="empty-paper-subtitle">Your first upload is free - get started now!</p>
               </div>
             </div>
+          ) : filteredPapers.length === 0 ? (
+            <div className="empty-state">
+              <p className="empty-state-message">No papers match your search.</p>
+            </div>
           ) : (
-            papers.map((paper) => (
+            filteredPapers.map((paper) => (
             <div key={paper.id} className="paper-card">
               <div className="paper-thumbnail">
                 <img src={paper.thumbnail} alt={paper.template} />

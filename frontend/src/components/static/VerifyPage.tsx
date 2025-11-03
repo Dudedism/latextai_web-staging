@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Banner from '../Banner';
@@ -11,6 +11,7 @@ const VerifyPage: React.FC = () => {
   const { isAuthenticated, refreshVerificationStatus, setAuthData, user } = useAuth();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [errorMessage, setErrorMessage] = useState('');
+  const verificationAttempted = useRef(false);
 
   useEffect(() => {
     const verifyEmail = async () => {
@@ -21,6 +22,16 @@ const VerifyPage: React.FC = () => {
         setErrorMessage('Verification token is missing');
         return;
       }
+
+      // Prevent duplicate verification attempts
+      if (verificationAttempted.current) {
+        console.log('⏭️  [VERIFY PAGE] Verification already attempted, skipping');
+        return;
+      }
+      verificationAttempted.current = true;
+
+      // Wait a moment for AuthContext to initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       try {
         console.log('🔍 [VERIFY PAGE] Verifying email with token...');
@@ -36,28 +47,39 @@ const VerifyPage: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           console.log('✅ [VERIFY PAGE] Email verified successfully');
+          console.log('📧 [VERIFY PAGE] Verified email from backend:', data.email);
           setStatus('success');
 
-          // If user is logged in AND it's the same email, update their verification status
-          if (isAuthenticated && user && user.email === data.email) {
-            console.log('🔄 [VERIFY PAGE] User is logged in, updating auth state...');
-            // Update auth state with verified status
-            const token = localStorage.getItem('token');
-            const refreshToken = localStorage.getItem('refreshToken');
-            if (token && refreshToken) {
-              setAuthData({
-                access_token: token,
-                refresh_token: refreshToken,
-                email: user.email,
-                name: user.name,
-                admin: user.isAdmin,
-                is_verified: true
-              });
-            }
-          } else if (isAuthenticated && user && user.email !== data.email) {
-            console.log('ℹ️  [VERIFY PAGE] Different user is logged in, not updating auth state');
+          // Check if user has auth tokens (logged in) - read directly from localStorage
+          const accessToken = localStorage.getItem('token');
+          const refreshToken = localStorage.getItem('refreshToken');
+          const storedEmail = localStorage.getItem('userEmail');
+          const storedName = localStorage.getItem('userName');
+          const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
+
+          console.log('🔍 [VERIFY PAGE] Checking auth state (reading from localStorage)...');
+          console.log('  - accessToken exists:', !!accessToken);
+          console.log('  - refreshToken exists:', !!refreshToken);
+          console.log('  - storedEmail:', storedEmail);
+          console.log('  - data.email:', data.email);
+          console.log('  - emails match:', storedEmail === data.email);
+
+          if (accessToken && refreshToken && storedEmail && storedName && storedEmail === data.email) {
+            // User is logged in AND it's the same email, update their verification status
+            console.log('🔄 [VERIFY PAGE] ✅ ALL CONDITIONS MET - User is logged in, updating auth state to verified...');
+            setAuthData({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              email: storedEmail,
+              name: storedName,
+              admin: storedIsAdmin,
+              is_verified: true
+            });
+            console.log('✅ [VERIFY PAGE] setAuthData CALLED with is_verified: true');
+          } else if (accessToken && refreshToken && storedEmail && storedEmail !== data.email) {
+            console.log('⚠️  [VERIFY PAGE] Different user is logged in, not updating auth state');
           } else {
-            console.log('ℹ️  [VERIFY PAGE] User not logged in, verification successful but auth state unchanged');
+            console.log('⚠️  [VERIFY PAGE] User not logged in (no tokens), verification successful but auth state unchanged');
           }
 
           // Redirect to root after 2 seconds
@@ -78,7 +100,8 @@ const VerifyPage: React.FC = () => {
     };
 
     verifyEmail();
-  }, [searchParams, navigate, isAuthenticated, user, setAuthData, refreshVerificationStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="verify-page">

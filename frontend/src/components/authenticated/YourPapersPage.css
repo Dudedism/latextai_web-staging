@@ -349,7 +349,21 @@
   .empty-paper-subtitle {
     font-size: 14px;
   }
-}.delete-btn {
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-state-message {
+  font-size: 18px;
+  color: #666;
+  margin: 0;
+  font-family: var(--font-sans);
+}
+
+.delete-btn {
   background: #ffebee;
   color: #d32f2f;
 }
