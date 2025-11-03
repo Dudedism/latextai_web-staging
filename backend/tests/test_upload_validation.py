@@ -23,6 +23,7 @@ BASE_URL = os.getenv('BACKEND_URL')
 TEST_FILES_DIR = Path(__file__).parent / 'test_files'
 DUMMY_FILE = TEST_FILES_DIR / 'dummy_upload.docx'
 HIGH_RATIO_FILE = TEST_FILES_DIR / 'high_word_page_ratio.docx'
+ACCURATE_PRICE_FILE = TEST_FILES_DIR / 'accurate_price.docx'
 
 
 @pytest.fixture(scope="module")
@@ -350,6 +351,137 @@ def test_high_word_ratio_validation_rejection(test_user):
                 print(f"🧹 Cleanup: Deleted project {project_id} and files")
 
 
+def test_accurate_price_calculation(test_user):
+    """
+    TEST: Accurate Price Calculation
+
+    Tests /validate endpoint with accurate_price.docx (21 pages):
+    - Upload succeeds
+    - Validation succeeds
+    - Page count is 21
+    - Cost is calculated correctly: $4.99 + (21-15)*$0.50 = $7.99
+    """
+    print("\n" + "="*80)
+    print("TEST: Accurate Price Calculation (21 Pages)")
+    print("="*80)
+
+    assert ACCURATE_PRICE_FILE.exists(), f"Test file not found: {ACCURATE_PRICE_FILE}"
+
+    project_id = None
+    try:
+        # STEP 1: Upload the file
+        print(f"\n📄 Uploading file: {ACCURATE_PRICE_FILE.name}")
+
+        headers = {
+            "Authorization": f"Bearer {test_user['access_token']}"
+        }
+
+        with open(ACCURATE_PRICE_FILE, 'rb') as f:
+            files = {
+                'file': (ACCURATE_PRICE_FILE.name, f, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            }
+            data = {
+                'template': 'ieee'
+            }
+
+            upload_response = requests.post(
+                f"{BASE_URL}/api/latex/upload",
+                headers=headers,
+                files=files,
+                data=data,
+                timeout=60
+            )
+
+        print(f"\n📥 Upload response status: {upload_response.status_code}")
+
+        # ASSERTION 1: Upload should succeed
+        assert upload_response.status_code == 200, f"Upload should succeed, got {upload_response.status_code}"
+
+        upload_data = upload_response.json()
+        project_id = upload_data['project_id']
+        print(f"✅ Upload succeeded, project_id: {project_id}")
+
+        # STEP 2: Validate the file
+        print(f"\n🔍 Validating project: {project_id}")
+
+        headers = {
+            "Authorization": f"Bearer {test_user['access_token']}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "project_id": project_id
+        }
+
+        validate_response = requests.post(
+            f"{BASE_URL}/api/latex/validate",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
+        print(f"\n📥 Validation response status: {validate_response.status_code}")
+
+        # ASSERTION 2: Validation should succeed
+        assert validate_response.status_code == 200, f"Validation should succeed, got {validate_response.status_code}: {validate_response.text}"
+
+        validate_data = validate_response.json()
+        print(f"📦 Response data: {validate_data}")
+
+        # ASSERTION 3: Response should contain required fields
+        assert 'validated' in validate_data, "Response should contain validated"
+        assert 'metadata' in validate_data, "Response should contain metadata"
+        assert 'cost_estimate' in validate_data, "Response should contain cost_estimate"
+
+        # ASSERTION 4: validated should be True
+        assert validate_data['validated'] == True, f"validated should be True, got {validate_data['validated']}"
+
+        # ASSERTION 5: Page count should be 21
+        metadata = validate_data['metadata']
+        assert 'page_count' in metadata, "Metadata should contain page_count"
+        page_count = metadata['page_count']
+        assert page_count == 21, f"Page count should be 21, got {page_count}"
+
+        print(f"\n📊 Extracted metadata:")
+        print(f"   Pages: {page_count}")
+        print(f"   Words: {metadata.get('word_count', 'N/A')}")
+        print(f"   Filesize: {metadata.get('filesize', 'N/A')} bytes")
+
+        # ASSERTION 6: Cost should be $7.99 (21 pages)
+        # Pricing: $4.99 base (15 pages) + (21-15)*$0.50 = $4.99 + $3.00 = $7.99
+        cost_estimate = validate_data['cost_estimate']
+        assert 'total' in cost_estimate, "Cost estimate should contain total"
+
+        expected_cost = 7.99
+        actual_cost = cost_estimate['total']
+        assert actual_cost == expected_cost, f"Cost should be ${expected_cost}, got ${actual_cost}"
+
+        print(f"\n💰 Cost estimate: ${actual_cost}")
+        print(f"   Expected: ${expected_cost}")
+        print(f"   Breakdown: {cost_estimate.get('breakdown', 'N/A')}")
+
+        # ASSERTION 7: Verify project in database
+        with app.app_context():
+            project = Project.find_by_id(project_id)
+            assert project is not None, "Project should exist in database"
+            assert project['validated'] == True, f"Project validated should be True, got {project['validated']}"
+            assert project['page_count'] == 21, f"Page count in DB should be 21, got {project.get('page_count')}"
+            assert project['total_cost'] == expected_cost, f"Total cost in DB should be ${expected_cost}, got ${project.get('total_cost')}"
+
+        print(f"\n✅ Project validated in database: {project_id}")
+        print(f"   Validated: {project['validated']}")
+        print(f"   Pages: {project['page_count']}")
+        print(f"   Cost: ${project['total_cost']}")
+
+        print("\n✅ TEST PASSED: Price calculated accurately for 21-page document")
+        print("="*80)
+
+    finally:
+        # CLEANUP: Projects will be cleaned up by test_user fixture
+        if project_id:
+            print(f"📝 Project {project_id} will be cleaned up with user")
+
+
 if __name__ == "__main__":
     print("""
     ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -361,11 +493,13 @@ if __name__ == "__main__":
     Required Test Files:
     - tests/test_files/dummy_upload.docx (valid document: 11 pages, 3000-4500 words)
     - tests/test_files/high_word_page_ratio.docx (>3000 words/page)
+    - tests/test_files/accurate_price.docx (21 pages for price calculation test)
 
     Tests Covered:
     ✓ Valid document upload (fast, < 1 second)
     ✓ Valid document validation (slow, LibreOffice + word count)
     ✓ High word-to-page ratio rejection during validation (>3000 words/page)
+    ✓ Accurate price calculation (21 pages = $7.99)
 
     To run this test:
     1. Set BACKEND_URL environment variable (e.g., export BACKEND_URL=http://localhost:8000)
@@ -378,4 +512,5 @@ if __name__ == "__main__":
     ✅ Valid document validates successfully (11 pages, 3000-4500 words)
     ✅ High ratio file uploads successfully
     ❌ High ratio file validation rejected (>3000 words/page, project deleted)
+    ✅ Accurate price document validates with correct cost ($7.99 for 21 pages)
     """)

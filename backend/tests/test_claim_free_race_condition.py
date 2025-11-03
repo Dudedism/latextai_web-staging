@@ -29,7 +29,7 @@ from pathlib import Path
 # Import database models and test utilities
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database import mongo
+from database import mongo, User, Project
 from app import app
 from tests.test_utils import create_test_user, create_test_project, delete_test_user
 
@@ -221,12 +221,15 @@ def test_parallel_claim_free_race_condition(test_user_token):
 
     # ASSERTION 1: Count successful claims
     successful_claims = [r for r in results if r['status_code'] == 200]
-    failed_claims = [r for r in results if r['status_code'] == 409]
-    other_responses = [r for r in results if r['status_code'] not in [200, 409]]
+    failed_claims_409 = [r for r in results if r['status_code'] == 409]  # Free upload already used
+    failed_claims_400 = [r for r in results if r['status_code'] == 400]  # Project already paid (race condition on same project)
+    failed_claims_total = failed_claims_409 + failed_claims_400
+    other_responses = [r for r in results if r['status_code'] not in [200, 409, 400]]
 
     print(f"\n📊 RESULTS:")
     print(f"   ✅ Successful claims: {len(successful_claims)}")
-    print(f"   ❌ Failed claims (409 Conflict): {len(failed_claims)}")
+    print(f"   ❌ Failed claims (409 - Free upload used): {len(failed_claims_409)}")
+    print(f"   ❌ Failed claims (400 - Project already paid): {len(failed_claims_400)}")
     print(f"   ⚠️  Other responses: {len(other_responses)}")
 
     # CRITICAL ASSERTION: Only 1 claim should succeed
@@ -235,10 +238,23 @@ def test_parallel_claim_free_race_condition(test_user_token):
         f"RACE CONDITION VULNERABILITY DETECTED!"
     )
 
-    # ASSERTION 2: All failed claims should return 409
-    assert len(failed_claims) == 8, (
-        f"Expected 8 failed claims with 409, got {len(failed_claims)}"
+    # ASSERTION 2: All failed claims should return 409 or 400
+    # 409 = Free upload already used (atomic check passed)
+    # 400 = Project already paid (race condition on same project - acceptable)
+    assert len(failed_claims_total) == 8, (
+        f"Expected 8 failed claims (409 or 400), got {len(failed_claims_total)}"
     )
+
+    # ASSERTION 2b: All 400 errors should be for the SAME project
+    # If 400s occur across multiple projects, that means multiple projects were marked as paid (CRITICAL BUG)
+    if len(failed_claims_400) > 0:
+        projects_with_400 = set([r['project_id'] for r in failed_claims_400])
+        assert len(projects_with_400) == 1, (
+            f"400 errors should only occur for ONE project (the one that succeeded), "
+            f"but got 400s for {len(projects_with_400)} projects: {projects_with_400}. "
+            f"MULTIPLE PROJECTS WERE MARKED AS PAID - CRITICAL RACE CONDITION!"
+        )
+        print(f"   ℹ️  All 400 errors are for same project: {list(projects_with_400)[0][:8]} (expected)")
 
     # ASSERTION 3: No unexpected response codes
     assert len(other_responses) == 0, (

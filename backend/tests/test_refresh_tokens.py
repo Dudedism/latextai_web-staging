@@ -88,9 +88,22 @@ def test_refresh_token_flow(test_user):
     print("TEST 3: Refresh Token Flow")
     print("="*60)
 
+    # Login fresh to get valid tokens (previous tests may have invalidated the fixture's tokens)
+    print("🐱 User logs in to get fresh tokens")
+    login_payload = {
+        "email": test_user['email'],
+        "password": test_user['password']
+    }
+
+    login_response = requests.post(f"{BASE_URL}/api/login", json=login_payload)
+    assert login_response.status_code == 200, f"Login failed: {login_response.json()}"
+
+    login_data = login_response.json()
+    refresh_token = login_data['refresh_token']
+
     print("🐱 User uses refresh token to get new access token")
 
-    headers = {"Authorization": f"Bearer {test_user['refresh_token']}"}
+    headers = {"Authorization": f"Bearer {refresh_token}"}
     response = requests.post(f"{BASE_URL}/api/refresh", headers=headers)
 
     assert response.status_code == 200, f"Refresh failed: {response.json()}"
