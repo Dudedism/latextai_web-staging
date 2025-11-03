@@ -28,6 +28,13 @@ const PreviewPage: React.FC = () => {
       const project = await apiRequest<{ status: string }>(`/api/latex/project/${paperId}`);
       const projectStatus = project.status;
 
+      // Redirect if project is still in upload/validation stage (not yet paid/converted)
+      if (projectStatus === 'uploaded' || projectStatus === 'validated') {
+        console.log('🔄 [PREVIEW] Project not yet converted, redirecting to /papers');
+        navigate('/papers');
+        return;
+      }
+
       // Only update status if we're currently viewing this project
       const currentPath = window.location.pathname;
       const isViewingThisProject = currentPath === `/papers/${paperId}/view`;

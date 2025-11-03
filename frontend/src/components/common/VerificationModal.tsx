@@ -57,10 +57,8 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
 
         <p className="verification-modal-description">
           {showOnSignup
-            ? `A verification email has been sent to ${userEmail}. Please check your inbox and click the verification link to activate your account.`
-            : `Your email ${userEmail} needs to be verified to access this feature. ${
-                'A verification email should have been sent when you signed up. If you didn\'t receive it, click the button below to resend.'
-              }`
+            ? `To access your free upload, please verify your email address ${userEmail}. Click the button below to receive a verification link.`
+            : `Your email ${userEmail} needs to be verified to access this feature. Click the button below to receive a verification link.`
           }
         </p>
 

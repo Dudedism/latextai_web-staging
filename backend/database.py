@@ -586,3 +586,45 @@ class Ticket(BaseModel):
                     count += 1
 
         return count
+
+
+class UsedToken(BaseModel):
+    collection_name = 'used_tokens'
+
+    def __init__(self, token_hash=None, token_type=None, email=None, **kwargs):
+        """
+        Track used one-time tokens (email verification, password reset).
+
+        Args:
+            token_hash: Hash of the token (not the token itself for security)
+            token_type: Type of token ('email_verification' or 'password_reset')
+            email: Email address associated with the token
+        """
+        super().__init__(
+            token_hash=token_hash,
+            token_type=token_type,
+            email=email,
+            used_at=datetime.utcnow(),
+            **kwargs
+        )
+
+    @classmethod
+    def is_token_used(cls, token_hash):
+        """Check if a token has already been used"""
+        token = cls()
+        return token.find({'token_hash': token_hash}) is not None
+
+    @classmethod
+    def mark_token_used(cls, token_hash, token_type, email):
+        """Mark a token as used"""
+        token = cls(token_hash=token_hash, token_type=token_type, email=email)
+        return token.insert()
+
+    @classmethod
+    def cleanup_old_tokens(cls, days=7):
+        """Remove tokens older than specified days (for maintenance)"""
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        result = mongo.db[cls.collection_name].delete_many({
+            'used_at': {'$lt': cutoff_date}
+        })
+        return result.deleted_count

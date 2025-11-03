@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { VerificationModal } from '../common/VerificationModal';
 import { ConsentModal } from '../common/ConsentModal';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { PasswordResetRequestModal } from '../common/PasswordResetRequestModal';
 import { apiRequest } from '../../utils/api';
 import '../../styles/common.css';
 import './AccountPage.css';
@@ -23,7 +24,7 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   const [dataConsent, setDataConsent] = useState<boolean | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [passwordResetSent, setPasswordResetSent] = useState(false);
+  const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Use user data from context
@@ -91,21 +92,56 @@ const AccountPage: React.FC<AccountPageProps> = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDeleteAccount = () => {
-    // TODO: Implement account deletion API call
-    console.log('Delete account confirmed');
-    alert('Account deletion not yet implemented');
+  const confirmDeleteAccount = async () => {
+    setShowDeleteModal(false);
+    setLoading(true);
+
+    try {
+      console.log('🗑️  [ACCOUNT] Deleting account...');
+      await apiRequest('/api/deleteAccount', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+
+      console.log('✅ [ACCOUNT] Account deleted successfully');
+
+      // Clear auth state and redirect to home page
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+
+      // Navigate to home page (will cause AuthContext to update)
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('❌ [ACCOUNT] Error deleting account:', error);
+      alert(`Failed to delete account: ${error.message || 'Unknown error'}`);
+      setLoading(false);
+    }
   };
 
-  const handlePasswordReset = () => {
-    // TODO: Implement password reset email sending
-    console.log('Password reset clicked');
-    setPasswordResetSent(true);
+  const handlePasswordResetClick = () => {
+    // Open the modal for confirmation
+    setShowPasswordResetModal(true);
+  };
 
-    // Hide message after 5 seconds
-    setTimeout(() => {
-      setPasswordResetSent(false);
-    }, 5000);
+  const handlePasswordResetConfirm = async () => {
+    console.log('🔑 [ACCOUNT] Requesting password reset');
+
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/request-password-reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: userEmail }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      console.error('❌ [ACCOUNT] Error requesting password reset:', data.error);
+      throw new Error(data.error || 'Failed to send password reset email');
+    }
+
+    console.log('✅ [ACCOUNT] Password reset email sent');
   };
 
   if (loading) {
@@ -171,11 +207,19 @@ const AccountPage: React.FC<AccountPageProps> = () => {
           <div className="account-field">
             <label>Password</label>
             <div className="field-value verification-status">
-              <button className="verify-email-btn" onClick={handlePasswordReset}>
-                Reset Password
-              </button>
-              {passwordResetSent && (
-                <span className="password-reset-confirmation">Password reset sent!</span>
+              {isVerified ? (
+                <button className="verify-email-btn" onClick={handlePasswordResetClick}>
+                  Reset Password
+                </button>
+              ) : (
+                <>
+                  <button className="verify-email-btn" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+                    Reset Password
+                  </button>
+                  <span className="unverified-badge" style={{ marginLeft: '12px' }}>
+                    Verify email first
+                  </span>
+                </>
               )}
             </div>
           </div>
@@ -219,6 +263,13 @@ const AccountPage: React.FC<AccountPageProps> = () => {
         confirmText="Delete Account"
         cancelText="Cancel"
         isDangerous={true}
+      />
+
+      <PasswordResetRequestModal
+        isOpen={showPasswordResetModal}
+        onClose={() => setShowPasswordResetModal(false)}
+        userEmail={userEmail}
+        onConfirm={handlePasswordResetConfirm}
       />
     </div>
   );

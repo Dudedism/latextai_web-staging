@@ -173,7 +173,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           refresh_token: data.refresh_token,
           email: email,
           name: data.name,
-          admin: data.admin || false
+          admin: data.admin || false,
+          is_verified: data.is_verified || false
         });
 
         return { success: true };

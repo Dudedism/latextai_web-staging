@@ -50,25 +50,25 @@ const SignInPage: React.FC = () => {
   
   const { isAuthenticated, login: authLogin, setAuthData } = useAuth();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated (but not if showing verification modal)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !showVerificationModal) {
       navigate('/papers');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, showVerificationModal]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     if (authMode === 'signup') {
       if (password !== confirmPassword) {
         setError('Passwords do not match');
         setLoading(false);
         return;
       }
-      
+
       if (!agreeToTerms) {
         setError('Please agree to the terms and conditions');
         setLoading(false);
@@ -111,6 +111,8 @@ const SignInPage: React.FC = () => {
           // Signup successful with auto-login - store auth data
           setError('');
 
+          console.log('📥 [SIGNUP] Backend response:', data);
+
           if (data.access_token && data.refresh_token) {
             // Auto-login: Store tokens and user data using AuthContext
             setAuthData({
@@ -123,17 +125,18 @@ const SignInPage: React.FC = () => {
             });
 
             console.log('✅ [SIGNUP] Registration and auto-login successful');
+            console.log('📧 [SIGNUP] Setting signup email:', data.email);
+            console.log('🔔 [SIGNUP] Showing verification modal...');
 
             // Store email for verification modal
             setSignupEmail(data.email);
 
-            // Show verification modal
+            // Show verification modal (user must close it to continue)
             setShowVerificationModal(true);
 
-            // Navigate to papers page after a delay (so user sees modal)
-            setTimeout(() => {
-              navigate('/papers');
-            }, 500);
+            console.log('🔔 [SIGNUP] Modal state set to:', true);
+
+            // Don't navigate automatically - let user close modal first
           } else {
             // Fallback: Old behavior (shouldn't happen with updated backend)
             alert(data.message || 'Registration successful! You can now sign in.');
@@ -161,71 +164,71 @@ const SignInPage: React.FC = () => {
           <h1 className="signin-title">
             {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
           </h1>
-          
+
           <form className="signin-form" onSubmit={handleSubmit}>
-            {error && (
-              <div className="error-message" style={{
-                color: '#ff0000',
-                fontSize: '14px',
-                marginBottom: '20px',
-                padding: '10px',
-                backgroundColor: '#ffebee',
-                border: '1px solid #ffcdd2',
-                borderRadius: '4px'
-              }}>
-                {error}
-              </div>
-            )}
-            
-            {authMode === 'signup' && (
+              {error && (
+                <div className="error-message" style={{
+                  color: '#ff0000',
+                  fontSize: '14px',
+                  marginBottom: '20px',
+                  padding: '10px',
+                  backgroundColor: '#ffebee',
+                  border: '1px solid #ffcdd2',
+                  borderRadius: '4px'
+                }}>
+                  {error}
+                </div>
+              )}
+
+              {authMode === 'signup' && (
+                <div className="form-field">
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="form-input"
+                  />
+                </div>
+              )}
+
               <div className="form-field">
                 <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   className="form-input"
                 />
               </div>
-            )}
-            
-            <div className="form-field">
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="form-input"
-              />
-            </div>
-            
-            <div className="form-field">
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="form-input"
-              />
-            </div>
-            
-            {authMode === 'signup' && (
+
               <div className="form-field">
                 <input
                   type="password"
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                   className="form-input"
                 />
               </div>
-            )}
-            
-            {authMode === 'signup' && (
+
+              {authMode === 'signup' && (
+                <div className="form-field">
+                  <input
+                    type="password"
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="form-input"
+                  />
+                </div>
+              )}
+
+              {authMode === 'signup' && (
               <div className="form-field checkbox-field">
                 <label className="checkbox-label">
                   <input
@@ -239,12 +242,30 @@ const SignInPage: React.FC = () => {
                 </label>
               </div>
             )}
-            
-            <button type="submit" className="signin-btn" disabled={loading}>
-              {loading ? 'Loading...' : `${authMode === 'signin' ? 'Sign In' : 'Get Started'} →`}
-            </button>
-          </form>
-          
+
+              <button type="submit" className="signin-btn" disabled={loading}>
+                {loading ? 'Loading...' : `${authMode === 'signin' ? 'Sign In' : 'Get Started'} →`}
+              </button>
+
+              {authMode === 'signin' && (
+                <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                  <Link
+                    to="/forgot-password"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#666',
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
+            </form>
+
           <div className="auth-switch">
             {authMode === 'signin' ? (
               <p>
@@ -253,12 +274,28 @@ const SignInPage: React.FC = () => {
                   Sign up
                 </Link>
               </p>
-            ) : (
+            ) : authMode === 'signup' ? (
               <p>
                 Already have an account?{' '}
                 <Link to="/signin" className="switch-btn">
                   Sign in
                 </Link>
+              </p>
+            ) : (
+              <p>
+                Remember your password?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setResetEmailSent(false);
+                    setError('');
+                  }}
+                  className="switch-btn"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Sign in
+                </button>
                 .
               </p>
             )}
@@ -270,7 +307,11 @@ const SignInPage: React.FC = () => {
 
       <VerificationModal
         isOpen={showVerificationModal}
-        onClose={() => setShowVerificationModal(false)}
+        onClose={() => {
+          setShowVerificationModal(false);
+          // After user closes the modal, navigate to papers page
+          navigate('/papers');
+        }}
         userEmail={signupEmail}
         showOnSignup={true}
       />

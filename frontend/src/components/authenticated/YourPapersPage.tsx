@@ -17,6 +17,7 @@ interface Paper {
   template: string;
   thumbnail: string;
   status: 'completed' | 'processing';
+  paid: boolean;
 }
 
 const YourPapersPage: React.FC = () => {
@@ -43,15 +44,29 @@ const YourPapersPage: React.FC = () => {
     }
   };
 
-  const handleView = (paperId: string) => {
-    navigate(`/papers/${paperId}/view`);
+  const handleView = (paper: Paper) => {
+    // If not paid, redirect to payment page, otherwise go to view
+    if (!paper.paid) {
+      navigate(`/papers/${paper.id}/payment`);
+    } else {
+      navigate(`/papers/${paper.id}/view`);
+    }
   };
 
-  const handleDownload = async (paperId: string) => {
+  const handleDelete = async (paperId: string) => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      return;
+    }
+
     try {
-      await downloadFile(`/api/latex/project/${paperId}/tex`, `document.tex`);
+      await apiRequest(`/api/latex/project/${paperId}`, {
+        method: 'DELETE',
+      });
+      // Refresh projects list after deletion
+      fetchProjects();
     } catch (error) {
-      console.error('Error downloading .tex file:', error);
+      console.error('Error deleting project:', error);
+      alert('Failed to delete project. Please try again.');
     }
   };
 
@@ -141,18 +156,17 @@ const YourPapersPage: React.FC = () => {
               </div>
 
               <div className="paper-actions">
-                <button className="action-btn view-btn" onClick={() => handleView(paper.id)}>
-                  View
+                <button className="action-btn view-btn" onClick={() => handleView(paper)}>
+                  {paper.paid ? 'View' : 'Pay'}
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M10 4C6 4 2.5 7 1 10C2.5 13 6 16 10 16C14 16 17.5 13 19 10C17.5 7 14 4 10 4Z" stroke="currentColor" strokeWidth="1.5"/>
                     <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/>
                   </svg>
                 </button>
-                <button className="action-btn download-btn" onClick={() => handleDownload(paper.id)}>
-                  Download .tex
+                <button className="action-btn delete-btn" onClick={() => handleDelete(paper.id)}>
+                  Delete
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 3V13M10 13L6 9M10 13L14 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M3 17H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path d="M7 3h6M3 5h14M5 5l1 12c0 1 0 2 2 2h4c2 0 2-1 2-2l1-12M8 8v7M12 8v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
                 <button className="action-btn support-btn" onClick={() => handleSupport(paper.id)}>

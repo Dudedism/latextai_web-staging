@@ -9,12 +9,16 @@ import ConsentPage from './components/authenticated/ConsentPage';
 import ProcessingPage from './components/authenticated/ProcessingPage';
 import PreviewPage from './components/authenticated/PreviewPage';
 import UploadConfirmPage from './components/authenticated/UploadConfirmPage';
+import PaymentPage from './components/authenticated/PaymentPage';
 import SupportPage from './components/authenticated/SupportPage';
 import PrivacyPolicy from './components/static/PrivacyPolicy';
 import TermsConditions from './components/static/TermsConditions';
 import AboutPage from './components/static/AboutPage';
 import PricingPage from './components/static/PricingPage';
 import SignInPage from './components/static/SignInPage';
+import VerifyPage from './components/static/VerifyPage';
+import PasswordResetPage from './components/static/PasswordResetPage';
+import ForgotPasswordPage from './components/static/ForgotPasswordPage';
 import AdminSupportPage from './components/admin/AdminSupportPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
 import { shouldRefreshToken, refreshAccessToken } from './utils/auth';
@@ -50,6 +54,7 @@ const AppContent = () => {
         <Route path="/papers/new" element={<NewPaperPage />} />
         <Route path="/papers/consent" element={<ConsentPage />} />
         <Route path="/papers/upload-confirm" element={<UploadConfirmPage />} />
+        <Route path="/papers/:projectId/payment" element={<PaymentPage />} />
         <Route path="/papers/processing" element={<ProcessingPage />} />
         <Route path="/papers/:id/view" element={<PreviewPage />} />
         <Route path="/papers/:id/support" element={<SupportPage />} />
@@ -59,6 +64,9 @@ const AppContent = () => {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignInPage />} />
+        <Route path="/verify" element={<VerifyPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<PasswordResetPage />} />
         {/* Admin Routes */}
         <Route path="/admin/support" element={<AdminSupportPage />} />
       </Routes>

@@ -510,10 +510,33 @@ def get_projects(user):
             'date': date_str,
             'template': template_info['name'],
             'thumbnail': template_info['thumbnail'],
-            'status': frontend_status
+            'status': frontend_status,
+            'paid': proj.get('paid', False)
         })
 
     return jsonify(formatted_projects), 200
+
+@api_project.route('/project/<project_id>', methods=['DELETE'])
+@requires_auth
+def delete_project(user, project_id):
+    """Delete a project and its associated files"""
+    user_email = user['email']
+
+    # Verify project belongs to user
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    if project.get('user_id') != user_email:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Delete project and files using comprehensive database function
+    success, message = Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
+
+    if success:
+        return jsonify({'message': message}), 200
+    else:
+        return jsonify({'error': message}), 500
 
 @api_project.route('/project/<project_id>', methods=['GET'])
 @requires_auth
@@ -529,6 +552,57 @@ def get_project(user, project_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     return jsonify(project), 200
+
+@api_project.route('/project/<project_id>/payment-details', methods=['GET'])
+@requires_auth
+def get_payment_details(user, project_id):
+    """Get payment details for a project (cost estimate, metadata, etc.)"""
+    user_email = user['email']
+
+    # Find project
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Verify ownership
+    if project.get('user_id') != user_email:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Check if project is validated
+    if not project.get('validated', False):
+        return jsonify({'error': 'Project not yet validated'}), 400
+
+    # Check if already paid
+    if project.get('paid', False):
+        return jsonify({'error': 'Project already paid'}), 409
+
+    # Get metadata
+    page_count = project.get('page_count')
+    word_count = project.get('word_count')
+    filesize = project.get('filesize')
+    filename = project.get('upload_filename', 'document.docx')
+    total_cost = project.get('total_cost')
+
+    if page_count is None or total_cost is None:
+        return jsonify({'error': 'Project cost not calculated'}), 400
+
+    # Calculate cost estimate (same as validation)
+    cost_estimate = calculate_cost(page_count)
+
+    # Check if user can use free upload
+    can_use_free = not User.has_used_free_upload(user_email)
+
+    return jsonify({
+        'project_id': project_id,
+        'metadata': {
+            'filename': filename,
+            'page_count': page_count,
+            'word_count': word_count,
+            'filesize': filesize
+        },
+        'cost_estimate': cost_estimate,
+        'can_use_free': can_use_free
+    }), 200
 
 # Support Ticket Endpoints
 

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
-from api_auth import requires_auth, s
-from config import limiter, VERIFICATION_BASE_URL
+from api_auth import requires_auth, generate_verification_url
+from config import limiter
 from database import User
 from email_service import send_verification_email
 
@@ -115,9 +115,8 @@ def resend_verification_email(user):
     if user_data.get('is_verified', False):
         return jsonify({'error': 'Email already verified'}), 400
 
-    # Generate verification token
-    token = s.dumps(user['email'])
-    verify_url = f"{VERIFICATION_BASE_URL}/verify?token={token}"
+    # Generate verification URL
+    verify_url = generate_verification_url(user['email'])
 
     # Send verification email
     try:

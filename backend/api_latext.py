@@ -108,10 +108,16 @@ def process_project(user, data):
             'requires_payment': True
         }), 402  # 402 Payment Required
 
-    # STEP 4: Check project status (must be 'uploaded')
-    if project.get('status') != 'uploaded':
+    # STEP 4: Check project status (must be 'validated')
+    if project.get('status') != 'validated':
         return jsonify({
-            'error': f"Project cannot be processed (status: {project.get('status')})"
+            'error': f"Project must be validated before processing (current status: {project.get('status')})"
+        }), 400
+
+    # STEP 4.5: Verify project has been validated (has metadata)
+    if not project.get('validated', False):
+        return jsonify({
+            'error': 'Project has not been validated. Please validate before processing.'
         }), 400
 
     # STEP 5: Get template configuration
@@ -203,7 +209,7 @@ def process_project(user, data):
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
 @requires_auth(require_verified=True)
 def get_pdf(user, project_id):
-    """Proxy PDF download request to latextai service (preview for unverified users, full for verified)"""
+    """Proxy PDF download request to latextai service"""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -217,15 +223,11 @@ def get_pdf(user, project_id):
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
 
-    # Determine preview mode based on user verification status
-    preview = 'false' if user.get('is_verified', False) else 'true'
-
     try:
         # Proxy request to latextai service
         params = {
             'user_email': user['email'],
-            'project_id': project_id,
-            'preview': preview
+            'project_id': project_id
         }
         headers = {
             'X-API-Key': LATEXTAI_API_KEY

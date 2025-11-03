@@ -1,6 +1,9 @@
 import datetime
 import inspect
 import uuid
+import os
+import shutil
+import hashlib
 from datetime import timedelta
 from functools import wraps, partial
 import re
@@ -21,13 +24,27 @@ from google.oauth2 import id_token
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import *
-from database import User, Project, Ticket, mongo
-from email_service import send_verification_email
+from database import User, Project, Ticket, UsedToken, mongo
+from email_service import send_verification_email, send_password_reset_email
 from itsdangerous import URLSafeTimedSerializer
 
 api_auth = Blueprint('api_auth_blueprint', __name__, url_prefix='/api')
 
 s = URLSafeTimedSerializer(SECRET_KEY, salt=EMAIL_VERIFICATION_SALT)
+
+def generate_verification_url(email):
+    """
+    Generate a verification URL for the given email.
+    Points to frontend /verify route which will call backend API.
+
+    Args:
+        email: User's email address
+
+    Returns:
+        str: Full verification URL with token
+    """
+    token = s.dumps(email)
+    return f"{FRONTEND_URL}/verify?token={token}"
 
 def requires_auth(func=None, require_admin=False, require_verified=False, use_form=False):
     """
@@ -127,18 +144,8 @@ def signup():
 
     print(f"✅ [SIGNUP] User registered: {data['email']}")
 
-    # Generate verification token and URL
-    token = s.dumps(data['email'])
-    verify_url = f"{VERIFICATION_BASE_URL}/verify?token={token}"
-
-    # Send verification email
-    try:
-        send_verification_email(data['email'], data['name'], verify_url)
-        print(f"📧 [SIGNUP] Verification email sent to {data['email']}")
-    except Exception as e:
-        print(f"❌ [SIGNUP] Failed to send verification email: {e}")
-        # Don't fail signup if email fails - user can still login but won't be verified
-        # return jsonify({'message': 'User registered, but failed to send verification email.'}), 500
+    # Note: Verification email is NOT sent automatically on signup
+    # User will see a modal prompting them to request verification when needed
 
     # Auto-login: Create tokens for the new user
     email = data['email']
@@ -164,40 +171,68 @@ def signup():
 @api_auth.route('/verify', methods=['GET'])
 def verify():
     token = request.args.get('token')  # Get token from query string
+    print(f"\n🔍 [VERIFY] Verification request received")
+    print(f"   Token: {token[:50] if token else 'None'}...")
+
     if not token:
+        print(f"❌ [VERIFY] No token provided")
         return jsonify({'error': 'Token not provided'}), 400
+
+    # Create hash of token for database lookup
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    # Check if token has already been used
+    if UsedToken.is_token_used(token_hash):
+        print(f"❌ [VERIFY] Token already used")
+        return jsonify({'error': 'This verification link has already been used'}), 400
 
     try:
         # Decrypt the token to get the email
+        print(f"🔓 [VERIFY] Attempting to decrypt token...")
         email = s.loads(token, max_age=86400)  # 24 hour expiration
+        print(f"✅ [VERIFY] Token decrypted successfully: {email}")
 
         # Find the user by email
-        user = User(email=email).find()
+        print(f"🔍 [VERIFY] Looking up user: {email}")
+        user = User.find_by_email(email, include_deleted=False)
 
         if not user:
+            print(f"❌ [VERIFY] User not found: {email}")
             return jsonify({'error': 'User not found'}), 404
+
+        print(f"✅ [VERIFY] User found: {email}")
+        print(f"   Current verification status: {user.get('is_verified', False)}")
 
         # Check if the user is already verified
         if user.get('is_verified', False):
-            return redirect(FRONTEND_URL)  # Redirect to frontend
+            print(f"ℹ️  [VERIFY] User already verified")
+            return jsonify({
+                'message': 'Email already verified',
+                'email': email,
+                'is_verified': True
+            }), 200
+
+        # Mark token as used BEFORE verifying user
+        UsedToken.mark_token_used(token_hash, 'email_verification', email)
 
         # Update the user's is_verified status to True using the insertdate method
+        print(f"📝 [VERIFY] Marking user as verified...")
         User.insertdate(email, {"is_verified": True})
+        print(f"✅ [VERIFY] User verification successful!")
 
-        # Return an HTML page with a JavaScript alert and a redirect
-        return f'''
-        <html>
-            <head>
-                <script type="text/javascript">
-                    alert('Verification successful!');
-                    window.location.href = '{FRONTEND_URL}/signin';
-                </script>
-            </head>
-            <body></body>
-        </html>
-        '''
+        # Return JSON response with user email for frontend to update auth state
+        return jsonify({
+            'message': 'Email verified successfully!',
+            'email': email,
+            'is_verified': True
+        }), 200
 
     except Exception as e:
+        print(f"❌ [VERIFY] Verification failed!")
+        print(f"   Exception type: {type(e).__name__}")
+        print(f"   Exception message: {str(e)}")
+        import traceback
+        print(f"   Traceback:\n{traceback.format_exc()}")
         return jsonify({'error': 'The verification link has expired or is invalid'}), 400
 
 @api_auth.route('/login', methods=['POST'])
@@ -223,7 +258,8 @@ def login():
             'access_token': access_token,
             'refresh_token': refresh_token,
             'admin': user['admin'],
-            'name': user['name']
+            'name': user['name'],
+            'is_verified': user.get('is_verified', False)
         }), 200
     else:  # if it's not legit, error
         return jsonify({'message': 'Invalid email or password.'}), 401
@@ -364,18 +400,39 @@ def change_password(user, data):
 def delete_account(user, data):
     """
     'Delete' user account by orphaning it.
-    - Deletes all projects and tickets
+    - Deletes all projects (including uploaded files) and tickets
     - Keeps user record with email and free_upload_used for tracking
     - Strips all personal information
     - Marks account as deleted
     - Sets random password to prevent login
     """
+    USER_PROJECTS_DIR = 'user_projects'
+
     print(f"🗑️  [DELETE ACCOUNT] User {user['email']} requested account deletion")
 
     try:
-        # Delete all projects owned by user using convenience function
-        projects_deleted = Project.delete_by_user(user)
-        print(f"   Deleted {projects_deleted} projects")
+        # Get all projects owned by user
+        projects = Project.find_by_user(user)
+        print(f"   Found {len(projects)} projects to delete")
+
+        # Delete each project with its files
+        projects_deleted = 0
+        for project in projects:
+            success, message = Project.delete_with_files(
+                project.get('project_id'),
+                user['email'],
+                USER_PROJECTS_DIR
+            )
+            if success:
+                projects_deleted += 1
+
+        print(f"   Deleted {projects_deleted} projects with files")
+
+        # Delete user directory if it exists
+        user_dir = os.path.join(USER_PROJECTS_DIR, user['email'])
+        if os.path.exists(user_dir):
+            shutil.rmtree(user_dir, ignore_errors=True)
+            print(f"   Deleted user directory: {user_dir}")
 
         # Delete all tickets created by user using convenience function
         tickets_deleted = Ticket.delete_by_user(user)
@@ -388,7 +445,7 @@ def delete_account(user, data):
         # Orphan the user account (keep email + free_upload_used, strip everything else)
         orphan_data = {
             'is_deleted': True,
-            'deleted_at': datetime.utcnow(),
+            'deleted_at': datetime.datetime.utcnow(),
             'name': '[DELETED]',
             'password': generate_password_hash(str(uuid.uuid4())),  # Random password
             'is_verified': False,
@@ -413,4 +470,119 @@ def delete_account(user, data):
     except Exception as e:
         print(f"❌ [DELETE ACCOUNT] Error: {str(e)}")
         return jsonify({'message': 'Error deleting account'}), 500
+
+
+@api_auth.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    """
+    Request a password reset email.
+    Only verified users can request password resets.
+
+    Request body:
+        {
+            "email": "user@example.com"
+        }
+
+    Returns:
+        Success message (always returns success to prevent email enumeration)
+    """
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    print(f"🔑 [PASSWORD RESET] Password reset requested for {email}")
+
+    # Find user by email
+    user = User.find_by_email(email, include_deleted=False)
+
+    # Always return success to prevent email enumeration
+    if not user:
+        print(f"⚠️  [PASSWORD RESET] User {email} not found (returning success anyway)")
+        return jsonify({'message': 'If this email is registered and verified, a password reset link has been sent'}), 200
+
+    # Check if user is verified
+    if not user.get('is_verified', False):
+        print(f"⚠️  [PASSWORD RESET] User {email} is not verified (returning success anyway)")
+        return jsonify({'message': 'If this email is registered and verified, a password reset link has been sent'}), 200
+
+    # Generate password reset token (expires in 1 hour)
+    reset_token = s.dumps(email)  # Uses EMAIL_VERIFICATION_SALT from serializer
+    reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
+
+    print(f"   Generated reset token for {email}")
+    print(f"   Reset URL: {reset_url}")
+
+    # Send password reset email
+    email_sent = send_password_reset_email(
+        email,
+        user.get('name', 'User'),
+        reset_url
+    )
+
+    if email_sent:
+        print(f"✅ [PASSWORD RESET] Reset email sent to {email}")
+    else:
+        print(f"❌ [PASSWORD RESET] Failed to send email to {email}")
+
+    # Always return success to prevent email enumeration
+    return jsonify({'message': 'If this email is registered and verified, a password reset link has been sent'}), 200
+
+
+@api_auth.route('/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Reset password using token from email.
+
+    Request body:
+        {
+            "token": "reset-token-from-email",
+            "new_password": "new-password"
+        }
+
+    Returns:
+        Success message
+    """
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('new_password')
+
+    if not token or not new_password:
+        return jsonify({'error': 'Token and new password are required'}), 400
+
+    # Create hash of token for database lookup
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    # Check if token has already been used
+    if UsedToken.is_token_used(token_hash):
+        print(f"❌ [PASSWORD RESET] Token already used")
+        return jsonify({'error': 'This reset link has already been used'}), 400
+
+    # Validate token (1 hour expiry) - uses EMAIL_VERIFICATION_SALT from serializer
+    try:
+        email = s.loads(token, max_age=3600)
+        print(f"🔑 [PASSWORD RESET] Valid token for {email}")
+    except Exception as e:
+        print(f"❌ [PASSWORD RESET] Invalid or expired token: {str(e)}")
+        return jsonify({'error': 'Invalid or expired reset link'}), 400
+
+    # Find user
+    user = User.find_by_email(email, include_deleted=False)
+    if not user:
+        print(f"❌ [PASSWORD RESET] User {email} not found")
+        return jsonify({'error': 'User not found'}), 404
+
+    # Mark token as used BEFORE updating password
+    UsedToken.mark_token_used(token_hash, 'password_reset', email)
+
+    # Update password
+    hashed_password = generate_password_hash(new_password)
+    User.update_password(email, hashed_password)
+
+    # Invalidate all refresh tokens (force re-login)
+    User.invalidate_refresh_token(email)
+
+    print(f"✅ [PASSWORD RESET] Password reset successful for {email}")
+    return jsonify({'message': 'Password reset successful'}), 200
 
