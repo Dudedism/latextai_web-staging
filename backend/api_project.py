@@ -269,7 +269,8 @@ def validate_file(user, data):
                 'word_count': word_count,
                 'total_cost': cost_estimate['total'],
                 'validated': True,
-                'validated_at': datetime.utcnow()
+                'validated_at': datetime.utcnow(),
+                'status': 'validated'  # Transition from 'uploaded' to 'validated'
             }}
         )
 
@@ -386,10 +387,18 @@ def claim_free_upload(user, data):
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # STEP 2: Check project status (must be 'uploaded')
-    if project.get('status') != 'uploaded':
+    # STEP 2: Check project has been validated
+    if not project.get('validated', False):
         return jsonify({
-            'error': f"Project cannot be claimed (status: {project.get('status')})"
+            'error': 'Project must be validated before claiming free upload',
+            'requires_validation': True
+        }), 400
+
+    # STEP 2.5: Check project status (must be 'validated')
+    if project.get('status') != 'validated':
+        return jsonify({
+            'error': f"Project must be validated before payment (current status: {project.get('status')})",
+            'requires_validation': True
         }), 400
 
     # STEP 3: Check if project is already paid

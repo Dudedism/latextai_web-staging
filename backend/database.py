@@ -420,7 +420,8 @@ class Project(BaseModel):
                 'paid': True,
                 'is_free_project': is_free,
                 'total_cost': total_cost,
-                'paid_at': datetime.utcnow()
+                'paid_at': datetime.utcnow(),
+                'status': 'validated'  # Ensure status is 'validated' after payment
             }}
         )
         return result.modified_count > 0

@@ -66,6 +66,69 @@ def create_project_directory(user_id, project_id):
         os.makedirs(project_dir, exist_ok=True)
     return project_dir
 
+@api_latext.route('/admin/mark-paid', methods=['POST'])
+@requires_auth(require_verified=True)
+def admin_mark_paid(user, data):
+    """
+    Admin-only endpoint to mark a project as paid (for debugging/testing).
+
+    Request body:
+        {
+            "project_id": "uuid-here"
+        }
+
+    Returns:
+        Success message
+    """
+    # Check if user is admin
+    if not user.get('admin', False):
+        return jsonify({'error': 'Admin access required'}), 403
+
+    project_id = data.get('project_id')
+
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+
+    # Find project
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Check project has been validated
+    if not project.get('validated', False):
+        return jsonify({
+            'error': 'Project must be validated before marking as paid',
+            'requires_validation': True
+        }), 400
+
+    # Check project status (must be 'validated')
+    if project.get('status') != 'validated':
+        return jsonify({
+            'error': f"Project must be validated before payment (current status: {project.get('status')})",
+            'requires_validation': True
+        }), 400
+
+    # Mark as paid (admin bypass)
+    from database import mongo
+    mongo.db.projects.update_one(
+        {'project_id': project_id},
+        {'$set': {
+            'paid': True,
+            'is_free_project': False,
+            'admin_marked_paid': True,  # Flag to track admin override
+            'admin_marked_by': user['email'],
+            'admin_marked_at': datetime.utcnow(),
+            'status': 'validated'  # Ensure status remains validated
+        }}
+    )
+
+    print(f"🔧 [ADMIN] Project {project_id} marked as paid by {user['email']}")
+
+    return jsonify({
+        'message': 'Project marked as paid',
+        'project_id': project_id
+    }), 200
+
 @api_latext.route('/process', methods=['POST'])
 @requires_auth(require_verified=True)
 def process_project(user, data):

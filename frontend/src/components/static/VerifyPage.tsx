@@ -8,7 +8,7 @@ import './VerifyPage.css';
 const VerifyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated, refreshVerificationStatus, setAuthData, user } = useAuth();
+  const { setAuthData } = useAuth();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [errorMessage, setErrorMessage] = useState('');
   const verificationAttempted = useRef(false);

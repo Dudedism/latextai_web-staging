@@ -5,6 +5,7 @@ import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
 import { ErrorModal } from '../common/ErrorModal';
 import { apiRequest } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 import '../../styles/common.css';
 import './PaymentPage.css';
 
@@ -33,6 +34,7 @@ interface PaymentDetails {
 const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
+  const { isAdmin } = useAuth();
 
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -126,6 +128,43 @@ const PaymentPage: React.FC = () => {
   const handlePayWithStripe = async () => {
     // TODO: Stripe integration
     alert('Stripe payment integration coming soon!');
+  };
+
+  const handleAdminQuickProcess = async () => {
+    if (!projectId) {
+      setErrorMessage('Project ID not found');
+      setShowErrorModal(true);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // STEP 1: Mark as paid
+      console.log('🔧 [ADMIN] Marking project as paid...');
+      await apiRequest('/api/latex/admin/mark-paid', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId })
+      });
+      console.log('✅ [ADMIN] Project marked as paid');
+
+      // STEP 2: Start processing
+      console.log('🔧 [ADMIN] Starting processing...');
+      await apiRequest('/api/latex/process', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId })
+      });
+      console.log('✅ [ADMIN] Processing started');
+
+      // STEP 3: Navigate to view page
+      navigate(`/papers/${projectId}/view`);
+    } catch (error: any) {
+      console.error('❌ [ADMIN] Error:', error);
+      setErrorStatusCode(error.status);
+      setErrorMessage(error.message || 'Failed to process project');
+      setShowErrorModal(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -258,6 +297,34 @@ const PaymentPage: React.FC = () => {
               </button>
             )}
           </div>
+
+          {/* Admin Debug Controls */}
+          {isAdmin && (
+            <div className="payment-section" style={{ marginTop: '2rem', borderTop: '2px solid #ff6b35', paddingTop: '1rem' }}>
+              <h2 className="payment-section-title" style={{ color: '#ff6b35' }}>🔧 Admin Debug Controls</h2>
+              <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+                Bypass payment and process immediately for testing purposes.
+              </p>
+              <button
+                className="payment-btn"
+                onClick={handleAdminQuickProcess}
+                disabled={loading}
+                style={{
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '4px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.6 : 1,
+                  fontSize: '1rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                {loading ? 'Processing...' : '⚡ Quick Process (Admin)'}
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

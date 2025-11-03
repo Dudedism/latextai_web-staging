@@ -288,7 +288,6 @@ const SignInPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setAuthMode('signin');
-                    setResetEmailSent(false);
                     setError('');
                   }}
                   className="switch-btn"

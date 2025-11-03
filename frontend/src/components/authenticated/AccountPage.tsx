@@ -76,7 +76,7 @@ const AccountPage: React.FC<AccountPageProps> = () => {
     setShowConsentModal(true);
   };
 
-  const handleConsentResult = async (consented: boolean) => {
+  const handleConsentResult = async (_consented: boolean) => {
     // Refresh consent status after modal closes
     try {
       const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', {

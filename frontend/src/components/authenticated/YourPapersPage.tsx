@@ -6,7 +6,7 @@ import LoadingScreen from '../common/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
 import { VerificationModal } from '../common/VerificationModal';
 import { apiRequest } from '../../utils/api';
-import { downloadFile } from '../../utils/download';
+// import { downloadFile } from '../../utils/download';
 import '../../styles/common.css';
 import './YourPapersPage.css';
 
