@@ -16,7 +16,7 @@
       "year": "2025",
       "thumbnail": "/MQ_logo_rectangular_small.png",
       "latextai_name": "MQ",
-      "enabled": true
+      "enabled": false
     },
     {
       "id": "nature",

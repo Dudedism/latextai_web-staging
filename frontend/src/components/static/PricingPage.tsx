@@ -51,7 +51,7 @@ const PricingPage: React.FC = () => {
             for universities, research institutions, and corporate R&D departments.
           </p>
           <p>
-            Contact us at <a href="mailto:enterprise@latex.com">enterprise@latex.com</a> to discuss 
+            Contact us at <a href="mailto:contact@latext.ai">contact@latext.ai</a> to discuss 
             your needs and get a custom quote.
           </p>
         </section>

@@ -34,7 +34,7 @@ const TermsConditions: React.FC = () => {
             <strong>1.3 Account Deletion:</strong> You may delete your account at any time through your account settings.
             When you delete your account, all associated documents will be permanently removed from our systems within 30 days.
             If you prefer your documents and personal data to be deleted immediately and irreversibly upon account deletion,
-            you may request this by contacting us at support@opentypesetter.com. Once such a request is received, we will
+            you may request this by contacting us at contact@latext.ai. Once such a request is received, we will
             permanently remove your data from our active systems without delay, subject only to legal or security-related
             retention obligations.
           </p>
@@ -180,7 +180,7 @@ const TermsConditions: React.FC = () => {
             <br />
             OpenTypesetter LLC
             <br />
-            Email: <a href="mailto:support@opentypesetter.com">support@opentypesetter.com</a>
+            Email: <a href="mailto:contact@latext.ai">contact@latext.ai</a>
           </p>
         </section>
         </div>

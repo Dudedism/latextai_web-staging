@@ -90,9 +90,7 @@ const AboutPage: React.FC = () => {
             please reach out to us at:
           </p>
           <ul>
-            <li>General inquiries: <a href="mailto:info@latex.com">info@latex.com</a></li>
-            <li>Technical support: <a href="mailto:support@latex.com">support@latex.com</a></li>
-            <li>Media & press: <a href="mailto:press@latex.com">press@latex.com</a></li>
+            <li>Email: <a href="mailto:contact@latext.ai">contact@latext.ai</a></li>
           </ul>
         </section>
         </div>

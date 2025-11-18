@@ -31,7 +31,7 @@ const Footer: React.FC = () => {
         <div className="footer-section">
           <h3 className="footer-heading">Contact Us</h3>
           <ul className="footer-links">
-            <li><a href="mailto:thelatexemail@latex.com">thelatexemail@latex.com</a></li>
+            <li><a href="mailto:contact@latext.ai">contact@latext.ai</a></li>
           </ul>
         </div>
       </div>

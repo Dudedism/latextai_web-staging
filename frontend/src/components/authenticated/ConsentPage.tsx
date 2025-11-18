@@ -61,11 +61,11 @@ const ConsentPage: React.FC = () => {
             <div className="progress-step">Upload</div>
           </div>
 
-          <h1 className="consent-title">Help Us Make OpenTypesetter Better</h1>
+          <h1 className="consent-title">Help Us Make LaTexT Better</h1>
 
           <div className="consent-content">
             <p>
-              We use anonymized document data only to improve formatting accuracy and the AI models behind OpenTypesetter.
+              We use anonymized document data only to improve formatting accuracy and the AI models behind LaTexT.
             </p>
 
             <p>
@@ -75,7 +75,7 @@ const ConsentPage: React.FC = () => {
 
             <p>
               <strong>Your privacy and ownership are fully protected.</strong> Your documents will never be sold, shared,
-              or made public — they're used strictly inside OpenTypesetter for research and technical improvement.
+              or made public — they're used strictly inside LaTexT for research and technical improvement.
             </p>
 
             <div className="consent-agreement-box">

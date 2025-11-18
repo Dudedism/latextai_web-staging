@@ -223,7 +223,7 @@ def process_project(user, data):
             print(f"🚀 [PROCESS] Forwarding project {project_id} to latextai...")
 
             response = requests.post(
-                f"{LATEXTAI_SERVICE_URL}/api/upload",
+                f"{LATEXTAI_SERVICE_URL}/api/convert",
                 files=files,
                 data=form_data,
                 headers=headers,

@@ -58,11 +58,11 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
   return (
     <div className="consent-modal-overlay" onClick={handleOverlayClick}>
       <div className="consent-modal-content">
-        <h2 className="consent-modal-title">Help Us Make OpenTypesetter Better</h2>
+        <h2 className="consent-modal-title">Help Us Make LaTexT Better</h2>
 
         <div className="consent-modal-text">
           <p>
-            We use anonymized document data only to improve formatting accuracy and the AI models behind OpenTypesetter.
+            We use anonymized document data only to improve formatting accuracy and the AI models behind LaTexT.
           </p>
 
           <p>
@@ -72,7 +72,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
 
           <p>
             <strong>Your privacy and ownership are fully protected.</strong> Your documents will never be sold, shared,
-            or made public — they're used strictly inside OpenTypesetter for research and technical improvement.
+            or made public — they're used strictly inside LaTexT for research and technical improvement.
           </p>
 
           <div className="consent-modal-agreement-box">

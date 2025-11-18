@@ -75,7 +75,7 @@ const PrivacyPolicy: React.FC = () => {
           <p>
             If you have questions about this Privacy Policy, please contact us at:
             <br />
-            <a href="mailto:privacy@latex.com">privacy@latex.com</a>
+            <a href="mailto:contact@latext.ai">contact@latext.ai</a>
           </p>
         </section>
         </div>
