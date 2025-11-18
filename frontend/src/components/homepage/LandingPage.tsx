@@ -13,7 +13,7 @@ const LandingPage: React.FC = () => {
   };
 
   const handleBrowseJournals = () => {
-    navigate('/pricing');
+    navigate('/journals');
   };
 
   return (
@@ -26,9 +26,9 @@ const LandingPage: React.FC = () => {
       {/* Section 2: Publishers */}
       <section className="section">
         <div className="publishers-section">
-          <img src="/elsevier.svg" alt="Elsevier" className="publisher-logo" style={{ width: '156px', height: '76px' }} />
+          <img src="/elsevier.png" alt="Elsevier" className="publisher-logo" style={{ width: '156px', height: '76px' }} />
           <img src="/ieee.svg" alt="IEEE" className="publisher-logo" style={{ width: '138px', height: '77px' }} />
-          <img src="/springer.svg" alt="Springer" className="publisher-logo" style={{ width: '196px', height: '73px' }} />
+          <img src="/springer.png" alt="Springer" className="publisher-logo" style={{ width: '196px', height: '73px' }} />
           <img src="/lancet.svg" alt="The Lancet" className="publisher-logo" style={{ width: '250px', height: '28px' }} />
           <img src="/nature.svg" alt="Nature" className="publisher-logo" style={{ width: '168px', height: '46px' }} />
         </div>

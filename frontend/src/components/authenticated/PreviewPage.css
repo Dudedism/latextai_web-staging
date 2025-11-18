@@ -143,6 +143,20 @@
   font-family: var(--font-sans);
 }
 
+/* === ERROR STATE === */
+.error-state {
+  text-align: center;
+  padding: 60px 40px;
+}
+
+.error-state .processing-title {
+  margin-bottom: 12px;
+}
+
+.error-state .processing-subtitle {
+  margin-bottom: 0;
+}
+
 
 /* === BUTTONS === */
 .button-group {

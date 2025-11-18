@@ -206,14 +206,12 @@ class User(BaseModel):
 class Project(BaseModel):
     collection_name = 'projects'
 
-    def __init__(self, tex_filename=None, upload_filename=None, pdf_filename=None,
-                 user_id=None, status='unconverted', project_id=None, template=None,
-                 paid=False, is_free_project=False, total_cost=0.0, filesize=0,
-                 word_count=0, page_count=0, validated=False, **kwargs):
+    def __init__(self, upload_filename=None, user_id=None, status='unconverted',
+                 project_id=None, template=None, paid=False, is_free_project=False,
+                 total_cost=0.0, filesize=0, word_count=0, page_count=0,
+                 validated=False, **kwargs):
         super().__init__(
-            tex_filename=tex_filename,
             upload_filename=upload_filename,
-            pdf_filename=pdf_filename,
             user_id=user_id,
             status=status,
             project_id=project_id,

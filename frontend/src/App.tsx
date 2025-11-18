@@ -15,6 +15,7 @@ import PrivacyPolicy from './components/static/PrivacyPolicy';
 import TermsConditions from './components/static/TermsConditions';
 import AboutPage from './components/static/AboutPage';
 import PricingPage from './components/static/PricingPage';
+import BrowseJournalsPage from './components/static/BrowseJournalsPage';
 import SignInPage from './components/static/SignInPage';
 import VerifyPage from './components/static/VerifyPage';
 import PasswordResetPage from './components/static/PasswordResetPage';
@@ -62,6 +63,7 @@ const AppContent = () => {
         <Route path="/terms" element={<TermsConditions />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/journals" element={<BrowseJournalsPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignInPage />} />
         <Route path="/verify" element={<VerifyPage />} />

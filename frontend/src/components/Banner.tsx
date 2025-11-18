@@ -45,7 +45,7 @@ const Banner: React.FC<BannerProps> = () => {
           About
         </Link>
         <Link to="/pricing" className={location.pathname === '/pricing' ? 'active' : ''}>
-          Plans
+          Pricing
         </Link>
       </nav>
       <div className="nav-right">

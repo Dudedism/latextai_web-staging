@@ -4,7 +4,6 @@ import uuid
 import json
 import requests
 from flask import jsonify, Blueprint, request, send_file, Response
-from werkzeug.utils import secure_filename
 from api_auth import requires_auth
 from database import User, Project, Ticket
 from datetime import datetime
@@ -50,6 +49,7 @@ def validate_template(template_id):
     if not template.get('enabled', False):
         return False, f"Template '{template['name']}' is not yet available"
     return True, template
+
 
 def create_user_directory(user_id):
     """Create a directory for a user's projects if it doesn't exist"""
@@ -308,10 +308,7 @@ def get_pdf(user, project_id):
             # Stream the PDF file back to client
             return Response(
                 response.iter_content(chunk_size=8192),
-                content_type='application/pdf',
-                headers={
-                    'Content-Disposition': f'inline; filename="{project_id}.pdf"'
-                }
+                content_type='application/pdf'
             )
         else:
             return jsonify({'error': 'PDF not found'}), response.status_code
@@ -359,20 +356,116 @@ def get_tex(user, project_id):
         )
 
         if response.status_code == 200:
-            # Get filename from uploaded file
-            filename = project.get('upload_filename', 'document').rsplit('.', 1)[0] + '.tex'
-
             # Stream the TEX file back to client
             return Response(
                 response.iter_content(chunk_size=8192),
-                content_type='text/plain',
-                headers={
-                    'Content-Disposition': f'attachment; filename="{filename}"'
-                }
+                content_type='text/plain'
             )
         else:
             return jsonify({'error': 'LaTeX file not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
         return jsonify({'error': f'Failed to download LaTeX file: {str(e)}'}), 500
+
+@api_latext.route('/project/<project_id>/bib', methods=['GET'])
+@requires_auth(require_verified=True)
+def get_bib(user, project_id):
+    """Proxy BibTeX download request to latextai service (only for verified users)"""
+    # Check user verification status first
+    if not user.get('is_verified', False):
+        return jsonify({'error': 'Please sign up to download BibTeX files'}), 403
+
+    project = Project.find_by_id(project_id)
+
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Verify project belongs to user
+    if project.get('user_id') != user['email']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Check if project has been processed
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
+
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
+
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/bib",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            # Stream the BibTeX file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='application/x-bibtex'
+            )
+        else:
+            return jsonify({'error': 'BibTeX file not found'}), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download BibTeX file: {str(e)}'}), 500
+
+@api_latext.route('/project/<project_id>/package', methods=['GET'])
+@requires_auth(require_verified=True)
+def get_package(user, project_id):
+    """Proxy package download request to latextai service (only for verified users)"""
+    # Check user verification status first
+    if not user.get('is_verified', False):
+        return jsonify({'error': 'Please sign up to download compilation package'}), 403
+
+    project = Project.find_by_id(project_id)
+
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Verify project belongs to user
+    if project.get('user_id') != user['email']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Check if project has been processed
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
+
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
+
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/package",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            # Stream the package file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='application/zip'
+            )
+        else:
+            return jsonify({'error': 'Compilation package not found'}), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download compilation package: {str(e)}'}), 500
 

@@ -43,7 +43,7 @@
       "name": "Springer Journal",
       "publisher": "Springer",
       "year": "2025",
-      "thumbnail": "/springer.svg",
+      "thumbnail": "/springer.png",
       "latextai_name": "Springer",
       "enabled": false,
       "comment": "Not yet implemented in latextai"
@@ -53,7 +53,7 @@
       "name": "Elsevier Journal",
       "publisher": "Elsevier",
       "year": "2025",
-      "thumbnail": "/elsevier.svg",
+      "thumbnail": "/elsevier.png",
       "latextai_name": "Elsevier",
       "enabled": false,
       "comment": "Not yet implemented in latextai"

@@ -36,8 +36,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
               <li>Up to 15 pages (one-sided) or 7 pages (two-sided)</li>
               <li>+$0.50 per additional page</li>
               <li>Delivery in minutes, not days</li>
-              <li>Professional templates</li>
-              <li>Complete LaTeX package download</li>
+              <li>Submission-ready PDF + Complete LaTeX compilation package</li>
               <li>Superior quality output</li>
             </ul>
 

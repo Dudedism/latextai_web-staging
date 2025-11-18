@@ -5,6 +5,7 @@ import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
 import { apiRequest, apiFetch } from '../../utils/api';
 import { downloadFile } from '../../utils/download';
+import { useAuth } from '../../contexts/AuthContext';
 import '../../styles/common.css';
 import './PreviewPage.css';
 
@@ -13,9 +14,11 @@ const PreviewPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'processing' | 'completed' | 'failed'>('processing');
+  const [compilationFailed, setCompilationFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { id: paperId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (paperId) {
@@ -25,8 +28,9 @@ const PreviewPage: React.FC = () => {
 
   const checkStatus = async () => {
     try {
-      const project = await apiRequest<{ status: string }>(`/api/latex/project/${paperId}`);
+      const project = await apiRequest<{ status: string; compilation_failed?: boolean }>(`/api/latex/project/${paperId}`);
       const projectStatus = project.status;
+      const projectCompilationFailed = project.compilation_failed || false;
 
       // Redirect if project is still in upload/validation stage (not yet paid/converted)
       if (projectStatus === 'uploaded' || projectStatus === 'validated') {
@@ -42,14 +46,21 @@ const PreviewPage: React.FC = () => {
       if (isViewingThisProject) {
         if (projectStatus === 'converted') {
           setStatus('completed');
-          fetchPdf();
+          setCompilationFailed(projectCompilationFailed);
+          if (!projectCompilationFailed) {
+            fetchPdf();
+          } else {
+            setLoading(false);
+          }
         } else if (projectStatus === 'failed') {
           setStatus('failed');
+          setCompilationFailed(projectCompilationFailed);
           setError('Document processing failed');
           setLoading(false);
         } else {
           // Still processing
           setStatus('processing');
+          setCompilationFailed(false);
           // Continue polling while viewing this project
           setTimeout(checkStatus, 60000);
         }
@@ -99,7 +110,7 @@ const PreviewPage: React.FC = () => {
 
   const handleDownloadPdf = async () => {
     try {
-      await downloadFile(`/api/latex/project/${paperId}/pdf`, `paper_${paperId}.pdf`);
+      await downloadFile(`/api/latex/project/${paperId}/pdf`, 'document.pdf');
     } catch (error) {
       console.error('Error downloading PDF:', error);
     }
@@ -107,12 +118,36 @@ const PreviewPage: React.FC = () => {
 
   const handleDownloadTex = async () => {
     try {
-      await downloadFile(`/api/latex/project/${paperId}/tex`, `paper_${paperId}.tex`);
+      await downloadFile(`/api/latex/project/${paperId}/tex`, 'document.tex');
     } catch (error: any) {
       if (error.message?.includes('403')) {
         alert('Please sign up to download LaTeX files');
       } else {
         console.error('Error downloading TeX:', error);
+      }
+    }
+  };
+
+  const handleDownloadBib = async () => {
+    try {
+      await downloadFile(`/api/latex/project/${paperId}/bib`, 'document.bib');
+    } catch (error: any) {
+      if (error.message?.includes('403')) {
+        alert('Please sign up to download BibTeX files');
+      } else {
+        console.error('Error downloading BibTeX:', error);
+      }
+    }
+  };
+
+  const handleDownloadPackage = async () => {
+    try {
+      await downloadFile(`/api/latex/project/${paperId}/package`, 'latex_package.zip');
+    } catch (error: any) {
+      if (error.message?.includes('403')) {
+        alert('Please sign up to download compilation package');
+      } else {
+        console.error('Error downloading package:', error);
       }
     }
   };
@@ -160,21 +195,35 @@ const PreviewPage: React.FC = () => {
                     </svg>
                     <div className="processing-text">
                       <h2 className="processing-title">Processing Your Document...</h2>
-                      <p className="processing-subtitle">Your document is being converted to LaTeX format. This may take a few minutes.</p>
+                      <p className="processing-subtitle">Your document is being converted to LaTeX format and compiled. This may take a few minutes.</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          ) : (
+          ) : status === 'failed' ? (
+            <div className="processing-state">
+              <div className="error-state">
+                <h2 className="processing-title">Processing Failed</h2>
+                <p className="processing-subtitle">{error || 'An error occurred while processing your document.'}</p>
+                <button className="btn btn-dark" onClick={handleGoToSupport} style={{ marginTop: '24px' }}>Contact Support</button>
+              </div>
+            </div>
+          ) : status === 'completed' && compilationFailed ? (
+            <div className="processing-state">
+              <div className="error-state">
+                <h2 className="processing-title">PDF Compilation Failed</h2>
+                <p className="processing-subtitle" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                  Your document was successfully converted to LaTeX, but PDF compilation encountered an error.
+                </p>
+                <p className="processing-subtitle" style={{ maxWidth: '600px', margin: '16px auto 0' }}>
+                  You can still download the .tex file, .bib file, and full compilation package below to compile locally.
+                </p>
+              </div>
+            </div>
+          ) : status === 'completed' && !compilationFailed ? (
             <div className="preview-document-wrapper">
-              {status === 'failed' ? (
-                <div className="error-state">
-                  <h2>Processing Failed</h2>
-                  <p>{error || 'An error occurred while processing your document.'}</p>
-                  <button onClick={handleGoToSupport}>Contact Support</button>
-                </div>
-              ) : loading ? (
+              {loading ? (
                 <p className="loading-text">Loading PDF...</p>
               ) : pdfUrl ? (
                 <iframe
@@ -188,51 +237,120 @@ const PreviewPage: React.FC = () => {
                 <p className="error-text">Failed to load PDF</p>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* Download Section - Always Visible, Disabled During Processing */}
           <div className="content-section">
-            <h3 className="section-heading">Download as a .pdf or .tex here!</h3>
-            <div className="button-group">
+            <h3 className="section-heading">Download your files here!</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadPdf}
-                disabled={status === 'processing'}
+                disabled={status === 'processing' || status === 'failed' || compilationFailed}
               >
                 Download PDF
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadTex}
-                disabled={status === 'processing'}
+                disabled={status === 'processing' || status === 'failed'}
               >
                 Download .tex
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleDownloadBib}
+                disabled={status === 'processing' || status === 'failed'}
+              >
+                Download .bib
               </button>
             </div>
 
             <h3 className="section-heading">Full Package Download</h3>
             <p className="section-description">
               Your download includes the main .tex file, bibliography file (.bib),
-              all extracted images in appropriate formats, pdf, and a README with
-              compilation instructions.
+              all extracted images in appropriate formats, PDF, and all compilation files.
             </p>
-            <button className="btn btn-primary" disabled>
-              Download Full Package (Coming Soon)
+            <button
+              className="btn btn-primary"
+              onClick={handleDownloadPackage}
+              disabled={status === 'processing' || status === 'failed'}
+            >
+              Download Full Package
             </button>
           </div>
 
-          {/* Support Section - Always Visible At Bottom */}
-          <div className="content-section">
-            <p className="section-heading">
-              Are you happy with the quality of this formatting?
-            </p>
-            <p className="section-description">
-              If not: submit a support ticket
-            </p>
-            <button className="btn btn-dark" onClick={handleGoToSupport}>
-              Go to Support
-            </button>
-          </div>
+          {/* Support Section - Only Visible When Converted */}
+          {status === 'completed' && (
+            <div className="content-section">
+              <p className="section-heading">
+                Are you happy with the quality of this formatting?
+              </p>
+              <p className="section-description">
+                If not: submit a support ticket
+              </p>
+              <button className="btn btn-dark" onClick={handleGoToSupport}>
+                Go to Support
+              </button>
+            </div>
+          )}
+
+          {/* Admin Debug Controls */}
+          {isAdmin && (
+            <div className="content-section" style={{ borderTop: '2px solid #e74c3c', marginTop: '2rem', paddingTop: '1rem' }}>
+              <h3 className="section-heading" style={{ color: '#e74c3c' }}>Admin Debug Controls</h3>
+              <div className="button-group" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setStatus('completed');
+                    setCompilationFailed(false);
+                    setLoading(false);
+                    setError(null);
+                    setPdfUrl('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
+                  }}
+                >
+                  Mock: Converted + Compilation Success
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setStatus('completed');
+                    setCompilationFailed(true);
+                    setLoading(false);
+                    setError(null);
+                    setPdfUrl(null);
+                  }}
+                >
+                  Mock: Converted + Compilation Failed
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setStatus('failed');
+                    setCompilationFailed(true);
+                    setLoading(false);
+                    setError('Document processing failed');
+                    setPdfUrl(null);
+                  }}
+                >
+                  Mock: Failed + Compilation Failed
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setStatus('processing');
+                    setCompilationFailed(false);
+                    setLoading(true);
+                    setError(null);
+                    setPdfUrl(null);
+                  }}
+                >
+                  Mock: Processing + Compilation N/A
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

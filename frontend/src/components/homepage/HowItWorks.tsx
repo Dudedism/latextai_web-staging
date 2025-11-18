@@ -60,10 +60,10 @@ const HowItWorks: React.FC = () => {
             </div>
 
             <h3 className="how-step-title">
-              Download Your LaTeX<br />Package
+              Download Your<br />PDF + LaTeX Files
             </h3>
             <p className="how-step-desc">
-              Get submission-ready LaTeX files with figures, tables, and references preserved.
+              Get your publication-ready PDF and complete LaTeX compilation package with all source files.
             </p>
           </div>
         </div>
