@@ -1,0 +1,39 @@
+# Exclude all .env files from Docker build context
+# Backend uses volume mount for .env files at runtime
+.env
+.env.*
+
+# Exclude Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Exclude virtual environments
+venv/
+env/
+ENV/
+
+# Exclude test files
+tests/
+pytest_cache/
+
+# Exclude development files
+.vscode
+.idea
+*.log
+
+# Exclude git
+.git
+.gitignore
+
+# Exclude Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Exclude deployment scripts
+deploy.sh
+diagnose.py

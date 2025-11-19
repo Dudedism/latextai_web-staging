@@ -28,8 +28,9 @@ instance/
 .webassets-cache
 
 # Environment variables
-# Note: .env files are tracked for deployment convenience
-# DO NOT put sensitive credentials in these files in production
+# Track environment-specific files (.env.staging, .env.production)
+# But ignore generic .env for local development
+.env
 .venv
 env/
 venv/
@@ -77,9 +78,6 @@ logs
 # Temporary files
 *.tmp
 *.temp
-
-# Docker (for future use)
-.dockerignore
 
 .claude
 

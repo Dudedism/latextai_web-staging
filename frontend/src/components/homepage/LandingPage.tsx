@@ -2,26 +2,23 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import { HeroSection, HowItWorks, ValueProp, PricingCompare } from '.'; // barrel import
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../Global.css';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
 
   const handleTryFree = () => {
-    navigate('/papers/new');
+    navigate('/signup');
   };
 
   const handleBrowseJournals = () => {
-    navigate('/pricing');
+    navigate('/journals');
   };
 
   return (
     <div className="landing-container">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
 
       {/* Section 1: Hero */}
       <HeroSection />
@@ -29,9 +26,9 @@ const LandingPage: React.FC = () => {
       {/* Section 2: Publishers */}
       <section className="section">
         <div className="publishers-section">
-          <img src="/elsevier.svg" alt="Elsevier" className="publisher-logo" style={{ width: '156px', height: '76px' }} />
+          <img src="/elsevier.png" alt="Elsevier" className="publisher-logo" style={{ width: '156px', height: '76px' }} />
           <img src="/ieee.svg" alt="IEEE" className="publisher-logo" style={{ width: '138px', height: '77px' }} />
-          <img src="/springer.svg" alt="Springer" className="publisher-logo" style={{ width: '196px', height: '73px' }} />
+          <img src="/springer.png" alt="Springer" className="publisher-logo" style={{ width: '196px', height: '73px' }} />
           <img src="/lancet.svg" alt="The Lancet" className="publisher-logo" style={{ width: '250px', height: '28px' }} />
           <img src="/nature.svg" alt="Nature" className="publisher-logo" style={{ width: '168px', height: '46px' }} />
         </div>
@@ -50,7 +47,7 @@ const LandingPage: React.FC = () => {
       <ValueProp
         cta={{ label: 'Try it free now', onClick: handleTryFree }}
       />
-      <PricingCompare />
+      <PricingCompare onTryFree={handleTryFree} />
     </div>
   );
 };

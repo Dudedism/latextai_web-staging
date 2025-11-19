@@ -1,11 +1,12 @@
-import { logout } from './auth';
+import { logout, refreshAccessToken, getToken } from './auth';
 
 /**
- * Global fetch interceptor that automatically redirects to /signin on 401 errors
+ * Global fetch interceptor that automatically handles token refresh on 401 errors
  * Call setupFetchInterceptor() once in your app initialization (main.tsx)
  */
 export const setupFetchInterceptor = () => {
   const originalFetch = window.fetch;
+  let isRefreshing = false;
 
   window.fetch = async (...args) => {
     const response = await originalFetch(...args);
@@ -15,17 +16,51 @@ export const setupFetchInterceptor = () => {
 
     // Check for 401 Unauthorized
     if (clonedResponse.status === 401) {
-      console.log('🚨 401 Unauthorized detected - redirecting to sign in');
+      console.log('🚨 401 Unauthorized detected - attempting token refresh');
 
-      // Clear auth data
-      logout();
+      // Prevent multiple simultaneous refresh attempts
+      if (isRefreshing) {
+        return response;
+      }
 
-      // Redirect to signin page
-      window.location.href = '/signin';
+      isRefreshing = true;
+
+      try {
+        // Try to refresh the token
+        const refreshed = await refreshAccessToken();
+
+        if (refreshed) {
+          console.log('✅ Token refreshed successfully - retrying request');
+
+          // Retry the original request with the new token
+          const [url, options] = args;
+          const newToken = getToken();
+
+          // Update the Authorization header with the new token
+          const newOptions = { ...options as RequestInit };
+          newOptions.headers = {
+            ...(newOptions.headers || {}),
+            'Authorization': `Bearer ${newToken}`
+          };
+
+          isRefreshing = false;
+          return await originalFetch(url, newOptions);
+        } else {
+          console.log('❌ Token refresh failed - redirecting to sign in');
+
+          // Clear auth data
+          logout();
+
+          // Redirect to signin page
+          window.location.href = '/signin';
+        }
+      } finally {
+        isRefreshing = false;
+      }
     }
 
     return response;
   };
 
-  console.log('✅ Fetch interceptor initialized - will redirect on 401 errors');
+  console.log('✅ Fetch interceptor initialized - will auto-refresh tokens on 401 errors');
 };

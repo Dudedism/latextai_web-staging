@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAdmin, getToken } from '../../utils/auth';
+import LoadingScreen from '../common/LoadingScreen';
+import { useAuth } from '../../contexts/AuthContext';
+import { apiRequest } from '../../utils/api';
+import { formatDate, getStatusColor } from '../../utils/formatting';
 import '../../styles/common.css';
 import './AdminSupportPage.css';
 
@@ -28,6 +31,7 @@ interface Ticket {
 
 const AdminSupportPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -39,17 +43,14 @@ const AdminSupportPage: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const user = getAuthenticatedUser();
-  const isUserAdmin = isAdmin();
-
   useEffect(() => {
     // Redirect if not admin
-    if (!isUserAdmin) {
+    if (!isAdmin) {
       navigate('/signin');
       return;
     }
     fetchAllTickets();
-  }, [isUserAdmin, navigate]);
+  }, [isAdmin, navigate]);
 
   useEffect(() => {
     // Apply filters
@@ -77,19 +78,8 @@ const AdminSupportPage: React.FC = () => {
   const fetchAllTickets = async () => {
     try {
       setLoading(true);
-      const token = getToken();
-      const response = await fetch('${import.meta.env.VITE_BACKEND_URL}/api/admin/tickets', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTickets(data.tickets || []);
-      } else {
-        setError('Failed to load tickets');
-      }
+      const data = await apiRequest<{ tickets: Ticket[] }>('/api/admin/tickets');
+      setTickets(data.tickets || []);
     } catch (error) {
       console.error('Error fetching tickets:', error);
       setError('Failed to load tickets');
@@ -100,20 +90,9 @@ const AdminSupportPage: React.FC = () => {
 
   const fetchTicketDetails = async (ticketId: string) => {
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/ticket/${ticketId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSelectedTicket(data);
-        setNewStatus(data.status);
-      } else {
-        setError('Failed to load ticket details');
-      }
+      const data = await apiRequest<Ticket>(`/api/admin/ticket/${ticketId}`);
+      setSelectedTicket(data);
+      setNewStatus(data.status);
     } catch (error) {
       console.error('Error fetching ticket details:', error);
       setError('Failed to load ticket details');
@@ -127,29 +106,17 @@ const AdminSupportPage: React.FC = () => {
     try {
       setError('');
       setSuccessMessage('');
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/ticket/${selectedTicket.ticket_id}/reply`, {
+      await apiRequest(`/api/admin/ticket/${selectedTicket.ticket_id}/reply`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: replyMessage,
-        }),
+        body: JSON.stringify({ message: replyMessage }),
       });
 
-      if (response.ok) {
-        setSuccessMessage('Reply sent successfully');
-        setReplyMessage('');
-        // Refresh ticket details
-        await fetchTicketDetails(selectedTicket.ticket_id);
-        // Refresh tickets list to update status
-        await fetchAllTickets();
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to send reply');
-      }
+      setSuccessMessage('Reply sent successfully');
+      setReplyMessage('');
+      // Refresh ticket details
+      await fetchTicketDetails(selectedTicket.ticket_id);
+      // Refresh tickets list to update status
+      await fetchAllTickets();
     } catch (error) {
       console.error('Error sending reply:', error);
       setError('Failed to send reply');
@@ -162,57 +129,29 @@ const AdminSupportPage: React.FC = () => {
     try {
       setError('');
       setSuccessMessage('');
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/ticket/${selectedTicket.ticket_id}/status`, {
+      await apiRequest(`/api/admin/ticket/${selectedTicket.ticket_id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus,
-        }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
-      if (response.ok) {
-        setSuccessMessage('Status updated successfully');
-        // Refresh ticket details
-        await fetchTicketDetails(selectedTicket.ticket_id);
-        // Refresh tickets list
-        await fetchAllTickets();
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to update status');
-      }
+      setSuccessMessage('Status updated successfully');
+      // Refresh ticket details
+      await fetchTicketDetails(selectedTicket.ticket_id);
+      // Refresh tickets list
+      await fetchAllTickets();
     } catch (error) {
       console.error('Error updating status:', error);
       setError('Failed to update status');
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'status-open';
-      case 'in_progress': return 'status-progress';
-      case 'resolved': return 'status-resolved';
-      case 'closed': return 'status-closed';
-      default: return '';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="admin-support-page">
-      <Banner isAuthenticated={true} userName={user?.name} />
+      <Banner />
 
       <div className="admin-container">
         {/* Admin Navigation */}

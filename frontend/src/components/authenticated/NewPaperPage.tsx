@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
+import { ConsentModal } from '../common/ConsentModal';
+import { apiRequest } from '../../utils/api';
 import '../../styles/common.css';
 import './NewPaperPage.css';
 
@@ -11,14 +13,14 @@ type UploadState = 'upload' | 'preview' | 'template';
 
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user: _user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<{ id: string; name?: string } | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -61,39 +63,72 @@ const NewPaperPage: React.FC = () => {
     setUploadState('template');
   };
 
-  const handleTemplateSelect = (templateId: string) => {
-    // Map template IDs to template names
-    const templateMap: { [key: string]: string } = {
-      '1': 'nature',
-      '2': 'the lancet',
-      '3': 'springer',
-      '4': 'elsevier',
-      '5': 'ieee',
-      '6': 'nature',
-      '7': 'the lancet',
-      '8': 'springer'
-    };
+  const handleTemplateSelect = async (templateId: string, templateName?: string) => {
+    if (!uploadedFile) return;
 
-    const template = templateMap[templateId] || 'nature';
+    // Check consent status before proceeding
+    try {
+      const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', {
+        method: 'GET',
+      });
 
-    // Navigate to upload confirmation page
-    if (uploadedFile) {
+      // If consent is true, go directly to upload confirm
+      if (data.consent === true) {
+        navigate('/papers/upload-confirm', {
+          state: {
+            file: uploadedFile,
+            templateId: templateId,
+            templateName: templateName || templateId
+          }
+        });
+      } else {
+        // If consent is false or null, show consent modal
+        setPendingTemplate({ id: templateId, name: templateName });
+        setShowConsentModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking consent:', error);
+      // On error, show consent modal to be safe
+      setPendingTemplate({ id: templateId, name: templateName });
+      setShowConsentModal(true);
+    }
+  };
+
+  const handleConsentResult = (consented: boolean) => {
+    // If user declined consent, redirect to /papers
+    if (!consented) {
+      navigate('/papers');
+      return;
+    }
+
+    // If user consented, proceed to upload confirm
+    if (uploadedFile && pendingTemplate) {
       navigate('/papers/upload-confirm', {
         state: {
           file: uploadedFile,
-          template: template
+          templateId: pendingTemplate.id,
+          templateName: pendingTemplate.name || pendingTemplate.id
         }
       });
     }
   };
 
   if (uploadState === 'template') {
-    return <ChooseTemplatePage onSelectTemplate={handleTemplateSelect} />;
+    return (
+      <>
+        <ChooseTemplatePage onSelectTemplate={handleTemplateSelect} />
+        <ConsentModal
+          isOpen={showConsentModal}
+          onClose={() => setShowConsentModal(false)}
+          onConsent={handleConsentResult}
+        />
+      </>
+    );
   }
 
   return (
     <div className="new-paper-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="new-paper-main-section">
         <div className="new-paper-container">
@@ -152,6 +187,12 @@ const NewPaperPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <ConsentModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConsent={handleConsentResult}
+      />
     </div>
   );
 };

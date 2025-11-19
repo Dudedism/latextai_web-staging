@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated, getToken } from '../../utils/auth';
+import LoadingScreen from '../common/LoadingScreen';
+import { useAuth } from '../../contexts/AuthContext';
+import { VerificationModal } from '../common/VerificationModal';
+import { apiRequest } from '../../utils/api';
+// import { downloadFile } from '../../utils/download';
 import '../../styles/common.css';
 import './YourPapersPage.css';
 
@@ -13,16 +17,16 @@ interface Paper {
   template: string;
   thumbnail: string;
   status: 'completed' | 'processing';
+  paid: boolean;
 }
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isVerified } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -30,19 +34,9 @@ const YourPapersPage: React.FC = () => {
 
   const fetchProjects = async () => {
     try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/projects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPapers(data);
-      } else {
-        console.error('Failed to fetch projects');
-      }
+      setLoading(true);
+      const data = await apiRequest<Paper[]>('/api/latex/projects');
+      setPapers(data);
     } catch (error) {
       console.error('Error fetching projects:', error);
     } finally {
@@ -50,34 +44,29 @@ const YourPapersPage: React.FC = () => {
     }
   };
 
-  const handleView = (paperId: string) => {
-    navigate(`/papers/${paperId}/view`);
+  const handleView = (paper: Paper) => {
+    // If not paid, redirect to payment page, otherwise go to view
+    if (!paper.paid) {
+      navigate(`/papers/${paper.id}/payment`);
+    } else {
+      navigate(`/papers/${paper.id}/view`);
+    }
   };
 
-  const handleDownload = async (paperId: string) => {
-    try {
-      const token = getToken();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/latex/project/${paperId}/tex`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+  const handleDelete = async (paperId: string) => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      return;
+    }
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `document.tex`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        console.error('Failed to download .tex file');
-      }
+    try {
+      await apiRequest(`/api/latex/project/${paperId}`, {
+        method: 'DELETE',
+      });
+      // Refresh projects list after deletion
+      fetchProjects();
     } catch (error) {
-      console.error('Error downloading .tex file:', error);
+      console.error('Error deleting project:', error);
+      alert('Failed to delete project. Please try again.');
     }
   };
 
@@ -86,13 +75,33 @@ const YourPapersPage: React.FC = () => {
   };
 
   const handleNewPaper = () => {
+    // Check email verification status before allowing upload
+    if (!isVerified) {
+      setShowVerificationModal(true);
+      return;
+    }
     navigate('/papers/new');
   };
 
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  // Filter papers based on search query (matches ChooseTemplatePage implementation)
+  const filteredPapers = papers.filter(paper => {
+    const query = searchQuery.toLowerCase().trim().replace(/\s+/g, ' ');
+    const title = paper.title.toLowerCase().replace(/\s+/g, ' ');
+    const template = paper.template.toLowerCase().replace(/\s+/g, ' ');
+    return (
+      title.includes(query) ||
+      template.includes(query)
+    );
+  });
+
   return (
     <div className="papers-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
-      
+      <Banner />
+
       <section className="papers-main-section">
         <div className="papers-container">
         <div className="papers-header">
@@ -119,21 +128,29 @@ const YourPapersPage: React.FC = () => {
         </div>
 
         <div className="papers-list">
-          {loading ? (
-            <p>Loading projects...</p>
-          ) : papers.length === 0 ? (
-            <div className="no-papers">
-              <p>You don't have any papers yet.</p>
-              <button className="new-paper-btn" onClick={handleNewPaper}>
-                Upload Your First Paper
-              </button>
+          {papers.length === 0 ? (
+            <div className="empty-paper-card" onClick={handleNewPaper}>
+              <div className="empty-paper-thumbnail">
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+                  <circle cx="40" cy="40" r="38" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4"/>
+                  <path d="M40 20V60M20 40H60" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              <div className="empty-paper-info">
+                <h3 className="empty-paper-title">Upload your first project</h3>
+                <p className="empty-paper-subtitle">Your first upload is free - get started now!</p>
+              </div>
+            </div>
+          ) : filteredPapers.length === 0 ? (
+            <div className="empty-state">
+              <p className="empty-state-message">No papers match your search.</p>
             </div>
           ) : (
-            papers.map((paper) => (
+            filteredPapers.map((paper) => (
             <div key={paper.id} className="paper-card">
               <div className="paper-thumbnail">
                 <img src={paper.thumbnail} alt={paper.template} />
-                <span className="template-badge">nature</span>
               </div>
               
               <div className="paper-info">
@@ -154,18 +171,17 @@ const YourPapersPage: React.FC = () => {
               </div>
 
               <div className="paper-actions">
-                <button className="action-btn view-btn" onClick={() => handleView(paper.id)}>
-                  View
+                <button className="action-btn view-btn" onClick={() => handleView(paper)}>
+                  {paper.paid ? 'View' : 'Pay'}
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M10 4C6 4 2.5 7 1 10C2.5 13 6 16 10 16C14 16 17.5 13 19 10C17.5 7 14 4 10 4Z" stroke="currentColor" strokeWidth="1.5"/>
                     <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/>
                   </svg>
                 </button>
-                <button className="action-btn download-btn" onClick={() => handleDownload(paper.id)}>
-                  Download .tex
+                <button className="action-btn delete-btn" onClick={() => handleDelete(paper.id)}>
+                  Delete
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 3V13M10 13L6 9M10 13L14 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M3 17H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path d="M7 3h6M3 5h14M5 5l1 12c0 1 0 2 2 2h4c2 0 2-1 2-2l1-12M8 8v7M12 8v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
                 <button className="action-btn support-btn" onClick={() => handleSupport(paper.id)}>
@@ -185,6 +201,12 @@ const YourPapersPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <VerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        userEmail={user?.email || ''}
+      />
     </div>
   );
 };

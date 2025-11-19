@@ -1,20 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import './Banner.css';
 
 interface BannerProps {
+  // Legacy props - kept for backward compatibility but not used
   isAuthenticated?: boolean;
   userName?: string;
 }
 
-const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) => {
+const Banner: React.FC<BannerProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Determine user state: registered users vs anonymous users (default)
-  const isRegisteredUser = isAuthenticated && !userName?.includes('Anonymous');
+  const { isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -29,13 +29,9 @@ const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) =>
     };
   }, []);
 
-  const handleSignOut = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('isAdmin');
-    localStorage.removeItem('anonymousKey');
-    navigate('/signin');
+  const handleSignOut = async () => {
+    await logout();
+    navigate('/');
   };
 
   return (
@@ -49,7 +45,7 @@ const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) =>
           About
         </Link>
         <Link to="/pricing" className={location.pathname === '/pricing' ? 'active' : ''}>
-          Plans
+          Pricing
         </Link>
       </nav>
       <div className="nav-right">
@@ -71,8 +67,8 @@ const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) =>
           </button>
           {isDropdownOpen && (
             <div className="dropdown-menu">
-              {isRegisteredUser ? (
-                // Registered user menu
+              {isAuthenticated ? (
+                // Authenticated user menu
                 <>
                   <Link to="/account" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Profile
@@ -88,14 +84,8 @@ const Banner: React.FC<BannerProps> = ({ isAuthenticated = false, userName }) =>
                   </button>
                 </>
               ) : (
-                // Anonymous user menu (default)
+                // Unauthenticated user menu
                 <>
-                  <Link to="/papers" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Your Papers
-                  </Link>
-                  <Link to="/papers/new" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Upload Paper
-                  </Link>
                   <Link to="/signin" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Sign In
                   </Link>

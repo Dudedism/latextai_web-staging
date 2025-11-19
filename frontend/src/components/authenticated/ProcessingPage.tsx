@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import { getAuthenticatedUser, isAuthenticated } from '../../utils/auth';
 import '../../styles/common.css';
 import './ProcessingPage.css';
 
@@ -10,9 +9,6 @@ const ProcessingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const projectId = location.state?.projectId;
-
-  const user = getAuthenticatedUser();
-  const authenticated = isAuthenticated();
 
   useEffect(() => {
     // Show the animation for 2 seconds then navigate to preview
@@ -30,7 +26,7 @@ const ProcessingPage: React.FC = () => {
 
   return (
     <div className="processing-page">
-      <Banner isAuthenticated={authenticated} userName={user?.name} />
+      <Banner />
       
       <section className="processing-main-section">
         <div className="processing-container">

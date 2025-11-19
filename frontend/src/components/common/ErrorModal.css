@@ -1,0 +1,125 @@
+/* Modal overlay - same as other modals */
+.error-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal content - similar to confirm modal */
+.error-modal-content {
+  background: white;
+  border-radius: 8px;
+  padding: 40px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.3s ease;
+  text-align: center;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Error icon */
+.error-modal-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+/* Title - same as other modals */
+.error-modal-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 24px 0;
+  color: #000;
+  font-family: var(--font-sans);
+  text-align: center;
+}
+
+/* Error message - similar to confirm-modal-message */
+.error-modal-message {
+  font-family: var(--font-sans);
+  color: #333;
+  line-height: 1.6;
+  font-size: 16px;
+  margin: 0 0 16px 0;
+  text-align: center;
+}
+
+/* Error code display */
+.error-modal-code {
+  font-family: var(--font-sans);
+  color: #666;
+  font-size: 14px;
+  margin: 0 0 32px 0;
+  text-align: center;
+  font-style: italic;
+}
+
+/* Button - same as other modal buttons */
+.error-modal-btn {
+  padding: 14px 32px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  border: none;
+  min-width: 140px;
+  background: #000;
+  color: white;
+}
+
+.error-modal-btn:hover {
+  background: #333;
+}
+
+@media (max-width: 600px) {
+  .error-modal-content {
+    padding: 32px 24px;
+    width: 95%;
+  }
+
+  .error-modal-title {
+    font-size: 24px;
+  }
+
+  .error-modal-message {
+    font-size: 15px;
+  }
+
+  .error-modal-code {
+    font-size: 13px;
+  }
+
+  .error-modal-btn {
+    width: 100%;
+  }
+}

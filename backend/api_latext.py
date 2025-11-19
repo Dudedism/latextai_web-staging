@@ -1,18 +1,55 @@
 import os
 import shutil
 import uuid
-from flask import jsonify, Blueprint, request, send_file
-from werkzeug.utils import secure_filename
+import json
+import requests
+from flask import jsonify, Blueprint, request, send_file, Response
 from api_auth import requires_auth
 from database import User, Project, Ticket
 from datetime import datetime
-from PyPDF2 import PdfReader, PdfWriter
+from config import LATEXTAI_SERVICE_URL, LATEXTAI_API_KEY
+from utils.document_utils import extract_docx_metadata, validate_docx_file
+from utils.pricing import calculate_cost
 
 api_latext = Blueprint('api_latext_blueprint', __name__, url_prefix='/api/latex')
 
-# Base directory for user projects
+# Base directory for user projects (local temporary storage before sending to latextai)
 USER_PROJECTS_DIR = 'user_projects'
-MOCK_FILES_DIR = os.path.join(USER_PROJECTS_DIR, 'mock_files')
+
+# Templates configuration file
+TEMPLATES_FILE = 'templates.json'
+
+def load_templates():
+    """Load templates from JSON configuration file"""
+    try:
+        with open(TEMPLATES_FILE, 'r') as f:
+            data = json.load(f)
+            return data['templates']
+    except Exception as e:
+        print(f"Error loading templates: {e}")
+        return []
+
+def get_enabled_templates():
+    """Get only enabled templates"""
+    return [t for t in load_templates() if t.get('enabled', False)]
+
+def get_template_by_id(template_id):
+    """Get template configuration by ID"""
+    templates = load_templates()
+    for template in templates:
+        if template['id'].lower() == template_id.lower():
+            return template
+    return None
+
+def validate_template(template_id):
+    """Validate that template exists and is enabled"""
+    template = get_template_by_id(template_id)
+    if not template:
+        return False, "Template not found"
+    if not template.get('enabled', False):
+        return False, f"Template '{template['name']}' is not yet available"
+    return True, template
+
 
 def create_user_directory(user_id):
     """Create a directory for a user's projects if it doesn't exist"""
@@ -29,198 +66,260 @@ def create_project_directory(user_id, project_id):
         os.makedirs(project_dir, exist_ok=True)
     return project_dir
 
-def copy_mock_files(project_directory, project_id):
-    """Copy mock .tex and .pdf files to the project directory"""
-    # Copy mock.tex with project_id naming
-    mock_tex = os.path.join(MOCK_FILES_DIR, 'mock.tex')
-    if os.path.exists(mock_tex):
-        shutil.copy(mock_tex, os.path.join(project_directory, f'{project_id}.tex'))
+@api_latext.route('/admin/mark-paid', methods=['POST'])
+@requires_auth(require_verified=True)
+def admin_mark_paid(user, data):
+    """
+    Admin-only endpoint to mark a project as paid (for debugging/testing).
 
-    # Copy mock.pdf with project_id naming
-    mock_pdf = os.path.join(MOCK_FILES_DIR, 'mock.pdf')
-    if os.path.exists(mock_pdf):
-        shutil.copy(mock_pdf, os.path.join(project_directory, f'{project_id}.pdf'))
+    Request body:
+        {
+            "project_id": "uuid-here"
+        }
 
-    return True
+    Returns:
+        Success message
+    """
+    # Check if user is admin
+    if not user.get('admin', False):
+        return jsonify({'error': 'Admin access required'}), 403
 
-def generate_pdf_preview(pdf_path, preview_path, max_pages=3):
-    """Generate a preview PDF with only the first N pages"""
-    try:
-        # Read the full PDF
-        pdf_reader = PdfReader(pdf_path)
-        pdf_writer = PdfWriter()
+    project_id = data.get('project_id')
 
-        # Get the number of pages to extract (min of total pages or max_pages)
-        num_pages = min(len(pdf_reader.pages), max_pages)
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
 
-        # Add first N pages to the writer
-        for page_num in range(num_pages):
-            pdf_writer.add_page(pdf_reader.pages[page_num])
+    # Find project
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
 
-        # Write the preview PDF
-        with open(preview_path, 'wb') as preview_file:
-            pdf_writer.write(preview_file)
+    # Check project has been validated
+    if not project.get('validated', False):
+        return jsonify({
+            'error': 'Project must be validated before marking as paid',
+            'requires_validation': True
+        }), 400
 
-        return True
-    except Exception as e:
-        print(f"Error generating PDF preview: {e}")
-        return False
+    # Check project status (must be 'validated')
+    if project.get('status') != 'validated':
+        return jsonify({
+            'error': f"Project must be validated before payment (current status: {project.get('status')})",
+            'requires_validation': True
+        }), 400
 
-@api_latext.route('/upload', methods=['POST'])
-@requires_auth
-def upload_file(user, data):
-    """Handle file upload and create mock project"""
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-
-    # Get template from form data
-    template = request.form.get('template', 'nature')
-
-    # Generate unique project ID
-    project_id = str(uuid.uuid4())
-
-    # Create project directory
-    project_dir = create_project_directory(user['email'], project_id)
-
-    # Save uploaded file with project_id naming
-    filename = secure_filename(file.filename)
-    file_extension = os.path.splitext(filename)[1]
-    upload_path = os.path.join(project_dir, f'{project_id}{file_extension}')
-    file.save(upload_path)
-
-    # Copy mock files with project_id naming
-    mock_tex = os.path.join(MOCK_FILES_DIR, 'mock.tex')
-    mock_pdf = os.path.join(MOCK_FILES_DIR, 'mock.pdf')
-
-    if os.path.exists(mock_tex):
-        shutil.copy(mock_tex, os.path.join(project_dir, f'{project_id}.tex'))
-    if os.path.exists(mock_pdf):
-        full_pdf_path = os.path.join(project_dir, f'{project_id}.pdf')
-        shutil.copy(mock_pdf, full_pdf_path)
-
-        # Generate preview PDF (first 3 pages)
-        preview_pdf_path = os.path.join(project_dir, f'preview_{project_id}.pdf')
-        generate_pdf_preview(full_pdf_path, preview_pdf_path, max_pages=3)
-
-    # Create database entry
-    project = Project(
-        project_id=project_id,
-        user_id=user['email'],
-        upload_filename=filename,
-        tex_filename=f'{project_id}.tex',
-        pdf_filename=f'{project_id}.pdf',
-        template=template.lower(),
-        status='converted'
+    # Mark as paid (admin bypass)
+    from database import mongo
+    mongo.db.projects.update_one(
+        {'project_id': project_id},
+        {'$set': {
+            'paid': True,
+            'is_free_project': False,
+            'admin_marked_paid': True,  # Flag to track admin override
+            'admin_marked_by': user['email'],
+            'admin_marked_at': datetime.utcnow(),
+            'status': 'validated'  # Ensure status remains validated
+        }}
     )
-    project.insert()
+
+    print(f"🔧 [ADMIN] Project {project_id} marked as paid by {user['email']}")
 
     return jsonify({
-        'message': 'File uploaded successfully',
+        'message': 'Project marked as paid',
         'project_id': project_id
     }), 200
 
-@api_latext.route('/projects', methods=['GET'])
-@requires_auth
-def get_projects(user, data):
-    """Get all projects for the authenticated user"""
-    projects = Project.find_by_user(user['email'])
+@api_latext.route('/process', methods=['POST'])
+@requires_auth(require_verified=True)
+def process_project(user, data):
+    """
+    Initiate processing by forwarding to latextai service.
 
-    # Format projects for frontend
-    formatted_projects = []
-    for proj in projects:
-        # Extract title from filename (remove extension)
-        title = proj.get('upload_filename', 'Untitled')
-        if '.' in title:
-            title = title.rsplit('.', 1)[0]
+    This endpoint is called AFTER payment (either free or paid via Stripe).
+    It forwards the uploaded DOCX file to latextai for conversion.
 
-        # Format date
-        created_at = proj.get('created_at', datetime.utcnow())
-        if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at)
-        date_str = created_at.strftime('%m/%d/%y')
-
-        # Map template to display name and thumbnail
-        template_map = {
-            'nature': {'name': 'Nature Communications', 'thumbnail': '/nature.svg'},
-            'the lancet': {'name': 'The Lancet', 'thumbnail': '/lancet.svg'},
-            'springer': {'name': 'Springer Journal', 'thumbnail': '/springer.svg'},
-            'elsevier': {'name': 'Elsevier Journal', 'thumbnail': '/elsevier.svg'},
-            'ieee': {'name': 'IEEE Transactions', 'thumbnail': '/ieee.svg'},
+    Request body:
+        {
+            "project_id": "uuid-here"
         }
 
-        template_info = template_map.get(
-            proj.get('template', 'nature'),
-            {'name': 'Nature Communications', 'thumbnail': '/nature.svg'}
-        )
+    Returns:
+        Success message with processing status
 
-        formatted_projects.append({
-            'id': proj.get('project_id'),
-            'title': title,
-            'date': date_str,
-            'template': template_info['name'],
-            'thumbnail': template_info['thumbnail'],
-            'status': 'completed' if proj.get('status') == 'converted' else 'processing'
-        })
+    Prerequisites:
+        - Project must exist and be 'uploaded'
+        - Project must be marked as paid (paid=True)
+    """
+    project_id = data.get('project_id')
 
-    return jsonify(formatted_projects), 200
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
 
-@api_latext.route('/project/<project_id>', methods=['GET'])
-@requires_auth
-def get_project(user, data, project_id):
-    """Get a single project by ID"""
+    # STEP 1: Find project
     project = Project.find_by_id(project_id)
-
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    # Verify project belongs to user
+    # STEP 2: Verify project belongs to user
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    return jsonify(project), 200
+    # STEP 3: Check project is paid
+    if not project.get('paid', False):
+        return jsonify({
+            'error': 'Project must be paid for before processing',
+            'requires_payment': True
+        }), 402  # 402 Payment Required
 
-@api_latext.route('/project/<project_id>/pdf', methods=['GET'])
-@requires_auth
-def get_pdf(user, data, project_id):
-    """Serve the PDF file for a project (preview for unverified users, full for verified)"""
-    project = Project.find_by_id(project_id)
+    # STEP 4: Check project status (must be 'validated')
+    if project.get('status') != 'validated':
+        return jsonify({
+            'error': f"Project must be validated before processing (current status: {project.get('status')})"
+        }), 400
 
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
+    # STEP 4.5: Verify project has been validated (has metadata)
+    if not project.get('validated', False):
+        return jsonify({
+            'error': 'Project has not been validated. Please validate before processing.'
+        }), 400
 
-    # Verify project belongs to user
-    if project.get('user_id') != user['email']:
-        return jsonify({'error': 'Unauthorized'}), 403
+    # STEP 5: Get template configuration
+    template_id = project.get('template')
+    is_valid, result = validate_template(template_id)
+    if not is_valid:
+        return jsonify({'error': f'Invalid template: {result}'}), 400
 
-    # Check user verification status to determine which PDF to serve
-    if user.get('is_verified', False):
-        # Verified user - serve full PDF
-        pdf_filename = project.get('pdf_filename', f'{project_id}.pdf')
-    else:
-        # Unverified/anonymous user - serve preview only (first 3 pages)
-        pdf_filename = f'preview_{project_id}.pdf'
+    template_config = result
+    latextai_template_name = template_config['latextai_name']
 
-    # Build PDF path
-    pdf_path = os.path.join(
+    # STEP 6: Read file from local storage
+    file_path = os.path.join(
         USER_PROJECTS_DIR,
-        str(project.get('user_id')),
-        str(project_id),
-        pdf_filename
+        user['email'],
+        project_id,
+        f"{project_id}.docx"
     )
 
-    if not os.path.exists(pdf_path):
-        return jsonify({'error': 'PDF not found'}), 404
+    if not os.path.exists(file_path):
+        return jsonify({
+            'error': 'Uploaded file not found. Please re-upload.'
+        }), 404
 
-    return send_file(pdf_path, mimetype='application/pdf')
+    try:
+        # STEP 7: Forward file to latextai service
+        with open(file_path, 'rb') as f:
+            files = {
+                'file': (project.get('upload_filename'), f, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            }
+            form_data = {
+                'user_email': user['email'],
+                'project_id': project_id,
+                'template': latextai_template_name
+            }
+            headers = {
+                'X-API-Key': LATEXTAI_API_KEY
+            }
+
+            print(f"🚀 [PROCESS] Forwarding project {project_id} to latextai...")
+
+            response = requests.post(
+                f"{LATEXTAI_SERVICE_URL}/api/convert",
+                files=files,
+                data=form_data,
+                headers=headers,
+                timeout=30
+            )
+
+            print(f"📡 [PROCESS] LatextAI response: {response.status_code}")
+
+            if response.status_code == 202:
+                # STEP 8: Update project status to 'processing'
+                project_obj = Project.find_by_id(project_id)
+                if project_obj:
+                    from database import mongo
+                    mongo.db.projects.update_one(
+                        {'project_id': project_id},
+                        {'$set': {'status': 'processing'}}
+                    )
+
+                print(f"✅ [PROCESS] Project {project_id} sent to latextai successfully")
+
+                return jsonify({
+                    'message': 'Processing started successfully',
+                    'project_id': project_id,
+                    'status': 'processing'
+                }), 202  # 202 Accepted
+
+            else:
+                # latextai returned error
+                print(f"❌ [PROCESS] LatextAI error: {response.text}")
+                return jsonify({
+                    'error': f'Processing service error: {response.text}'
+                }), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ [PROCESS] Network error: {str(e)}")
+        return jsonify({
+            'error': f'Failed to connect to processing service: {str(e)}'
+        }), 500
+
+    except Exception as e:
+        print(f"❌ [PROCESS] Error: {str(e)}")
+        return jsonify({
+            'error': f'Processing failed: {str(e)}'
+        }), 500
+
+@api_latext.route('/project/<project_id>/pdf', methods=['GET'])
+@requires_auth(require_verified=True)
+def get_pdf(user, project_id):
+    """Proxy PDF download request to latextai service"""
+    project = Project.find_by_id(project_id)
+
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Verify project belongs to user
+    if project.get('user_id') != user['email']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Check if project has been processed
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
+
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
+
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            # Stream the PDF file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='application/pdf'
+            )
+        else:
+            return jsonify({'error': 'PDF not found'}), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download PDF: {str(e)}'}), 500
 
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
-@requires_auth
-def get_tex(user, data, project_id):
-    """Download the .tex file for a project (only for verified users)"""
+@requires_auth(require_verified=True)
+def get_tex(user, project_id):
+    """Proxy TEX download request to latextai service (only for verified users)"""
     # Check user verification status first
     if not user.get('is_verified', False):
         return jsonify({'error': 'Please sign up to download LaTeX files'}), 403
@@ -234,201 +333,139 @@ def get_tex(user, data, project_id):
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Build tex path
-    tex_path = os.path.join(
-        USER_PROJECTS_DIR,
-        str(project.get('user_id')),
-        str(project_id),
-        project.get('tex_filename', f'{project_id}.tex')
-    )
+    # Check if project has been processed
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
 
-    if not os.path.exists(tex_path):
-        return jsonify({'error': 'LaTeX file not found'}), 404
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
 
-    return send_file(
-        tex_path,
-        mimetype='text/plain',
-        as_attachment=True,
-        download_name=f"{project.get('upload_filename', 'document').rsplit('.', 1)[0]}.tex"
-    )
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/tex",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
 
-# Support Ticket Endpoints
+        if response.status_code == 200:
+            # Stream the TEX file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='text/plain'
+            )
+        else:
+            return jsonify({'error': 'LaTeX file not found'}), response.status_code
 
-@api_latext.route('/project/<project_id>/support', methods=['POST'])
-@requires_auth
-def create_support_ticket(user, data, project_id):
-    """Create a new support ticket for a project"""
-    # Check user verification status
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download LaTeX file: {str(e)}'}), 500
+
+@api_latext.route('/project/<project_id>/bib', methods=['GET'])
+@requires_auth(require_verified=True)
+def get_bib(user, project_id):
+    """Proxy BibTeX download request to latextai service (only for verified users)"""
+    # Check user verification status first
     if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to submit support tickets'}), 401
+        return jsonify({'error': 'Please sign up to download BibTeX files'}), 403
 
-    # Get request data
-    request_data = request.get_json()
-    subject = request_data.get('subject', '').strip()
-    message = request_data.get('message', '').strip()
-
-    # Validate subject length (5-30 characters)
-    if len(subject) < 5 or len(subject) > 30:
-        return jsonify({'error': 'Subject must be between 5 and 30 characters'}), 400
-
-    # Validate message length (10-2000 characters)
-    if len(message) < 10 or len(message) > 2000:
-        return jsonify({'error': 'Message must be between 10 and 2000 characters'}), 400
-
-    # Check if project exists and belongs to user
     project = Project.find_by_id(project_id)
+
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
+    # Verify project belongs to user
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Check for existing open ticket for this project
-    existing_open_ticket = Ticket.find_open_ticket_by_project(project_id)
-    if existing_open_ticket:
-        return jsonify({
-            'error': 'An open ticket already exists for this project. Please close it before creating a new one.'
-        }), 400
+    # Check if project has been processed
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
 
-    # Create new ticket
-    ticket = Ticket(
-        project_id=project_id,
-        user_id=user['email'],
-        subject=subject
-    )
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
 
-    # Add initial message
-    ticket.data['messages'] = [{
-        'message_id': 0,
-        'content': message,
-        'sender': 'user',
-        'sender_id': user['email'],
-        'timestamp': datetime.utcnow()
-    }]
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/bib",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
 
-    # Save ticket to database
-    ticket.insert()
+        if response.status_code == 200:
+            # Stream the BibTeX file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='application/x-bibtex'
+            )
+        else:
+            return jsonify({'error': 'BibTeX file not found'}), response.status_code
 
-    return jsonify({
-        'success': True,
-        'ticket_id': ticket.data['ticket_id']
-    }), 201
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download BibTeX file: {str(e)}'}), 500
 
-@api_latext.route('/project/<project_id>/tickets', methods=['GET'])
-@requires_auth
-def get_project_tickets(user, data, project_id):
-    """Get all tickets for a project"""
-    # Check if project exists and belongs to user
+@api_latext.route('/project/<project_id>/package', methods=['GET'])
+@requires_auth(require_verified=True)
+def get_package(user, project_id):
+    """Proxy package download request to latextai service (only for verified users)"""
+    # Check user verification status first
+    if not user.get('is_verified', False):
+        return jsonify({'error': 'Please sign up to download compilation package'}), 403
+
     project = Project.find_by_id(project_id)
+
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
+    # Verify project belongs to user
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Get all tickets for this project
-    tickets = Ticket.find_by_project(project_id)
+    # Check if project has been processed
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
 
-    # Format tickets for response (exclude full messages, just include count)
-    formatted_tickets = []
-    for ticket in tickets:
-        formatted_tickets.append({
-            'ticket_id': ticket.get('ticket_id'),
-            'subject': ticket.get('subject'),
-            'status': ticket.get('status'),
-            'created_at': ticket.get('created_at').isoformat() if ticket.get('created_at') else None,
-            'message_count': len(ticket.get('messages', []))
-        })
+    try:
+        # Proxy request to latextai service
+        params = {
+            'user_email': user['email'],
+            'project_id': project_id
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
 
-    # Sort by created_at descending (newest first)
-    formatted_tickets.sort(key=lambda x: x['created_at'] if x['created_at'] else '', reverse=True)
+        response = requests.get(
+            f"{LATEXTAI_SERVICE_URL}/api/download/package",
+            params=params,
+            headers=headers,
+            stream=True,
+            timeout=30
+        )
 
-    return jsonify({'tickets': formatted_tickets}), 200
+        if response.status_code == 200:
+            # Stream the package file back to client
+            return Response(
+                response.iter_content(chunk_size=8192),
+                content_type='application/zip'
+            )
+        else:
+            return jsonify({'error': 'Compilation package not found'}), response.status_code
 
-@api_latext.route('/ticket/<ticket_id>', methods=['GET'])
-@requires_auth
-def get_ticket_details(user, data, ticket_id):
-    """Get full ticket details with all messages"""
-    # Find the ticket
-    ticket_data = Ticket.find_by_id(ticket_id)
-    if not ticket_data:
-        return jsonify({'error': 'Ticket not found'}), 404
-
-    # Verify ticket belongs to user's project
-    project = Project.find_by_id(ticket_data.get('project_id'))
-    if not project or project.get('user_id') != user['email']:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    # Format messages for response
-    formatted_messages = []
-    for msg in ticket_data.get('messages', []):
-        formatted_messages.append({
-            'message_id': msg.get('message_id'),
-            'content': msg.get('content'),
-            'sender': msg.get('sender'),
-            'sender_id': msg.get('sender_id'),
-            'timestamp': msg.get('timestamp').isoformat() if msg.get('timestamp') else None
-        })
-
-    return jsonify({
-        'ticket_id': ticket_data.get('ticket_id'),
-        'project_id': ticket_data.get('project_id'),
-        'subject': ticket_data.get('subject'),
-        'status': ticket_data.get('status'),
-        'created_at': ticket_data.get('created_at').isoformat() if ticket_data.get('created_at') else None,
-        'messages': formatted_messages
-    }), 200
-
-@api_latext.route('/ticket/<ticket_id>/message', methods=['POST'])
-@requires_auth
-def add_ticket_message(user, data, ticket_id):
-    """Add a message to an existing ticket"""
-    # Check user verification status
-    if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to send messages'}), 401
-
-    # Get request data
-    request_data = request.get_json()
-    message = request_data.get('message', '').strip()
-
-    # Validate message length (10-2000 characters)
-    if len(message) < 10 or len(message) > 2000:
-        return jsonify({'error': 'Message must be between 10 and 2000 characters'}), 400
-
-    # Find the ticket
-    ticket = Ticket()
-    ticket_data = ticket.find({'ticket_id': ticket_id})
-    if not ticket_data:
-        return jsonify({'error': 'Ticket not found'}), 404
-
-    # Verify ticket belongs to user's project
-    project = Project.find_by_id(ticket.data.get('project_id'))
-    if not project or project.get('user_id') != user['email']:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    # Check ticket status (can't message closed tickets)
-    if ticket.data.get('status') not in ['open', 'in_progress']:
-        return jsonify({'error': 'Cannot add messages to closed or resolved tickets'}), 400
-
-    # Check rate limiting (max 5 messages per hour from user)
-    message_count = ticket.count_user_messages_in_last_hour()
-    if message_count >= 5:
-        return jsonify({
-            'error': 'Rate limit exceeded. You can only send 5 messages per hour per ticket.'
-        }), 429
-
-    # Add the message
-    success = ticket.add_message(
-        content=message,
-        sender='user',
-        sender_id=user['email']
-    )
-
-    if success:
-        return jsonify({
-            'success': True,
-            'message': 'Message added successfully'
-        }), 200
-    else:
-        return jsonify({'error': 'Failed to add message'}), 500
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to download compilation package: {str(e)}'}), 500
 

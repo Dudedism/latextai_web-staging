@@ -1,0 +1,25 @@
+# Backend Microservice
+# FastAPI server for latext-site
+#
+# Usage:
+#   Staging:     ENV=staging docker compose up -d
+#   Production:  ENV=production docker compose up -d
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: latext-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount environment-specific .env file
+      - ./.env.${ENV}:/app/.env
+    networks:
+      - latext-network
+
+networks:
+  latext-network:
+    external: true

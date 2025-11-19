@@ -28,7 +28,7 @@
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  margin-bottom: 40px;
+  margin-bottom: 80px;
 }
 
 .loading-text, .error-text {
@@ -38,271 +38,184 @@
   color: #666;
 }
 
-.document-header {
-  padding: 20px 40px;
-  border-bottom: 2px solid #ff0000;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* === GENERAL CONTENT SECTIONS === */
+.content-section {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 80px;
+  padding: 0 20px;
 }
 
-.journal-logo {
-  width: 40px;
-  height: auto;
-}
-
-.journal-name {
-  font-size: 28px;
-  font-weight: 700;
-  color: #ff0000;
-  font-style: italic;
-  font-family: var(--font-serif);
-}
-
-.journal-subtitle {
-  font-size: 14px;
-  color: #666;
-  margin-left: auto;
-}
-
-.document-body {
-  padding: 40px 60px 60px;
-  min-height: 800px;
-  position: relative;
-}
-
-.document-text {
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.document-paragraph {
-  font-size: 11pt;
-  line-height: 1.8;
-  margin-bottom: 20px;
-  text-align: justify;
-  font-family: var(--font-serif);
-  color: #000;
-}
-
-.section-title {
-  font-size: 14pt;
-  font-weight: 700;
-  margin: 30px 0 20px 0;
-  color: #000;
-  font-family: var(--font-serif);
-}
-
-.page-indicator {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 12px;
-  color: #666;
-}
-
-.preview-sidebar {
-  width: 360px;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.sidebar-title {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 24px;
+.section-heading {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 60px 0 28px;
+  color: #333;
   font-family: var(--font-sans);
 }
 
-.satisfaction-section {
-  margin-top: 32px;
+.section-heading:first-child {
+  margin-top: 0;
 }
 
-.satisfaction-question {
-  font-size: 16px;
-  margin-bottom: 20px;
-  color: #333;
+.section-description {
+  font-size: 15px;
+  color: #666;
+  line-height: 1.6;
+  margin: 0 auto 24px;
+  max-width: 600px;
+  font-family: var(--font-sans);
 }
 
-.satisfaction-buttons {
+/* === PROCESSING STATE === */
+.processing-state {
   display: flex;
-  gap: 16px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 40px;
+  min-height: 600px;
+  margin-bottom: 80px;
 }
 
-.satisfaction-btn {
-  flex: 1;
-  padding: 12px 24px;
-  border: 2px solid #e0e0e0;
-  border-radius: 25px;
-  background: white;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.processing-circle {
+  position: relative;
+  width: 320px;
+  height: 320px;
+}
+
+.circle-outer,
+.circle-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
 }
 
-.satisfaction-btn:hover {
-  border-color: #999;
-  background: #f9f9f9;
+.circle-outer {
+  border-radius: 50%;
 }
 
-.satisfaction-btn.active {
-  background: #000;
-  color: white;
-  border-color: #000;
+.progress-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
-/* Quality Feedback Section */
-.feedback-section {
-  background: #f8f8f8;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 30px;
-  margin-bottom: 40px;
+.progress-ring-bg {
+  stroke: #f0f0f0;
+}
+
+.progress-ring-fill {
+  stroke: #000;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.progress-ring.spinning {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.processing-text {
   text-align: center;
+  z-index: 1;
+  padding: 40px;
 }
 
-.feedback-question {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: #333;
+.processing-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #000;
+  font-family: var(--font-sans);
 }
 
-.feedback-subtext {
+.processing-subtitle {
   font-size: 16px;
   color: #666;
-  margin-bottom: 24px;
+  margin: 0;
+  font-family: var(--font-sans);
 }
 
-.support-btn {
-  padding: 12px 32px;
-  background: #000;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.support-btn:hover {
-  background: #333;
-}
-
-/* Download Sections */
-.download-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  margin-bottom: 40px;
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.download-box {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.3s ease;
+/* === ERROR STATE === */
+.error-state {
   text-align: center;
+  padding: 60px 40px;
 }
 
-.download-box:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.error-state .processing-title {
+  margin-bottom: 12px;
 }
 
-.download-box h3 {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 24px;
-  color: #333;
+.error-state .processing-subtitle {
+  margin-bottom: 0;
 }
 
-.download-buttons {
+
+/* === BUTTONS === */
+.button-group {
   display: flex;
   gap: 16px;
   justify-content: center;
   max-width: 500px;
-  margin: 0 auto;
+  margin: 0 auto 40px;
 }
 
-.download-btn {
+.btn {
   padding: 14px 28px;
-  border: 1px solid #e0e0e0;
   border-radius: 8px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  flex: 1;
-  min-width: 140px;
-  background: white;
-  color: #333;
+  font-family: var(--font-sans);
 }
 
-.download-btn:hover {
+/* Primary button (white with border) */
+.btn-primary {
+  background: white;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  flex: 1;
+  min-width: 140px;
+}
+
+.btn-primary:hover:not(:disabled) {
   background: #f5f5f5;
   border-color: #999;
   transform: translateY(-1px);
 }
 
-.pdf-btn,
-.tex-btn {
-  /* Same styling as base download-btn */
+/* Dark button (black background) */
+.btn-dark {
+  background: #000;
+  color: white;
+  border: none;
 }
 
-.package-box {
-  background: linear-gradient(135deg, #f8f8f8 0%, #ffffff 100%);
+.btn-dark:hover {
+  background: #333;
 }
 
-.package-description {
-  font-size: 15px;
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 20px;
-}
-
-.package-btn {
-  background: #f0f0f0;
+/* Disabled state for all buttons */
+.btn:disabled {
+  background: #f5f5f5;
   color: #999;
-  border: 1px solid #e0e0e0;
-  padding: 14px 32px;
+  border-color: #e0e0e0;
   cursor: not-allowed;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 500;
-  display: block;
-  margin: 0 auto;
-  max-width: fit-content;
-}
-
-.package-btn:disabled {
-  opacity: 1;
+  opacity: 0.6;
 }
 
 @media (max-width: 1400px) {
   .preview-container {
     max-width: 95%;
     padding: 0 30px;
-  }
-}
-
-@media (max-width: 1200px) {
-  .download-sections {
-    max-width: 100%;
   }
 }
 
@@ -315,20 +228,30 @@
     padding: 0 20px;
   }
 
-  .download-buttons {
+  .button-group {
     flex-direction: column;
     max-width: 100%;
   }
 
-  .download-btn {
+  .btn {
     width: 100%;
   }
 
-  .download-box {
-    padding: 24px;
+  .section-heading {
+    font-size: 18px;
+    margin: 30px 0 20px;
   }
 
-  .download-box h3 {
-    font-size: 18px;
+  .processing-circle {
+    width: 280px;
+    height: 280px;
+  }
+
+  .processing-title {
+    font-size: 24px;
+  }
+
+  .processing-subtitle {
+    font-size: 14px;
   }
 }
