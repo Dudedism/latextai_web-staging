@@ -1,70 +1,28 @@
-.papers-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: white;
-}
+/* YourPapersPage Mobile Responsive Styles */
 
-.papers-main-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  width: 100vw;
-  min-height: calc(100vh - 200px);
-  margin: 0;
-  padding: 60px 0;
-}
-
-.papers-container {
-  width: 100%;
-  max-width: 1200px;
-  padding: 0 20px;
-}
-
+/* Header section */
 .papers-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 40px;
+  margin-bottom: var(--space-8);
   flex-wrap: wrap;
-  gap: 20px;
+  gap: var(--space-5);
 }
 
-.papers-title {
-  font-size: 36px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-}
-
-.papers-actions {
+.papers-header-actions {
   display: flex;
-  gap: 20px;
+  gap: var(--space-5);
   align-items: center;
 }
 
-.search-container {
+/* Search */
+.papers-search {
   position: relative;
   width: 280px;
 }
 
-.search-input {
-  width: 100%;
-  padding: 10px 40px 10px 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 25px;
-  font-size: 14px;
-  background: white;
-  transition: all 0.3s ease;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #999;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
-}
-
-.search-icon {
+.papers-search-icon {
   position: absolute;
   right: 16px;
   top: 50%;
@@ -73,37 +31,7 @@
   pointer-events: none;
 }
 
-.new-paper-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 25px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.new-paper-btn:hover {
-  background: #f5f5f5;
-  border-color: #999;
-  transform: translateY(-1px);
-}
-
-.new-paper-btn .plus-icon {
-  font-size: 18px;
-  font-weight: 300;
-}
-
-.papers-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
+/* Paper card */
 .paper-card {
   background: white;
   border: 1px solid #e0e0e0;
@@ -120,8 +48,16 @@
   transform: translateY(-2px);
 }
 
+/* Desktop: card-top contains thumbnail + info inline */
+.paper-card-top {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex: 1;
+  min-width: 0;
+}
+
 .paper-thumbnail {
-  position: relative;
   width: 120px;
   height: 160px;
   background: #f5f5f5;
@@ -140,68 +76,45 @@
   object-fit: contain;
 }
 
-.template-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: white;
-  color: #ff0000;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid #ff0000;
-}
-
 .paper-info {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+}
+
+.paper-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  word-break: break-word;
 }
 
 .paper-meta {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 24px;
 }
 
-.paper-label {
-  font-size: 12px;
-  color: #999;
-  font-weight: 400;
+.paper-meta-item span {
+  display: block;
 }
 
-.paper-title-text {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-  color: #000;
-}
-
-.paper-details {
-  display: flex;
-  gap: 40px;
-}
-
-.paper-value {
-  font-size: 14px;
-  color: #333;
-}
-
+/* Action buttons */
 .paper-actions {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex-shrink: 0;
 }
 
-.action-btn {
+.paper-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 10px 20px;
-  min-width: 160px;
+  min-width: 140px;
   border: 1px solid #e0e0e0;
   border-radius: 25px;
   background: white;
@@ -209,22 +122,25 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-family: inherit;
 }
 
-.action-btn:hover {
+.paper-action-btn:hover {
   background: #f5f5f5;
-  border-color: #999;
-  transform: translateY(-1px);
 }
 
-.action-btn svg {
-  width: 18px;
-  height: 18px;
-  color: currentColor;
+.paper-action-btn--delete {
+  background: #ffebee;
+  color: #d32f2f;
+  border: none;
 }
 
-/* Empty state - massive button card */
-.empty-paper-card {
+.paper-action-btn--delete:hover {
+  background: #ffcdd2;
+}
+
+/* Empty state */
+.papers-empty {
   background: white;
   border: 2px dashed #e0e0e0;
   border-radius: 16px;
@@ -234,141 +150,118 @@
   align-items: center;
   justify-content: center;
   gap: 32px;
-  transition: all 0.3s ease;
   cursor: pointer;
   min-height: 400px;
+  transition: all 0.3s ease;
 }
 
-.empty-paper-card:hover {
+.papers-empty:hover {
   border-color: #999;
   background: #fafafa;
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-.empty-paper-thumbnail {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #999;
-}
-
-.empty-paper-card:hover .empty-paper-thumbnail {
-  color: #666;
-}
-
-.empty-paper-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-}
-
-.empty-paper-title {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0;
-  color: #000;
-  font-family: var(--font-sans);
-}
-
-.empty-paper-subtitle {
-  font-size: 16px;
-  color: #666;
-  margin: 0;
-  font-family: var(--font-sans);
-}
-
-@media (max-width: 968px) {
-  .paper-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .paper-thumbnail {
-    width: 100%;
-    height: 200px;
-  }
-  
-  .paper-actions {
-    flex-direction: row;
-    justify-content: space-between;
-    flex-wrap: wrap;
-  }
-  
-  .action-btn {
-    flex: 1;
-    min-width: 140px;
-  }
-}
-
-@media (max-width: 1200px) {
-  .papers-container {
-    max-width: 95%;
-    padding: 0 30px;
-  }
-}
-
-@media (max-width: 640px) {
-  .papers-main-section {
-    padding: 40px 20px;
-  }
-
-  .papers-container {
-    padding: 0 20px;
-  }
-
+/* Mobile Responsive */
+@media (max-width: 768px) {
   .papers-header {
     flex-direction: column;
     align-items: stretch;
+    gap: var(--space-4);
   }
 
-  .papers-actions {
+  .papers-header-actions {
     flex-direction: column;
-  }
-
-  .search-container {
     width: 100%;
   }
 
-  .new-paper-btn {
+  .papers-search {
+    width: 100%;
+  }
+
+  .papers-header-actions .btn {
     width: 100%;
     justify-content: center;
   }
 
-  .empty-paper-card {
-    padding: 60px 30px;
+  /* Card stacks: top section then actions below */
+  .paper-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+    gap: 0;
+  }
+
+  .paper-card:hover {
+    transform: none;
+  }
+
+  /* Thumbnail + info stay side by side on mobile */
+  .paper-card-top {
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .paper-thumbnail {
+    width: 80px;
+    height: 100px;
+  }
+
+  .paper-info {
+    gap: 8px;
+  }
+
+  .paper-title {
+    font-size: 16px;
+  }
+
+  .paper-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .paper-meta-item {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .paper-meta-item span:first-child {
+    min-width: 60px;
+  }
+
+  /* Actions become horizontal row at bottom */
+  .paper-actions {
+    flex-direction: row;
+    justify-content: stretch;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .paper-action-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 8px;
+    font-size: 13px;
+  }
+
+  .papers-empty {
+    padding: 40px 20px;
     min-height: 300px;
+    gap: 24px;
   }
 
-  .empty-paper-title {
-    font-size: 24px;
-  }
-
-  .empty-paper-subtitle {
-    font-size: 14px;
+  .papers-empty h3 {
+    font-size: 22px !important;
   }
 }
 
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-}
+@media (max-width: 420px) {
+  .paper-action-btn .btn-text {
+    display: none;
+  }
 
-.empty-state-message {
-  font-size: 18px;
-  color: #666;
-  margin: 0;
-  font-family: var(--font-sans);
-}
-
-.delete-btn {
-  background: #ffebee;
-  color: #d32f2f;
-}
-
-.delete-btn:hover {
-  background: #ffcdd2;
-  color: #c62828;
+  .paper-action-btn {
+    padding: 12px;
+  }
 }

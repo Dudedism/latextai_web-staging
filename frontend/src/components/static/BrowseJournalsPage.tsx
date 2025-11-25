@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { apiRequest } from '../../utils/api';
-import '../../styles/common.css';
 import './BrowseJournalsPage.css';
 
 interface Template {

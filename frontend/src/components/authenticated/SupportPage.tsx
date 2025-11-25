@@ -4,9 +4,7 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
 import { apiRequest } from '../../utils/api';
-import { formatDate, getStatusColor } from '../../utils/formatting';
-import '../../styles/common.css';
-import './SupportPage.css';
+import { formatDate } from '../../utils/formatting';
 
 interface Message {
   message_id: number;
@@ -140,26 +138,70 @@ const SupportPage: React.FC = () => {
     return <LoadingScreen />;
   }
 
+  const ticketCardStyle = (isExpanded: boolean): React.CSSProperties => ({
+    background: 'white',
+    border: '1px solid #e0e0e0',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    transition: 'all 0.3s ease',
+    boxShadow: isExpanded ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
+  });
+
+  const ticketHeaderStyle: React.CSSProperties = {
+    padding: '20px',
+    cursor: 'pointer',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px',
+  };
+
+  const messageStyle = (isAdmin: boolean): React.CSSProperties => ({
+    padding: '16px',
+    borderRadius: '12px',
+    background: isAdmin ? '#f0f8ff' : '#f5f5f5',
+    borderLeft: isAdmin ? '4px solid #2196f3' : '4px solid #999',
+  });
+
+  const getStatusBadgeStyle = (status: string): React.CSSProperties => {
+    const colors: Record<string, { bg: string; color: string }> = {
+      open: { bg: '#e8f5e9', color: '#2e7d32' },
+      in_progress: { bg: '#fff3e0', color: '#e65100' },
+      resolved: { bg: '#e3f2fd', color: '#1565c0' },
+      closed: { bg: '#f5f5f5', color: '#666' },
+    };
+    const c = colors[status] || colors.closed;
+    return {
+      padding: '6px 14px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 600,
+      background: c.bg,
+      color: c.color,
+      textTransform: 'capitalize',
+    };
+  };
+
   return (
-    <div className="support-page">
+    <div className="page">
       <Banner />
 
-      <section className="support-main-section">
-        <div className="support-container">
-          {/* Header Section */}
-          <div className="support-header">
-            <h1>Support Tickets for {project?.upload_filename || 'Your Project'}</h1>
-            <p className="support-info">
+      <section className="main-section">
+        <div className="container container--lg">
+          <div className="mb-8">
+            <h1 className="section-title">Support Tickets for {project?.upload_filename || 'Your Project'}</h1>
+            <p className="text-muted mb-6">
               You can create multiple support tickets for this project. Only one ticket can be open at a time.
             </p>
 
             {hasOpenTicket ? (
-              <div className="open-ticket-warning">
+              <div className="notice notice--warning">
                 Please close your current open ticket before creating a new one
               </div>
             ) : (
               <button
-                className="create-ticket-btn"
+                className="btn btn--primary"
                 onClick={() => setShowCreateForm(true)}
                 disabled={showCreateForm}
               >
@@ -168,36 +210,37 @@ const SupportPage: React.FC = () => {
             )}
           </div>
 
-          {/* Error Message */}
           {error && (
-            <div className="error-message">
+            <div className="notice notice--error mb-6">
               {error}
             </div>
           )}
 
-          {/* Create Ticket Form */}
           {showCreateForm && !hasOpenTicket && (
-            <div className="create-ticket-form">
+            <div className="card mb-8" style={{ padding: '32px' }}>
               <form onSubmit={handleCreateTicket}>
                 <div className="form-group">
-                  <label htmlFor="subject">Subject (5-30 characters)</label>
-                  <input
-                    type="text"
-                    id="subject"
-                    value={newTicketSubject}
-                    onChange={(e) => setNewTicketSubject(e.target.value)}
-                    minLength={5}
-                    maxLength={30}
-                    required
-                    placeholder="Brief description of your issue"
-                  />
-                  <span className="char-count">{newTicketSubject.length}/30</span>
+                  <label className="form-label">Subject (5-30 characters)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={newTicketSubject}
+                      onChange={(e) => setNewTicketSubject(e.target.value)}
+                      minLength={5}
+                      maxLength={30}
+                      required
+                      placeholder="Brief description of your issue"
+                      className="form-input"
+                    />
+                    <span className="text-sm text-muted" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}>
+                      {newTicketSubject.length}/30
+                    </span>
+                  </div>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="message">Message (10-2000 characters)</label>
+                  <label className="form-label">Message (10-2000 characters)</label>
                   <textarea
-                    id="message"
                     value={newTicketMessage}
                     onChange={(e) => setNewTicketMessage(e.target.value)}
                     minLength={10}
@@ -205,14 +248,15 @@ const SupportPage: React.FC = () => {
                     required
                     placeholder="Describe your issue in detail"
                     rows={6}
+                    className="form-textarea"
                   />
                 </div>
 
                 <div className="form-actions">
-                  <button type="submit" className="submit-btn">Submit Ticket</button>
+                  <button type="submit" className="btn btn--primary">Submit Ticket</button>
                   <button
                     type="button"
-                    className="cancel-btn"
+                    className="btn btn--secondary"
                     onClick={() => {
                       setShowCreateForm(false);
                       setNewTicketSubject('');
@@ -227,16 +271,13 @@ const SupportPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tickets List */}
-          <div className="tickets-section">
-            {loading ? (
-              <p className="loading-text">Loading tickets...</p>
-            ) : tickets.length === 0 ? (
-              <div className="no-tickets">
-                <p>No support tickets yet</p>
+          <div>
+            {tickets.length === 0 ? (
+              <div className="text-center" style={{ padding: '60px 20px' }}>
+                <p className="text-muted mb-6">No support tickets yet</p>
                 {!hasOpenTicket && (
                   <button
-                    className="create-first-ticket-btn"
+                    className="btn btn--primary btn--lg"
                     onClick={() => setShowCreateForm(true)}
                   >
                     Create Your First Ticket
@@ -244,14 +285,11 @@ const SupportPage: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="tickets-list">
+              <div className="flex flex-col gap-4">
                 {tickets.map((ticket) => (
-                  <div
-                    key={ticket.ticket_id}
-                    className={`ticket-card ${selectedTicket?.ticket_id === ticket.ticket_id ? 'expanded' : ''}`}
-                  >
+                  <div key={ticket.ticket_id} style={ticketCardStyle(selectedTicket?.ticket_id === ticket.ticket_id)}>
                     <div
-                      className="ticket-header"
+                      style={ticketHeaderStyle}
                       onClick={() => {
                         if (selectedTicket?.ticket_id === ticket.ticket_id) {
                           setSelectedTicket(null);
@@ -260,42 +298,33 @@ const SupportPage: React.FC = () => {
                         }
                       }}
                     >
-                      <h3 className="ticket-subject">{ticket.subject}</h3>
-                      <div className="ticket-meta">
-                        <span className={`status-badge ${getStatusColor(ticket.status)}`}>
+                      <h3 className="font-semibold" style={{ margin: 0, fontSize: '18px' }}>{ticket.subject}</h3>
+                      <div className="flex items-center gap-4">
+                        <span style={getStatusBadgeStyle(ticket.status)}>
                           {ticket.status.replace('_', ' ')}
                         </span>
-                        <span className="ticket-date">{formatDate(ticket.created_at)}</span>
+                        <span className="text-sm text-muted">{formatDate(ticket.created_at)}</span>
                       </div>
                     </div>
 
-                    {/* Expanded Ticket View */}
                     {selectedTicket?.ticket_id === ticket.ticket_id && (
-                      <div className="ticket-details">
-                        <div className="messages-container">
+                      <div style={{ padding: '0 20px 20px', borderTop: '1px solid #e0e0e0' }}>
+                        <div className="flex flex-col gap-4 mt-6">
                           {selectedTicket.messages?.map((message) => (
-                            <div
-                              key={message.message_id}
-                              className={`message ${message.sender === 'admin' ? 'admin-message' : 'user-message'}`}
-                            >
-                              <div className="message-header">
-                                <span className="sender-name">
+                            <div key={message.message_id} style={messageStyle(message.sender === 'admin')}>
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="font-semibold text-sm">
                                   {message.sender === 'admin' ? 'Support Team' : 'You'}
                                 </span>
-                                <span className="message-time">
-                                  {formatDate(message.timestamp)}
-                                </span>
+                                <span className="text-sm text-muted">{formatDate(message.timestamp)}</span>
                               </div>
-                              <div className="message-content">
-                                {message.content}
-                              </div>
+                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{message.content}</div>
                             </div>
                           ))}
                         </div>
 
-                        {/* Add Message Form */}
                         {(selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
-                          <form className="add-message-form" onSubmit={handleSendMessage}>
+                          <form className="mt-6" onSubmit={handleSendMessage}>
                             <textarea
                               value={newMessage}
                               onChange={(e) => setNewMessage(e.target.value)}
@@ -304,14 +333,15 @@ const SupportPage: React.FC = () => {
                               maxLength={2000}
                               required
                               rows={4}
+                              className="form-textarea"
                             />
-                            <div className="message-form-footer">
+                            <div className="flex justify-between items-center mt-4">
                               {messageCount >= 4 && (
-                                <span className="rate-limit-warning">
+                                <span className="text-sm text-error">
                                   {5 - messageCount} message(s) remaining this hour
                                 </span>
                               )}
-                              <button type="submit" className="send-message-btn">
+                              <button type="submit" className="btn btn--primary" style={{ marginLeft: 'auto' }}>
                                 Send Message
                               </button>
                             </div>
@@ -319,7 +349,7 @@ const SupportPage: React.FC = () => {
                         )}
 
                         {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
-                          <div className="ticket-closed-notice">
+                          <div className="notice notice--info mt-6">
                             This ticket is closed and cannot receive new messages.
                           </div>
                         )}

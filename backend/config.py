@@ -37,6 +37,10 @@ GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 LATEXTAI_SERVICE_URL = os.getenv('LATEXTAI_SERVICE_URL', 'http://localhost:8001')
 LATEXTAI_API_KEY = os.getenv('LATEXTAI_API_KEY')
 
+# Stripe Configuration
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["10000 per day", "1000 per hour"]

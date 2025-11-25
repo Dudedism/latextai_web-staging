@@ -104,8 +104,17 @@
   transition: transform 0.3s ease;
 }
 
+.hamburger-icon {
+  display: none;
+}
+
 .hamburger-menu.open .dropdown-arrow {
   transform: rotate(180deg);
+}
+
+/* Mobile nav links - hidden by default on desktop */
+.mobile-nav-links {
+  display: none;
 }
 
 .dropdown-menu {
@@ -161,15 +170,31 @@
   .banner {
     padding: 20px;
   }
-  
+
+  /* Hide desktop nav links */
   .nav-center {
-    position: static;
-    transform: none;
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .nav-right {
     display: none;
+  }
+
+  /* Show hamburger icon, hide text and arrow on mobile */
+  .hamburger-icon {
+    display: block;
+  }
+
+  .menu-text,
+  .dropdown-arrow {
+    display: none;
+  }
+
+  .hamburger-button {
+    padding: 10px 14px;
+  }
+
+  /* Show mobile nav links in dropdown */
+  .mobile-nav-links {
+    display: block;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
   }
 }

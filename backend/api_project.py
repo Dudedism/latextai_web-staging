@@ -550,17 +550,22 @@ def delete_project(user, project_id):
 @api_project.route('/project/<project_id>', methods=['GET'])
 @requires_auth
 def get_project(user, project_id):
-    """Get a single project by ID"""
+    """Get a single project by ID (minimal fields for frontend)"""
     project = Project.find_by_id(project_id)
 
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    # Verify project belongs to user
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    return jsonify(project), 200
+    return jsonify({
+        'project_id': project.get('project_id'),
+        'upload_filename': project.get('upload_filename'),
+        'status': project.get('status'),
+        'paid': project.get('paid', False),
+        'compilation_failed': project.get('compilation_failed', False),
+    }), 200
 
 @api_project.route('/project/<project_id>/payment-details', methods=['GET'])
 @requires_auth

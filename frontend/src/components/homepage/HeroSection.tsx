@@ -22,13 +22,17 @@ const HeroSection: React.FC = () => {
         </div>
 
         <div className="hero-visual">
-          <div className="document-preview">
-            <div className="doc-before">
-              <div className="doc-placeholder">Word Document</div>
+          <div className="conversion-icons">
+            <div className="doc-card doc-card--left">
+              <img src="/Microsoft_Office_Word_(2019–2025).svg" alt="Word" className="doc-logo" />
             </div>
-            <div className="arrow">→</div>
-            <div className="doc-after">
-              <div className="doc-placeholder">LaTeX Output</div>
+            <div className="conversion-arrow">
+              <svg viewBox="0 0 24 24" fill="none" width="32" height="32">
+                <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="doc-card doc-card--right">
+              <img src="/LaTeX_logo.svg" alt="LaTeX" className="doc-logo" />
             </div>
           </div>
         </div>

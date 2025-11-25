@@ -6,8 +6,6 @@ import LoadingScreen from '../common/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
 import { VerificationModal } from '../common/VerificationModal';
 import { apiRequest } from '../../utils/api';
-// import { downloadFile } from '../../utils/download';
-import '../../styles/common.css';
 import './YourPapersPage.css';
 
 interface Paper {
@@ -99,103 +97,102 @@ const YourPapersPage: React.FC = () => {
   });
 
   return (
-    <div className="papers-page">
+    <div className="page">
       <Banner />
 
-      <section className="papers-main-section">
-        <div className="papers-container">
-        <div className="papers-header">
-          <h1 className="papers-title">Your Papers</h1>
-          <div className="papers-actions">
-            <div className="search-container">
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-              />
-              <svg className="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/>
-                <path d="M14 14L17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <button className="new-paper-btn" onClick={handleNewPaper}>
-              New Paper
-              <span className="plus-icon">+</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="papers-list">
-          {papers.length === 0 ? (
-            <div className="empty-paper-card" onClick={handleNewPaper}>
-              <div className="empty-paper-thumbnail">
-                <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                  <circle cx="40" cy="40" r="38" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4"/>
-                  <path d="M40 20V60M20 40H60" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+      <section className="main-section">
+        <div className="container">
+          <div className="papers-header">
+            <h1 className="section-title" style={{ marginBottom: 0 }}>Your Papers</h1>
+            <div className="papers-header-actions">
+              <div className="papers-search">
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="form-input form-input--pill"
+                />
+                <svg className="papers-search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M14 14L17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </div>
+              <button className="btn btn--secondary btn--pill" onClick={handleNewPaper}>
+                New Paper
+                <span style={{ fontSize: '18px', fontWeight: 300 }}>+</span>
+              </button>
+            </div>
+          </div>
 
-              <div className="empty-paper-info">
-                <h3 className="empty-paper-title">Upload your first project</h3>
-                <p className="empty-paper-subtitle">Your first upload is free - get started now!</p>
-              </div>
-            </div>
-          ) : filteredPapers.length === 0 ? (
-            <div className="empty-state">
-              <p className="empty-state-message">No papers match your search.</p>
-            </div>
-          ) : (
-            filteredPapers.map((paper) => (
-            <div key={paper.id} className="paper-card">
-              <div className="paper-thumbnail">
-                <img src={paper.thumbnail} alt={paper.template} />
-              </div>
-              
-              <div className="paper-info">
-                <div className="paper-meta">
-                  <span className="paper-label">Title</span>
-                  <h3 className="paper-title-text">{paper.title}</h3>
+          <div className="flex flex-col gap-5">
+            {papers.length === 0 ? (
+              <div className="papers-empty" onClick={handleNewPaper}>
+                <div style={{ color: '#999' }}>
+                  <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+                    <circle cx="40" cy="40" r="38" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4"/>
+                    <path d="M40 20V60M20 40H60" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                  </svg>
                 </div>
-                <div className="paper-details">
-                  <div className="paper-meta">
-                    <span className="paper-label">Date</span>
-                    <span className="paper-value">{paper.date}</span>
-                  </div>
-                  <div className="paper-meta">
-                    <span className="paper-label">Template</span>
-                    <span className="paper-value">{paper.template}</span>
-                  </div>
+                <div className="text-center">
+                  <h3 className="font-bold" style={{ fontSize: '28px', marginBottom: '12px' }}>Upload your first project</h3>
+                  <p className="text-muted">Your first upload is free, get started now!</p>
                 </div>
               </div>
-
-              <div className="paper-actions">
-                <button className="action-btn view-btn" onClick={() => handleView(paper)}>
-                  {paper.paid ? 'View' : 'Pay'}
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 4C6 4 2.5 7 1 10C2.5 13 6 16 10 16C14 16 17.5 13 19 10C17.5 7 14 4 10 4Z" stroke="currentColor" strokeWidth="1.5"/>
-                    <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/>
-                  </svg>
-                </button>
-                <button className="action-btn delete-btn" onClick={() => handleDelete(paper.id)}>
-                  Delete
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M7 3h6M3 5h14M5 5l1 12c0 1 0 2 2 2h4c2 0 2-1 2-2l1-12M8 8v7M12 8v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-                <button className="action-btn support-btn" onClick={() => handleSupport(paper.id)}>
-                  Support
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" strokeWidth="1.5"/>
-                    <path d="M10 14V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <circle cx="10" cy="7" r="0.5" stroke="currentColor" strokeWidth="1.5"/>
-                  </svg>
-                </button>
+            ) : filteredPapers.length === 0 ? (
+              <div className="text-center" style={{ padding: '60px 20px' }}>
+                <p className="text-muted" style={{ fontSize: '18px' }}>No papers match your search.</p>
               </div>
-            </div>
-          ))
-          )}
+            ) : (
+              filteredPapers.map((paper) => (
+                <div key={paper.id} className="paper-card">
+                  <div className="paper-card-top">
+                    <div className="paper-thumbnail">
+                      <img src={paper.thumbnail} alt={paper.template} />
+                    </div>
+                    <div className="paper-info">
+                      <div>
+                        <span className="text-sm text-muted">Title</span>
+                        <h3 className="paper-title">{paper.title}</h3>
+                      </div>
+                      <div className="paper-meta">
+                        <div className="paper-meta-item">
+                          <span className="text-sm text-muted">Date</span>
+                          <span style={{ fontSize: '14px' }}>{paper.date}</span>
+                        </div>
+                        <div className="paper-meta-item">
+                          <span className="text-sm text-muted">Template</span>
+                          <span style={{ fontSize: '14px' }}>{paper.template}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="paper-actions">
+                    <button className="paper-action-btn" onClick={() => handleView(paper)}>
+                      <span className="btn-text">{paper.paid ? 'View' : 'Pay'}</span>
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 4C6 4 2.5 7 1 10C2.5 13 6 16 10 16C14 16 17.5 13 19 10C17.5 7 14 4 10 4Z" stroke="currentColor" strokeWidth="1.5"/>
+                        <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                    </button>
+                    <button className="paper-action-btn paper-action-btn--delete" onClick={() => handleDelete(paper.id)}>
+                      <span className="btn-text">Delete</span>
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M7 3h6M3 5h14M5 5l1 12c0 1 0 2 2 2h4c2 0 2-1 2-2l1-12M8 8v7M12 8v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    <button className="paper-action-btn" onClick={() => handleSupport(paper.id)}>
+                      <span className="btn-text">Support</span>
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M10 14V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <circle cx="10" cy="7" r="0.5" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>

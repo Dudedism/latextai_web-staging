@@ -12,8 +12,8 @@
 }
 
 .pc-header { text-align: center; margin-bottom: 28px; }
-.pc-title { margin: 0 0 8px 0; }
-.pc-subtitle { margin: 0; opacity: 0.9; }
+.pc-title { margin: 0 0 8px 0; font-size: 28px; font-weight: 600; }
+.pc-subtitle { margin: 0; opacity: 0.9; font-weight: 400; }
 
 /* grid layout */
 .pc-grid {
@@ -22,6 +22,16 @@
   gap: 28px;
 }
 @media (max-width: 960px) { .pc-grid { grid-template-columns: 1fr; } }
+
+/* Single card layout (no competitors) */
+.pc-container--single {
+  max-width: 500px;
+  margin: 0 auto 60px;
+}
+.pc-grid--single {
+  grid-template-columns: 1fr;
+  justify-content: center;
+}
 
 /* cards */
 .pc-card {
@@ -39,12 +49,10 @@
 /* our service emphasis */
 .pc-primary {
   border: 2px solid var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-weak); /* soft ring, no gradient */
+  box-shadow: 0 0 0 4px var(--accent-weak);
 }
 .pc-primary:hover {
-  box-shadow:
-    0 8px 24px rgba(0,0,0,0.07),
-    0 0 0 4px var(--accent-weak);
+  box-shadow: 0 0 0 4px var(--accent-weak), 0 8px 24px rgba(0,0,0,0.07);
 }
 
 /* competitor cards */
@@ -52,7 +60,7 @@
 .pc-competitor { border-style: dashed; border-color: #cbd5e1; }
 
 /* titles */
-.pc-card-title { margin: 0 0 8px 0; }
+.pc-card-title { margin: 0 0 8px 0; font-size: 20px; font-weight: 600; }
 
 /* price line (only the big figure sets a size) */
 .pc-price {
@@ -64,9 +72,9 @@
 .pc-price-unit { margin-left: 4px; opacity: 0.9; }
 
 /* features */
-.pc-includes { margin-top: 8px; font-weight: 700; }
+.pc-includes { margin-top: 8px; font-weight: 600; }
 .pc-features { list-style: none; padding: 0; margin: 10px 0 18px 0; }
-.pc-features li { position: relative; padding-left: 22px; margin: 8px 0; }
+.pc-features li { position: relative; padding-left: 22px; margin: 8px 0; font-weight: 400; }
 .pc-features li::before {
   content: "✓"; position: absolute; left: 0; top: 0; color: var(--accent);
 }
@@ -77,13 +85,52 @@
 /* CTA button enhancement */
 .pc-cta {
   width: 100%;
+  padding: 14px 24px;
   border-radius: 9999px;
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: none;
   background: var(--accent-weak);
+  font-weight: 500;
 }
 .pc-cta:hover { transform: translateY(-1px); }
 .pc-cta:focus-visible {
   outline: 3px solid var(--accent-weak);
   outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .pc-container {
+    padding: 0 20px;
+  }
+  .pc-header {
+    margin-bottom: 20px;
+  }
+  .pc-title {
+    font-size: 24px;
+  }
+  .pc-subtitle {
+    font-size: 14px;
+  }
+  .pc-grid {
+    gap: 16px;
+  }
+  .pc-card {
+    padding: 20px;
+    border-radius: 14px;
+  }
+  .pc-card:hover {
+    transform: none;
+  }
+  .pc-card-title {
+    font-size: 18px;
+  }
+  .pc-price-value {
+    font-size: 40px;
+  }
+  .pc-stack {
+    gap: 16px;
+  }
+  .pc-features li {
+    font-size: 14px;
+  }
 }

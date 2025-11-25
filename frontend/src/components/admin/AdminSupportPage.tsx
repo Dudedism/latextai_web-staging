@@ -6,7 +6,6 @@ import LoadingScreen from '../common/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '../../utils/api';
 import { formatDate, getStatusColor } from '../../utils/formatting';
-import '../../styles/common.css';
 import './AdminSupportPage.css';
 
 interface Message {

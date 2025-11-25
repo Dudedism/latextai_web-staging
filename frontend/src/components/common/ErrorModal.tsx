@@ -1,5 +1,4 @@
 import React from 'react';
-import './ErrorModal.css';
 
 interface ErrorModalProps {
   isOpen: boolean;
@@ -57,24 +56,24 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
   const displayMessage = errorMessage || getErrorMessage(statusCode);
 
   return (
-    <div className="error-modal-overlay" onClick={handleOverlayClick}>
-      <div className="error-modal-content">
-        <div className="error-modal-icon">
+    <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div className="modal-content text-center">
+        <div className="modal-icon">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
             <circle cx="32" cy="32" r="30" stroke="#d32f2f" strokeWidth="3"/>
             <path d="M32 20V36M32 44V44.1" stroke="#d32f2f" strokeWidth="3" strokeLinecap="round"/>
           </svg>
         </div>
 
-        <h2 className="error-modal-title">Something Went Wrong</h2>
+        <h2 className="modal-title">Something Went Wrong</h2>
 
-        <p className="error-modal-message">{displayMessage}</p>
+        <p className="modal-message">{displayMessage}</p>
 
         {statusCode && (
-          <p className="error-modal-code">Error Code: {statusCode}</p>
+          <p className="text-muted text-sm mb-6" style={{ fontStyle: 'italic' }}>Error Code: {statusCode}</p>
         )}
 
-        <button className="error-modal-btn" onClick={onClose}>
+        <button className="btn btn--primary btn--lg" onClick={onClose}>
           Okay
         </button>
       </div>

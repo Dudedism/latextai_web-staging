@@ -2,47 +2,28 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import '../../styles/common.css';
+import { PricingCompare } from '../homepage';
 import './StaticPages.css';
 
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleGetStarted = (plan: string) => {
-    console.log(`Selected plan: ${plan}`);
-    navigate('/papers/new');
+  const handleGetStarted = () => {
+    navigate('/signup');
   };
 
   return (
     <div className="static-page">
       <Banner />
-      
+
       <section className="static-main-section">
         <div className="static-container">
-        <h1 className="static-title">Simple, Transparent Pricing</h1>
+        <h1 className="static-title" style={{ textAlign: 'center' }}>Simple, Transparent Pricing</h1>
         <p style={{ textAlign: 'center', fontSize: '18px', color: '#666', marginBottom: '40px' }}>
           One-time payment. No subscriptions. No hidden fees.
         </p>
 
-        <div className="pricing-grid">
-          <div className="pricing-card featured">
-            <h3 className="pricing-title">Pay Per Document</h3>
-            <div className="pricing-price">$4.99</div>
-            <div className="pricing-unit">base price</div>
-            <ul className="pricing-features">
-              <li>Up to 15 pages (one-sided PDF)</li>
-              <li>Or up to 7 pages (two-sided PDF)</li>
-              <li>+$0.50 per additional page</li>
-              <li>Delivery in minutes, not days</li>
-              <li>Professional templates</li>
-              <li>Complete LaTeX package download</li>
-              <li>Superior quality output</li>
-            </ul>
-            <button className="pricing-btn" onClick={() => handleGetStarted('perpage')}>
-              Get Started
-            </button>
-          </div>
-        </div>
+        <PricingCompare onTryFree={handleGetStarted} variant="standalone" />
 
         <section className="static-section">
           <h2>Enterprise & Institutional Pricing</h2>

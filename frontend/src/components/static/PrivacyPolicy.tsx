@@ -1,7 +1,6 @@
 import React from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import '../../styles/common.css';
 import './StaticPages.css';
 
 const PrivacyPolicy: React.FC = () => {

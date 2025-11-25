@@ -4,8 +4,7 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import { useAuth } from '../../contexts/AuthContext';
 import { VerificationModal } from '../common/VerificationModal';
-import '../../styles/common.css';
-import './SignInPage.css';
+import { StatusModal } from '../common/StatusModal';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -22,6 +21,7 @@ const SignInPage: React.FC = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showErrorModal, setShowErrorModal] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [signupEmail, setSignupEmail] = useState('');
@@ -59,24 +59,28 @@ const SignInPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔐 [SIGNIN PAGE] Form submitted, preventDefault called');
     setError('');
     setLoading(true);
 
     if (authMode === 'signup') {
       if (password !== confirmPassword) {
         setError('Passwords do not match');
+        setShowErrorModal(true);
         setLoading(false);
         return;
       }
 
       if (!agreeToTerms) {
         setError('Please agree to the terms and conditions');
+        setShowErrorModal(true);
         setLoading(false);
         return;
       }
 
       if (!name.trim()) {
         setError('Name is required');
+        setShowErrorModal(true);
         setLoading(false);
         return;
       }
@@ -91,7 +95,9 @@ const SignInPage: React.FC = () => {
           // Navigate to papers page
           navigate('/papers');
         } else {
+          console.log('❌ [SIGNIN] Login failed, showing error modal:', result.error);
           setError(result.error || 'Login failed');
+          setShowErrorModal(true);
         }
       } else {
         // Handle signup with direct fetch (now with auto-login)
@@ -145,139 +151,121 @@ const SignInPage: React.FC = () => {
           }
         } else {
           setError(data.message || 'An error occurred');
+          setShowErrorModal(true);
         }
       }
     } catch (err) {
       setError('Network error. Please check if the backend server is running.');
+      setShowErrorModal(true);
       console.error('Auth error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleErrorModalClose = () => {
+    setShowErrorModal(false);
+    setError('');
+  };
+
   return (
-    <div className="signin-page">
+    <div className="page">
       <Banner />
-      
-      <section className="signin-section">
-        <div className="signin-form-container">
-          <h1 className="signin-title">
+
+      <section className="main-section main-section--centered">
+        <div className="container container--sm" style={{ maxWidth: '400px' }}>
+          <h1 className="section-title text-center">
             {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
           </h1>
 
-          <form className="signin-form" onSubmit={handleSubmit}>
-              {error && (
-                <div className="error-message" style={{
-                  color: '#ff0000',
-                  fontSize: '14px',
-                  marginBottom: '20px',
-                  padding: '10px',
-                  backgroundColor: '#ffebee',
-                  border: '1px solid #ffcdd2',
-                  borderRadius: '4px'
-                }}>
-                  {error}
-                </div>
-              )}
-
-              {authMode === 'signup' && (
-                <div className="form-field">
-                  <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    className="form-input"
-                  />
-                </div>
-              )}
-
-              <div className="form-field">
+          <form className="auth-form" onSubmit={handleSubmit}>
+            {authMode === 'signup' && (
+              <div>
                 <input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  placeholder="Full Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
-                  className="form-input"
+                  className="auth-input"
                 />
               </div>
+            )}
 
-              <div className="form-field">
+            <div>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+
+            <div>
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+
+            {authMode === 'signup' && (
+              <div>
                 <input
                   type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  className="form-input"
+                  className="auth-input"
                 />
               </div>
+            )}
 
-              {authMode === 'signup' && (
-                <div className="form-field">
-                  <input
-                    type="password"
-                    placeholder="Confirm Password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    className="form-input"
-                  />
-                </div>
-              )}
-
-              {authMode === 'signup' && (
-              <div className="form-field checkbox-field">
-                <label className="checkbox-label">
+            {authMode === 'signup' && (
+              <div style={{ marginTop: '8px' }}>
+                <label className="auth-checkbox">
                   <input
                     type="checkbox"
                     checked={agreeToTerms}
                     onChange={(e) => setAgreeToTerms(e.target.checked)}
                     required
                   />
-                  <span className="checkmark"></span>
                   I agree with the <Link to="/terms">terms and conditions</Link> of using this tool.
                 </label>
               </div>
             )}
 
-              <button type="submit" className="signin-btn" disabled={loading}>
-                {loading ? 'Loading...' : `${authMode === 'signin' ? 'Sign In' : 'Get Started'} →`}
-              </button>
+            <button type="submit" className="btn btn--primary btn--pill btn--full" style={{ marginTop: '16px' }} disabled={loading}>
+              {loading ? 'Loading...' : `${authMode === 'signin' ? 'Sign In' : 'Get Started'} →`}
+            </button>
 
-              {authMode === 'signin' && (
-                <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                  <Link
-                    to="/forgot-password"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#666',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-              )}
-            </form>
+            {authMode === 'signin' && (
+              <div className="text-center mt-4">
+                <Link to="/forgot-password" className="auth-link">
+                  Forgot password?
+                </Link>
+              </div>
+            )}
+          </form>
 
           <div className="auth-switch">
             {authMode === 'signin' ? (
               <p>
                 Don't have an account?{' '}
-                <Link to="/signup" className="switch-btn">
+                <Link to="/signup" className="auth-link">
                   Sign up
                 </Link>
               </p>
             ) : authMode === 'signup' ? (
               <p>
                 Already have an account?{' '}
-                <Link to="/signin" className="switch-btn">
+                <Link to="/signin" className="auth-link">
                   Sign in
                 </Link>
               </p>
@@ -290,8 +278,7 @@ const SignInPage: React.FC = () => {
                     setAuthMode('signin');
                     setError('');
                   }}
-                  className="switch-btn"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  className="auth-link"
                 >
                   Sign in
                 </button>
@@ -308,11 +295,20 @@ const SignInPage: React.FC = () => {
         isOpen={showVerificationModal}
         onClose={() => {
           setShowVerificationModal(false);
-          // After user closes the modal, navigate to papers page
           navigate('/papers');
         }}
         userEmail={signupEmail}
         showOnSignup={true}
+      />
+
+      <StatusModal
+        isOpen={showErrorModal}
+        onClose={handleErrorModalClose}
+        status="error"
+        title={authMode === 'signin' ? 'Sign In Failed' : 'Sign Up Failed'}
+        message={error}
+        showCloseButton={true}
+        actionButton={{ label: 'Try Again', onClick: handleErrorModalClose }}
       />
     </div>
   );

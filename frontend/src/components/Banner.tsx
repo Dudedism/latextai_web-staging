@@ -53,8 +53,18 @@ const Banner: React.FC<BannerProps> = () => {
           <button
             className="hamburger-button"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            aria-label="Menu"
           >
-            <span className="username">Menu</span>
+            <span className="menu-text">Menu</span>
+            <svg
+              className="hamburger-icon"
+              width="20"
+              height="14"
+              viewBox="0 0 20 14"
+              fill="none"
+            >
+              <path d="M1 1H19M1 7H19M1 13H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
             <svg
               className="dropdown-arrow"
               width="12"
@@ -67,8 +77,19 @@ const Banner: React.FC<BannerProps> = () => {
           </button>
           {isDropdownOpen && (
             <div className="dropdown-menu">
+              {/* Mobile-only nav links */}
+              <div className="mobile-nav-links">
+                <Link to="/" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  Home
+                </Link>
+                <Link to="/about" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  About
+                </Link>
+                <Link to="/pricing" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  Pricing
+                </Link>
+              </div>
               {isAuthenticated ? (
-                // Authenticated user menu
                 <>
                   <Link to="/account" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Profile
@@ -84,7 +105,6 @@ const Banner: React.FC<BannerProps> = () => {
                   </button>
                 </>
               ) : (
-                // Unauthenticated user menu
                 <>
                   <Link to="/signin" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Sign In

@@ -417,6 +417,96 @@ response = requests.post(
 
 See [latextai repository](../latextai/README.md) for conversion engine details.
 
+## 💳 Stripe Testing (Local Development)
+
+### Setup Stripe CLI
+
+1. **Install Stripe CLI** (if not already installed):
+   ```bash
+   brew install stripe/stripe-cli/stripe
+   ```
+
+2. **Login to Stripe:**
+   ```bash
+   stripe login
+   ```
+
+3. **Start webhook forwarding:**
+   ```bash
+   stripe listen --forward-to localhost:8000/api/stripe/webhook
+   ```
+
+4. **Copy the webhook secret** from the output (looks like `whsec_...`) and update `.env.development`:
+   ```env
+   STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
+   ```
+
+5. **Restart backend** to pick up the new webhook secret.
+
+### Testing Stripe Payments
+
+**Terminal 1** - Run backend:
+```bash
+cd backend
+source venv/bin/activate
+python app.py
+```
+
+**Terminal 2** - Run frontend:
+```bash
+cd frontend
+npm run dev
+```
+
+**Terminal 3** - Run Stripe webhook listener:
+```bash
+stripe listen --forward-to localhost:8000/api/stripe/webhook
+```
+
+### Test Payment Flow
+
+1. Upload and validate a document
+2. On payment page, click "Pay $X.XX" button
+3. Redirects to Stripe Checkout (test mode)
+4. Use test card: `4242 4242 4242 4242`, any future expiry, any CVC
+5. Complete checkout
+6. Webhook fires automatically, marks project as paid, triggers processing
+7. Redirects back to `/papers/{project_id}/view?payment_success=true`
+
+### Trigger Test Webhooks Manually
+
+Simulate successful payment without UI:
+```bash
+stripe trigger checkout.session.completed
+```
+
+Send test webhook to your endpoint:
+```bash
+stripe trigger checkout.session.completed --add checkout_session:metadata[project_id]=YOUR_PROJECT_ID
+```
+
+### Verify Webhook Signature
+
+Check backend logs for:
+```
+✅ [STRIPE] Webhook verified: checkout.session.completed
+💳 [STRIPE] Payment completed for project {project_id}
+✅ [STRIPE] Project {project_id} marked as paid ($X.XX)
+```
+
+### Test Card Numbers
+
+| Card Number | Description |
+|-------------|-------------|
+| `4242 4242 4242 4242` | Success |
+| `4000 0000 0000 9995` | Declined (insufficient funds) |
+| `4000 0000 0000 0002` | Declined (card declined) |
+| `4000 0025 0000 3155` | Requires authentication (3D Secure) |
+
+### Stripe Dashboard
+
+View test payments: https://dashboard.stripe.com/test/payments
+
 ## 🐛 Troubleshooting
 
 ### Status stuck at 'uploaded'
@@ -442,62 +532,12 @@ See [latextai repository](../latextai/README.md) for conversion engine details.
 1. Update database: `db.users.updateOne({email: '...'}, {$set: {admin: true}})`
 2. Log out and log back in
 
-## 📝 Environment Files
+### Webhook not receiving events
 
-### Development
-- Backend: `.env.development`
-- Frontend: `.env`
+**Cause:** Stripe CLI not running or wrong endpoint.
 
-### Staging
-- Backend: `.env.staging`
-- Frontend: `.env.staging`
-
-### Production
-- Backend: `.env.production`
-- Frontend: `.env.production`
-
-## 🚢 Deployment
-
-**Backend:**
-```bash
-gunicorn app:app --bind 0.0.0.0:8000 --workers 4
-```
-
-**Frontend:**
-```bash
-npm run build:production
-# Serve dist/ directory with Nginx or similar
-```
-
-## 📚 Development Notes
-
-- MongoDB must be accessible from backend
-- LibreOffice must be installed for DOCX validation (page counting)
-- latextai service must be running for processing to work
-- JWT tokens are automatically refreshed by frontend
-- File uploads are limited to 30MB
-- CORS is configured for cross-origin requests
-
-## 🔒 Security Features
-
-- JWT authentication with refresh tokens
-- Password hashing (Scrypt)
-- Rate limiting (10,000/day, 1,000/hour)
-- Email verification required
-- Admin role validation
-- File type validation
-- File size limits
-- Secure MongoDB connections (TLS)
-- API key authentication for service-to-service communication
-
-## 📄 License
-
-[Add your license here]
-
-## 👥 Contributors
-
-[Add contributors here]
-
-## 🆘 Support
-
-For issues or questions, create a support ticket through the application or contact the development team.
+**Fix:**
+1. Verify `stripe listen` is running in Terminal 3
+2. Check endpoint: `localhost:8000/api/stripe/webhook`
+3. Verify `STRIPE_WEBHOOK_SECRET` matches CLI output
+4. Restart backend after updating secret

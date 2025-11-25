@@ -4,8 +4,6 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import { ErrorModal } from '../common/ErrorModal';
 import { apiFetch } from '../../utils/api';
-import '../../styles/common.css';
-import './UploadConfirmPage.css';
 
 const UploadConfirmPage: React.FC = () => {
   const navigate = useNavigate();
@@ -124,38 +122,53 @@ const UploadConfirmPage: React.FC = () => {
     }
   };
 
+  const loadingOverlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: loadingStage === 'success' ? 'rgba(46, 125, 50, 0.95)' : 'rgba(0, 0, 0, 0.85)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    transition: 'all 0.3s ease',
+    opacity: fadeOut ? 0.7 : 1,
+  };
+
   return (
-    <div className="upload-confirm-page">
+    <div className="page">
       <Banner />
 
-      <section className="upload-confirm-section">
-        <div className="upload-confirm-container">
-          <div className="upload-progress">
+      <section className="main-section">
+        <div className="container container--md text-center">
+          <div className="progress-steps">
             <div className="progress-step">File</div>
             <div className="progress-arrow">→</div>
             <div className="progress-step">Template</div>
             <div className="progress-arrow">→</div>
-            <div className="progress-step active">Upload</div>
+            <div className="progress-step progress-step--active">Upload</div>
           </div>
 
-          <h1 className="page-title">Confirm Upload</h1>
+          <h1 className="section-title">Confirm Upload</h1>
 
-          <div className="upload-summary">
-            <div className="summary-item">
-              <span className="summary-label">File:</span>
-              <span className="summary-value">{file?.name || 'No file selected'}</span>
+          <div className="detail-grid mb-8">
+            <div className="detail-item">
+              <span className="detail-label">File:</span>
+              <span className="detail-value">{file?.name || 'No file selected'}</span>
             </div>
-            <div className="summary-item">
-              <span className="summary-label">Template:</span>
-              <span className="summary-value">{templateName || 'No template selected'}</span>
+            <div className="detail-item">
+              <span className="detail-label">Template:</span>
+              <span className="detail-value">{templateName || 'No template selected'}</span>
             </div>
           </div>
 
-          <div className="button-group">
-            <button className="cancel-btn" onClick={handleCancel} disabled={isLoading}>
+          <div className="flex gap-4 justify-center">
+            <button className="btn btn--secondary btn--lg" onClick={handleCancel} disabled={isLoading}>
               ← Back
             </button>
-            <button className="confirm-btn" onClick={handleConfirmUpload} disabled={isLoading}>
+            <button className="btn btn--primary btn--lg" onClick={handleConfirmUpload} disabled={isLoading}>
               Confirm Upload
             </button>
           </div>
@@ -164,12 +177,11 @@ const UploadConfirmPage: React.FC = () => {
 
       <Footer />
 
-      {/* Loading Overlay */}
       {isLoading && (
-        <div className={`loading-overlay ${fadeOut ? 'fade-out' : ''} ${loadingStage === 'success' ? 'success' : ''}`}>
-          <div className="loading-content">
-            <div className="spinner"></div>
-            <p className="loading-message">{getLoadingMessage()}</p>
+        <div style={loadingOverlayStyle}>
+          <div className="text-center" style={{ color: 'white' }}>
+            <div className="spinner spinner--lg" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)', margin: '0 auto 24px' }}></div>
+            <p style={{ fontSize: '18px' }}>{getLoadingMessage()}</p>
           </div>
         </div>
       )}

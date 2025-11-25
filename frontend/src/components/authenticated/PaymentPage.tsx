@@ -6,8 +6,6 @@ import LoadingScreen from '../common/LoadingScreen';
 import { ErrorModal } from '../common/ErrorModal';
 import { apiRequest } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import '../../styles/common.css';
-import './PaymentPage.css';
 
 interface CostEstimate {
   base_cost: number;
@@ -126,8 +124,33 @@ const PaymentPage: React.FC = () => {
   };
 
   const handlePayWithStripe = async () => {
-    // TODO: Stripe integration
-    alert('Stripe payment integration coming soon!');
+    if (!projectId) {
+      setErrorMessage('Project ID not found');
+      setShowErrorModal(true);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('💳 [STRIPE] Creating checkout session...');
+
+      const response = await apiRequest<{ checkout_url: string }>('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId })
+      });
+
+      console.log('✅ [STRIPE] Checkout session created, redirecting...');
+
+      // Redirect to Stripe Checkout
+      window.location.href = response.checkout_url;
+
+    } catch (error: any) {
+      console.error('❌ [STRIPE] Error creating checkout session:', error);
+      setErrorStatusCode(error.status);
+      setErrorMessage(error.message || 'Failed to create checkout session');
+      setShowErrorModal(true);
+      setLoading(false);
+    }
   };
 
   const handleAdminQuickProcess = async () => {
@@ -182,13 +205,13 @@ const PaymentPage: React.FC = () => {
 
   if (!paymentDetails) {
     return (
-      <div className="payment-page">
+      <div className="page">
         <Banner />
-        <section className="payment-main-section">
-          <div className="payment-container">
-            <h1 className="payment-title">Error</h1>
-            <p>Failed to load payment details. Please try again.</p>
-            <button className="payment-btn payment-btn-cancel" onClick={handleCancel}>
+        <section className="main-section main-section--centered">
+          <div className="container container--md text-center">
+            <h1 className="section-title">Error</h1>
+            <p className="mb-6">Failed to load payment details. Please try again.</p>
+            <button className="btn btn--secondary btn--lg" onClick={handleCancel}>
               Go Back
             </button>
           </div>
@@ -201,128 +224,131 @@ const PaymentPage: React.FC = () => {
   const { cost_estimate: costEstimate, metadata, can_use_free: canUseFree } = paymentDetails;
 
   return (
-    <div className="payment-page">
+    <div className="page">
       <Banner />
 
-      <section className="payment-main-section">
-        <div className="payment-container">
-          <div className="upload-progress">
+      <section className="main-section">
+        <div className="container container--md">
+          <div className="progress-steps">
             <div className="progress-step">File</div>
             <div className="progress-arrow">→</div>
             <div className="progress-step">Template</div>
             <div className="progress-arrow">→</div>
             <div className="progress-step">Upload</div>
             <div className="progress-arrow">→</div>
-            <div className="progress-step active">Payment</div>
+            <div className="progress-step progress-step--active">Payment</div>
           </div>
 
-          <h1 className="payment-title">Review & Payment</h1>
+          <h1 className="section-title text-center">Review & Payment</h1>
 
-          <div className="payment-content">
+          <div className="flex flex-col gap-6">
             {/* Document Details */}
-            <div className="payment-section">
-              <h2 className="payment-section-title">Document Details</h2>
-              <div className="payment-details-grid">
-                <div className="payment-detail-item">
-                  <span className="payment-detail-label">File:</span>
-                  <span className="payment-detail-value">{metadata.filename}</span>
+            <div>
+              <h2 className="section-heading">Document Details</h2>
+              <div className="detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">File:</span>
+                  <span className="detail-value">{metadata.filename}</span>
                 </div>
-                <div className="payment-detail-item">
-                  <span className="payment-detail-label">Size:</span>
-                  <span className="payment-detail-value">{formatFileSize(metadata.filesize)}</span>
+                <div className="detail-item">
+                  <span className="detail-label">Size:</span>
+                  <span className="detail-value">{formatFileSize(metadata.filesize)}</span>
                 </div>
-                <div className="payment-detail-item">
-                  <span className="payment-detail-label">Pages:</span>
-                  <span className="payment-detail-value">{metadata.page_count}</span>
+                <div className="detail-item">
+                  <span className="detail-label">Pages:</span>
+                  <span className="detail-value">{metadata.page_count}</span>
                 </div>
               </div>
             </div>
 
             {/* Cost Breakdown */}
-            <div className="payment-section">
-              <h2 className="payment-section-title">Cost Breakdown</h2>
-              <div className="payment-cost-breakdown">
-                <div className="payment-cost-item">
-                  <span className="payment-cost-label">Base conversion fee (up to 15 pages):</span>
-                  <span className="payment-cost-value">${costEstimate.base_cost.toFixed(2)}</span>
+            <div>
+              <h2 className="section-heading">Cost Breakdown</h2>
+              <div className="detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Base conversion fee (up to 15 pages):</span>
+                  <span className="detail-value">${costEstimate.base_cost.toFixed(2)}</span>
                 </div>
                 {costEstimate.additional_pages > 0 && (
-                  <div className="payment-cost-item">
-                    <span className="payment-cost-label">
+                  <div className="detail-item">
+                    <span className="detail-label">
                       Additional pages ({costEstimate.additional_pages} × $0.50):
                     </span>
-                    <span className="payment-cost-value">${costEstimate.additional_cost.toFixed(2)}</span>
+                    <span className="detail-value">${costEstimate.additional_cost.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="payment-cost-divider"></div>
-                <div className="payment-cost-item payment-cost-total">
-                  <span className="payment-cost-label">Total:</span>
-                  <span className="payment-cost-value">${costEstimate.total.toFixed(2)}</span>
+                <div className="detail-item" style={{ borderTop: '2px solid var(--color-gray-300)', paddingTop: '12px', fontWeight: 'bold' }}>
+                  <span className="detail-label" style={{ fontWeight: 'bold', color: 'var(--color-black)' }}>Total:</span>
+                  <span className="detail-value" style={{ fontSize: '18px' }}>${costEstimate.total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
-            {/* Payment Options */}
+            {/* Free Upload Notice */}
             {canUseFree && (
-              <div className="payment-notice">
-                <div className="payment-notice-icon">🎁</div>
-                <div className="payment-notice-content">
-                  <strong>You have 1 free upload available!</strong>
-                  <p>This will use your one-time free document conversion. After this, standard pricing applies.</p>
+              <div className="notice notice--info" style={{ flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', width: '100%' }}>
+                  <div className="notice-icon">🎁</div>
+                  <div className="notice-content">
+                    <strong>You have 1 free upload available!</strong>
+                    <p>This will use your one-time free document conversion. After this, standard pricing applies.</p>
+                  </div>
                 </div>
+                <button
+                  className="btn btn--primary btn--lg"
+                  onClick={handleUseFreeUpload}
+                  disabled={loading}
+                  style={{ marginTop: '12px' }}
+                >
+                  {loading ? 'Processing...' : 'Use Free Upload'}
+                </button>
               </div>
             )}
           </div>
 
-          <div className="payment-actions">
-            <button className="payment-btn payment-btn-cancel" onClick={handleCancel} disabled={loading}>
+          <div className="flex gap-4 justify-center mt-8">
+            <button className="btn btn--secondary btn--lg" onClick={handleCancel} disabled={loading}>
               Cancel
             </button>
 
-            {canUseFree ? (
-              <button
-                className="payment-btn payment-btn-free"
-                onClick={handleUseFreeUpload}
-                disabled={loading}
-              >
-                {loading ? 'Processing...' : 'Use Free Upload'}
-              </button>
-            ) : (
-              <button
-                className="payment-btn payment-btn-pay"
-                onClick={handlePayWithStripe}
-                disabled={loading}
-              >
-                {loading ? 'Processing...' : `Pay $${costEstimate.total.toFixed(2)}`}
-              </button>
-            )}
+            <button
+              className="btn btn--primary btn--lg"
+              onClick={handlePayWithStripe}
+              disabled={loading}
+            >
+              {loading ? 'Processing...' : `Pay $${costEstimate.total.toFixed(2)}`}
+            </button>
           </div>
 
           {/* Admin Debug Controls */}
           {isAdmin && (
-            <div className="payment-section" style={{ marginTop: '2rem', borderTop: '2px solid #ff6b35', paddingTop: '1rem' }}>
-              <h2 className="payment-section-title" style={{ color: '#ff6b35' }}>🔧 Admin Debug Controls</h2>
-              <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+            <div style={{ marginTop: '2rem', borderTop: '2px solid #ff6b35', paddingTop: '1rem' }}>
+              <h2 className="section-heading" style={{ color: '#ff6b35' }}>🔧 Admin Debug Controls</h2>
+              <p className="text-sm text-muted mb-4">
                 Bypass payment and process immediately for testing purposes.
               </p>
-              <button
-                className="payment-btn"
-                onClick={handleAdminQuickProcess}
-                disabled={loading}
-                style={{
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '4px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.6 : 1,
-                  fontSize: '1rem',
-                  fontWeight: 'bold'
-                }}
-              >
-                {loading ? 'Processing...' : '⚡ Quick Process (Admin)'}
-              </button>
+              <div className="flex flex-col gap-3">
+                <button
+                  className="btn"
+                  onClick={handleAdminQuickProcess}
+                  disabled={loading}
+                  style={{ backgroundColor: '#4CAF50', color: 'white' }}
+                >
+                  {loading ? 'Processing...' : '⚡ Quick Process (Admin)'}
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setPaymentDetails(prev => prev ? {
+                      ...prev,
+                      can_use_free: !prev.can_use_free
+                    } : null);
+                  }}
+                  style={{ backgroundColor: '#2196F3', color: 'white' }}
+                >
+                  {canUseFree ? '🎁 Mock: Free → Paid' : '💳 Mock: Paid → Free'}
+                </button>
+              </div>
             </div>
           )}
         </div>

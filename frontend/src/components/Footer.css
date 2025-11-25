@@ -83,25 +83,25 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 810px) {
   .footer {
     padding: 40px 20px 30px;
   }
-  
+
   .footer-container {
     flex-direction: column;
     gap: 40px;
     text-align: center;
   }
-  
+
   .footer-brand {
     align-items: center;
   }
-  
+
   .footer-section {
     align-items: center;
   }
-  
+
   .footer-links {
     align-items: center;
   }

@@ -94,58 +94,72 @@
   max-width: 464px;
 }
 
-.document-preview {
+.conversion-icons {
   display: flex;
   align-items: center;
-  gap: 20px;
-  background: radial-gradient(ellipse 300px 200px at center, #BEE2FF 0%, rgba(190, 226, 255, 0.4) 35%, rgba(255, 255, 255, 0) 70%);
+  gap: 32px;
   padding: 60px 80px;
-  border-radius: 20px;
+  background: radial-gradient(ellipse 380px 260px at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  border-radius: 24px;
 }
 
-.doc-before,
-.doc-after {
-  width: 140px;
-  height: 200px;
-  border: 1px solid #000000;
-  border-radius: 5px;
+.doc-card {
+  width: 156px;
+  height: 208px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.doc-before {
+.doc-card--left {
   transform: rotate(-5deg);
 }
 
-.doc-after {
+.doc-card--right {
   transform: rotate(5deg);
 }
 
-.doc-placeholder {
-  font-size: 12px;
-  color: #666;
-  text-align: center;
-  padding: 10px;
+.doc-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
-.arrow {
-  font-size: 40px;
-  color: #1e1e1e;
-  font-weight: bold;
+.doc-logo {
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+}
+
+.doc-card--left .doc-logo {
+  margin-left: -6px;
+}
+
+.conversion-arrow {
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conversion-arrow svg {
+  width: 42px;
+  height: 42px;
 }
 
 /* Publishers Section */
 .publishers-section {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 60px;
+  gap: 40px 60px;
   width: 100%;
   max-width: 1200px;
-  padding: 40px 0;
+  padding: 40px 20px;
 }
 
 .publisher-logo {
@@ -171,11 +185,11 @@
 /* Button Styles */
 .btn-primary,
 .btn-outline {
-  padding: 20px 32px;
+  padding: 16px 28px;
   border-radius: 40px;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.02em;
   line-height: 1.4;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -203,7 +217,9 @@
 }
 
 .btn-outline:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.03);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
   transform: translateY(-2px);
 }
 
@@ -218,35 +234,145 @@
 }
 
 @media (max-width: 768px) {
+  /* Reduce section spacing */
   .section {
-    padding: 0 20px;
-    margin-bottom: 60px;
+    padding: 0 24px;
+    margin-bottom: 48px;
   }
-  
+
+  .section:first-of-type {
+    margin-top: 60px;
+  }
+
+  /* Hero section */
   .hero-box {
     width: 100%;
     height: auto;
     flex-direction: column;
-    gap: 40px;
-    padding: 30px;
+    gap: 32px;
+    padding: 0;
+    text-align: center;
   }
-  
-  .main-title,
-  .latex-logo,
-  .subtitle-text {
+
+  .hero-text {
+    gap: 24px;
+    max-width: 100%;
+    align-items: center;
+  }
+
+  .title-section {
+    gap: 8px;
+    align-items: center;
+  }
+
+  .main-title {
     font-size: 32px;
-    line-height: 40px;
+    line-height: 1.2;
   }
-  
+
+  /* Stack LaTeX logo and "in Minutes" vertically */
+  .subtitle-container {
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .latex-logo {
+    height: 40px;
+  }
+
+  .subtitle-text {
+    font-size: 28px;
+    line-height: 1.2;
+  }
+
+  .description {
+    font-size: 16px;
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+    text-align: center;
+  }
+
+  /* Hide document preview on mobile - it's decorative */
+  .hero-visual {
+    display: none;
+  }
+
+  /* Publishers - 2 column grid */
   .publishers-section {
-    flex-wrap: wrap;
-    gap: 20px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px 16px;
+    padding: 24px 0;
+    justify-items: center;
+    align-items: center;
   }
-  
+
+  .publisher-logo {
+    width: 100% !important;
+    max-width: 120px !important;
+    height: auto !important;
+    max-height: 50px;
+  }
+
+  /* Center the 5th logo (Nature) spanning full width */
+  .publisher-logo:nth-child(5) {
+    grid-column: 1 / -1;
+  }
+
+  /* Action buttons - full width stacked */
   .action-buttons {
     flex-direction: column;
-    gap: 20px;
-    align-items: center;
+    gap: 12px;
+    align-items: stretch;
+    width: 100%;
+    padding: 0 24px;
+  }
+
+  .btn-primary,
+  .btn-outline {
+    width: 100%;
+    justify-content: center;
+    padding: 16px 24px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .section {
+    padding: 0 20px;
+    margin-bottom: 40px;
+  }
+
+  .section:first-of-type {
+    margin-top: 40px;
+  }
+
+  .main-title {
+    font-size: 28px;
+  }
+
+  .subtitle-text {
+    font-size: 24px;
+  }
+
+  .description {
+    font-size: 15px;
+  }
+
+  .publisher-logo {
+    max-width: 100px !important;
+    max-height: 40px;
+  }
+
+  .action-buttons {
+    padding: 0;
+  }
+
+  .btn-primary,
+  .btn-outline {
+    padding: 14px 20px;
+    font-size: 15px;
   }
 }
 
@@ -339,12 +465,21 @@
 }
 
 @media (max-width: 768px) {
-  .how-title { font-size: 32px; }
-  .how-step-number { font-size: 36px; }
-  .how-step-icon { width: 30px; height: 30px; }
+  .howitworks {
+    margin-top: 80px;
+    margin-bottom: 80px;
+  }
+  .how-title { font-size: 28px; }
+  .how-subtitle {
+    font-size: 16px;
+    margin-bottom: 32px;
+  }
+  .how-step-number { font-size: 32px; }
+  .how-step-icon { width: 28px; height: 28px; }
+  .how-step-title { font-size: 18px; }
+  .how-step-desc { font-size: 14px; }
   .how-steps {
     grid-template-columns: 1fr;
-    gap: 28px;
+    gap: 24px;
   }
-  .how-subtitle { margin-bottom: 24px; }
 }

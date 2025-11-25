@@ -1,71 +1,135 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
+import { ErrorModal } from '../common/ErrorModal';
 import { apiRequest, apiFetch } from '../../utils/api';
 import { downloadFile } from '../../utils/download';
 import { useAuth } from '../../contexts/AuthContext';
-import '../../styles/common.css';
 import './PreviewPage.css';
+
+const FAST_POLL_INTERVAL = 5000;
+const SLOW_POLL_INTERVAL = 60000;
+const PAYMENT_TIMEOUT = 30000;
+
+interface ProjectResponse {
+  status: string;
+  paid?: boolean;
+  compilation_failed?: boolean;
+}
 
 const PreviewPage: React.FC = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<'processing' | 'completed' | 'failed'>('processing');
+  const [status, setStatus] = useState<'awaiting_payment' | 'processing' | 'completed' | 'failed'>('processing');
   const [compilationFailed, setCompilationFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const { id: paperId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
+  const isPaymentFlow = searchParams.get('payment_success') === 'true';
+  const paymentStartTime = useRef<number | null>(null);
+  const hasCalledProcess = useRef(false);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (paperId) {
+      if (isPaymentFlow) {
+        paymentStartTime.current = Date.now();
+        hasCalledProcess.current = false;
+        setStatus('awaiting_payment');
+      }
       checkStatus();
     }
+
+    return () => {
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+      }
+    };
   }, [paperId]);
 
   const checkStatus = async () => {
     try {
-      const project = await apiRequest<{ status: string; compilation_failed?: boolean }>(`/api/latex/project/${paperId}`);
+      const project = await apiRequest<ProjectResponse>(`/api/latex/project/${paperId}`);
       const projectStatus = project.status;
+      const projectPaid = project.paid || false;
       const projectCompilationFailed = project.compilation_failed || false;
 
-      // Redirect if project is still in upload/validation stage (not yet paid/converted)
-      if (projectStatus === 'uploaded' || projectStatus === 'validated') {
-        console.log('🔄 [PREVIEW] Project not yet converted, redirecting to /papers');
-        navigate('/papers');
-        return;
-      }
-
-      // Only update status if we're currently viewing this project
       const currentPath = window.location.pathname;
       const isViewingThisProject = currentPath === `/papers/${paperId}/view`;
 
-      if (isViewingThisProject) {
-        if (projectStatus === 'converted') {
-          setStatus('completed');
-          setCompilationFailed(projectCompilationFailed);
-          if (!projectCompilationFailed) {
-            fetchPdf();
-          } else {
-            setLoading(false);
-          }
-        } else if (projectStatus === 'failed') {
-          setStatus('failed');
-          setCompilationFailed(projectCompilationFailed);
-          setError('Document processing failed');
-          setLoading(false);
-        } else {
-          // Still processing
+      if (!isViewingThisProject) {
+        console.log('[PREVIEW] User navigated away, stopping polling');
+        return;
+      }
+
+      if (isPaymentFlow && !hasCalledProcess.current) {
+        if (projectPaid) {
+          console.log('[PREVIEW] Payment confirmed, calling /process');
+          hasCalledProcess.current = true;
           setStatus('processing');
-          setCompilationFailed(false);
-          // Continue polling while viewing this project
-          setTimeout(checkStatus, 60000);
+
+          try {
+            await apiRequest('/api/latex/process', {
+              method: 'POST',
+              body: JSON.stringify({ project_id: paperId })
+            });
+            console.log('[PREVIEW] Processing started, switching to slow polling');
+            pollTimeoutRef.current = setTimeout(checkStatus, SLOW_POLL_INTERVAL);
+          } catch (processError: any) {
+            console.error('[PREVIEW] Failed to start processing:', processError);
+            setErrorMessage(processError.message || 'Failed to start document processing');
+            setShowErrorModal(true);
+          }
+          return;
         }
+
+        if (paymentStartTime.current && Date.now() - paymentStartTime.current > PAYMENT_TIMEOUT) {
+          console.log('[PREVIEW] Payment verification timeout');
+          setErrorMessage('Payment verification timed out. Please try again or contact support.');
+          setShowErrorModal(true);
+          return;
+        }
+
+        console.log('[PREVIEW] Waiting for payment confirmation, fast polling');
+        setStatus('awaiting_payment');
+        pollTimeoutRef.current = setTimeout(checkStatus, FAST_POLL_INTERVAL);
+        setInitialLoading(false);
+        return;
+      }
+
+      if (projectStatus === 'uploaded' || projectStatus === 'validated') {
+        if (!isPaymentFlow) {
+          console.log('[PREVIEW] Project not yet converted, redirecting to /papers');
+          navigate('/papers');
+        }
+        return;
+      }
+
+      if (projectStatus === 'converted') {
+        setStatus('completed');
+        setCompilationFailed(projectCompilationFailed);
+        if (!projectCompilationFailed) {
+          fetchPdf();
+        } else {
+          setLoading(false);
+        }
+      } else if (projectStatus === 'failed') {
+        setStatus('failed');
+        setCompilationFailed(projectCompilationFailed);
+        setError('Document processing failed');
+        setLoading(false);
       } else {
-        console.log('🧹 [PREVIEW] User navigated away from this project view, stopping polling');
+        setStatus('processing');
+        setCompilationFailed(false);
+        pollTimeoutRef.current = setTimeout(checkStatus, SLOW_POLL_INTERVAL);
       }
     } catch (error) {
       console.error('Error checking status:', error);
@@ -106,6 +170,11 @@ const PreviewPage: React.FC = () => {
 
   const handleGoToSupport = () => {
     navigate(`/papers/${paperId}/support`);
+  };
+
+  const handleErrorModalClose = () => {
+    setShowErrorModal(false);
+    navigate(`/papers/${paperId}/payment`);
   };
 
   const handleDownloadPdf = async () => {
@@ -162,8 +231,46 @@ const PreviewPage: React.FC = () => {
 
       <section className="preview-main-section">
         <div className="preview-container">
-          {/* Processing State - No Box */}
-          {status === 'processing' ? (
+          {/* Awaiting Payment Confirmation */}
+          {status === 'awaiting_payment' ? (
+            <div className="processing-state">
+              <div className="processing-circle">
+                <div className="circle-outer">
+                  <div className="circle-inner">
+                    <svg
+                      className="progress-ring spinning"
+                      width="320"
+                      height="320"
+                      viewBox="0 0 320 320"
+                    >
+                      <circle
+                        className="progress-ring-bg"
+                        cx="160"
+                        cy="160"
+                        r="150"
+                        strokeWidth="2"
+                        fill="none"
+                      />
+                      <circle
+                        className="progress-ring-fill"
+                        cx="160"
+                        cy="160"
+                        r="150"
+                        strokeWidth="3"
+                        fill="none"
+                        strokeDasharray="400 942"
+                        transform="rotate(-90 160 160)"
+                      />
+                    </svg>
+                    <div className="processing-text">
+                      <h2 className="processing-title">Confirming Payment...</h2>
+                      <p className="processing-subtitle">Please wait while we verify your payment.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : status === 'processing' ? (
             <div className="processing-state">
               <div className="processing-circle">
                 <div className="circle-outer">
@@ -246,21 +353,21 @@ const PreviewPage: React.FC = () => {
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadPdf}
-                disabled={status === 'processing' || status === 'failed' || compilationFailed}
+                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed' || compilationFailed}
               >
                 Download PDF
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadTex}
-                disabled={status === 'processing' || status === 'failed'}
+                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed'}
               >
                 Download .tex
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadBib}
-                disabled={status === 'processing' || status === 'failed'}
+                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed'}
               >
                 Download .bib
               </button>
@@ -271,13 +378,15 @@ const PreviewPage: React.FC = () => {
               Your download includes the main .tex file, bibliography file (.bib),
               all extracted images in appropriate formats, PDF, and all compilation files.
             </p>
-            <button
-              className="btn btn-primary"
-              onClick={handleDownloadPackage}
-              disabled={status === 'processing' || status === 'failed'}
-            >
-              Download Full Package
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleDownloadPackage}
+                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed'}
+              >
+                Download Full Package
+              </button>
+            </div>
           </div>
 
           {/* Support Section - Only Visible When Converted */}
@@ -355,6 +464,12 @@ const PreviewPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <ErrorModal
+        isOpen={showErrorModal}
+        onClose={handleErrorModalClose}
+        errorMessage={errorMessage}
+      />
     </div>
   );
 };
