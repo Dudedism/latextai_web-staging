@@ -123,12 +123,23 @@ tail -f /var/log/mongodb/mongod.log
 # Restart MongoDB
 systemctl restart mongod
 
-# Connect locally (with TLS)
+# Connect locally to MongoDB with TLS (REQUIRED when TLS is enabled)
+mongosh --tls --tlsAllowInvalidCertificates
+
+# Or using connection string format
+mongosh "mongodb://127.0.0.1:27017/?tls=true&tlsAllowInvalidCertificates=true"
+
+# Connect locally with authentication (after admin user is created)
+mongosh --tls --tlsAllowInvalidCertificates -u admin -p PASSWORD --authenticationDatabase admin
+
+# Connect to specific host with TLS
 mongosh --tls --host staging.latext.ai -u admin -p PASSWORD --authenticationDatabase admin
 
 # Test connection from remote server
 mongosh "mongodb://admin:PASSWORD@staging.latext.ai:27017/latext_db?tls=true&authSource=admin"
 ```
+
+**IMPORTANT:** When MongoDB is configured with `requireTLS`, you MUST include TLS parameters in all mongosh connections. Without TLS flags, you will get: `MongoServerSelectionError: connection <monitor> to 127.0.0.1:27017 closed`
 
 ## Security Notes
 
@@ -193,8 +204,22 @@ If you see: **"No SSL certificate provided by peer; connection rejected"**
 - Check firewall: `ufw status` (ensure port 27017 is open)
 - Check MongoDB is listening: `netstat -tlnp | grep 27017` (should show `0.0.0.0:27017`)
 
+**Can't connect with mongosh locally:**
+- If you get `MongoServerSelectionError: connection <monitor> to 127.0.0.1:27017 closed`
+- This means MongoDB has TLS enabled but you're connecting without TLS
+- Use: `mongosh --tls --tlsAllowInvalidCertificates`
+- Or: `mongosh "mongodb://127.0.0.1:27017/?tls=true&tlsAllowInvalidCertificates=true"`
+
 **Certificate renewal issues:**
 - Test renewal: `certbot renew --dry-run`
 - Check hook permissions: `ls -la /etc/letsencrypt/renewal-hooks/deploy/`
 - Make hook executable: `chmod +x /etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh`
 - Manually run hook to test: `/etc/letsencrypt/renewal-hooks/deploy/mongodb-cert-update.sh`
+
+**Certbot "No such authorization" error:**
+- This occurs when DNS propagation hasn't completed yet
+- Verify DNS is propagated: `dig yourdomain.com +short` should return your server IP
+- Verify both root and www subdomain: `dig www.yourdomain.com +short`
+- Ensure firewall allows HTTP/HTTPS: `ufw allow 80/tcp && ufw allow 443/tcp`
+- Wait 5-10 minutes for DNS propagation if records were just added
+- Retry certbot after DNS is confirmed propagated

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
@@ -23,7 +23,16 @@ import ForgotPasswordPage from './components/static/ForgotPasswordPage';
 import AdminSupportPage from './components/admin/AdminSupportPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
 import { shouldRefreshToken, refreshAccessToken } from './utils/auth';
-import './App.css'
+
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [pathname]);
+
+  return null;
+};
 
 const AppContent = () => {
   useAuthRedirect();
@@ -48,6 +57,7 @@ const AppContent = () => {
   
   return (
     <div className="App">
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<><LandingPage /><Footer /></>} />
         <Route path="/account" element={<AccountPage />} />

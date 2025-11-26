@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import '../../styles/common.css';
 import './ProcessingPage.css';
 
 const ProcessingPage: React.FC = () => {

@@ -3,25 +3,26 @@ import './PricingCompare.css';
 
 type PricingCompareProps = {
   onTryFree?: () => void | Promise<void>;
-  title?: React.ReactNode;
-  subtitle?: React.ReactNode;
+  variant?: 'full' | 'standalone';
 };
 
 const PricingCompare: React.FC<PricingCompareProps> = ({
   onTryFree,
-  title = 'The Lowest Pricing Available.',
-  subtitle = 'See how we compare to our competitors.',
+  variant = 'full',
 }) => {
-  return (
-    <section className="section">
-      <div className="pc-container">
-        <header className="pc-header">
-          <h2 className="pc-title">{title}</h2>
-          <p className="pc-subtitle">{subtitle}</p>
-        </header>
+  const isStandalone = variant === 'standalone';
 
-        <div className="pc-grid">
-          {/* Left: Our Service */}
+  return (
+    <section className={isStandalone ? '' : 'section'}>
+      <div className={`pc-container ${isStandalone ? 'pc-container--single' : ''}`}>
+        {!isStandalone && (
+          <header className="pc-header">
+            <h2 className="pc-title">The Lowest Pricing Available.</h2>
+            <p className="pc-subtitle">See how we compare to our competitors.</p>
+          </header>
+        )}
+
+        <div className={`pc-grid ${isStandalone ? 'pc-grid--single' : ''}`}>
           <div className="pc-card pc-primary">
             <h3 className="pc-card-title">Our Service</h3>
 
@@ -50,30 +51,31 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
             </button>
           </div>
 
-          {/* Right: Competitors */}
-          <div className="pc-stack">
-            <div className="pc-card pc-competitor">
-              <h3 className="pc-card-title">Competitor A</h3>
-              <div className="pc-price">
-                <span className="pc-price-currency">$</span>
-                <span className="pc-price-value">400+</span>
-                <span className="pc-price-unit">/project</span>
+          {!isStandalone && (
+            <div className="pc-stack">
+              <div className="pc-card pc-competitor">
+                <h3 className="pc-card-title">Competitor A</h3>
+                <div className="pc-price">
+                  <span className="pc-price-currency">$</span>
+                  <span className="pc-price-value">400+</span>
+                  <span className="pc-price-unit">/project</span>
+                </div>
+                <p className="pc-note">@ $100/hour minimum 4 hours</p>
+                <p className="pc-note">1 week delivery time</p>
               </div>
-              <p className="pc-note">@ $100/hour minimum 4 hours</p>
-              <p className="pc-note">1 week delivery time</p>
-            </div>
 
-            <div className="pc-card pc-competitor">
-              <h3 className="pc-card-title">Competitor B</h3>
-              <div className="pc-price">
-                <span className="pc-price-currency">$</span>
-                <span className="pc-price-value">2.99</span>
-                <span className="pc-price-unit">/document</span>
+              <div className="pc-card pc-competitor">
+                <h3 className="pc-card-title">Competitor B</h3>
+                <div className="pc-price">
+                  <span className="pc-price-currency">$</span>
+                  <span className="pc-price-value">2.99</span>
+                  <span className="pc-price-unit">/document</span>
+                </div>
+                <p className="pc-note">Limited features</p>
+                <p className="pc-note">Lower quality output</p>
               </div>
-              <p className="pc-note">Limited features</p>
-              <p className="pc-note">Lower quality output</p>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </section>

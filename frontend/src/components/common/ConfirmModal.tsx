@@ -1,5 +1,4 @@
 import React from 'react';
-import './ConfirmModal.css';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -36,18 +35,18 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   };
 
   return (
-    <div className="confirm-modal-overlay" onClick={handleOverlayClick}>
-      <div className="confirm-modal-content">
-        <h2 className="confirm-modal-title">{title}</h2>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div className="modal-content">
+        <h2 className="modal-title">{title}</h2>
 
-        <p className="confirm-modal-message">{message}</p>
+        <p className="modal-message">{message}</p>
 
-        <div className="confirm-modal-actions">
-          <button className="confirm-modal-btn confirm-modal-btn-cancel" onClick={onClose}>
+        <div className="modal-actions">
+          <button className="btn btn--secondary btn--lg" onClick={onClose}>
             {cancelText}
           </button>
           <button
-            className={`confirm-modal-btn ${isDangerous ? 'confirm-modal-btn-danger' : 'confirm-modal-btn-confirm'}`}
+            className={`btn btn--lg ${isDangerous ? 'btn--danger' : 'btn--primary'}`}
             onClick={handleConfirm}
           >
             {confirmText}

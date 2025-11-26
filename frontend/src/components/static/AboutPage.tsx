@@ -1,7 +1,6 @@
 import React from 'react';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import '../../styles/common.css';
 import './StaticPages.css';
 
 const AboutPage: React.FC = () => {
@@ -59,9 +58,9 @@ const AboutPage: React.FC = () => {
         <section className="static-section">
           <h2>Supported Publishers</h2>
           <p>
-            We support templates from major academic publishers including Nature, IEEE, Elsevier, 
-            Springer, The Lancet, and many more. Our template library is continuously expanding based 
-            on user requests and publisher updates.
+            We currently support IEEE templates, with Nature, Elsevier, Springer, and The Lancet
+            templates coming soon. Our template library is continuously expanding based on user
+            requests and publisher updates.
           </p>
         </section>
 
@@ -75,11 +74,11 @@ const AboutPage: React.FC = () => {
         </section>
 
         <section className="static-section">
-          <h2>Success Stories</h2>
+          <h2>Performance</h2>
           <p>
-            Since our launch, we've helped thousands of researchers save countless hours on formatting. 
-            Our users report spending 90% less time on manuscript preparation, allowing them to focus 
-            on what matters most: their research.
+            LaTexT processes most documents in under 3 minutes. Our system handles complex elements
+            including mathematical equations, tables, figures, and citations with high accuracy,
+            producing clean LaTeX output ready for journal submission.
           </p>
         </section>
 

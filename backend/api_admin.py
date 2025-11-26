@@ -72,6 +72,14 @@ def get_all_tickets(user, data):
     user_filter = request.args.get('user_id')
     project_filter = request.args.get('project_id')
 
+    # Validate filter lengths
+    if status_filter and len(status_filter) > 20:
+        return jsonify({'error': 'Invalid status filter'}), 400
+    if user_filter and len(user_filter) > 254:
+        return jsonify({'error': 'Invalid user filter'}), 400
+    if project_filter and len(project_filter) > 36:
+        return jsonify({'error': 'Invalid project filter'}), 400
+
     # Build query
     query = {}
     if status_filter:
@@ -111,6 +119,10 @@ def get_all_tickets(user, data):
 @requires_admin
 def get_ticket_details(user, data, ticket_id):
     """Get full ticket details with all messages and context"""
+    # Validate ticket_id length (UUID format, max 36 chars)
+    if len(ticket_id) > 36:
+        return jsonify({'error': 'Invalid ticket_id format'}), 400
+
     ticket_data = Ticket.find_by_id(ticket_id)
     if not ticket_data:
         return jsonify({'error': 'Ticket not found'}), 404
@@ -146,6 +158,10 @@ def get_ticket_details(user, data, ticket_id):
 @requires_admin
 def reply_to_ticket(user, data, ticket_id):
     """Admin reply to a support ticket"""
+    # Validate ticket_id length (UUID format, max 36 chars)
+    if len(ticket_id) > 36:
+        return jsonify({'error': 'Invalid ticket_id format'}), 400
+
     # Get request data
     request_data = request.get_json()
     message = request_data.get('message', '').strip()
@@ -183,6 +199,10 @@ def reply_to_ticket(user, data, ticket_id):
 @requires_admin
 def update_ticket_status(user, data, ticket_id):
     """Update ticket status"""
+    # Validate ticket_id length (UUID format, max 36 chars)
+    if len(ticket_id) > 36:
+        return jsonify({'error': 'Invalid ticket_id format'}), 400
+
     request_data = request.get_json()
     new_status = request_data.get('status')
 

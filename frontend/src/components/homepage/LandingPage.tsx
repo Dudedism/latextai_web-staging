@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import { HeroSection, HowItWorks, ValueProp, PricingCompare } from '.'; // barrel import
-import '../Global.css';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {

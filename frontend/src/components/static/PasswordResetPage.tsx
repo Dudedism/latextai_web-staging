@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
-import '../../styles/common.css';
-import './SignInPage.css'; // Reuse SignIn styles
+import { StatusModal } from '../common/StatusModal';
 
 const PasswordResetPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,7 +19,6 @@ const PasswordResetPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    // Validation
     if (!newPassword || !confirmPassword) {
       setError('Please fill in all fields');
       return;
@@ -46,123 +44,86 @@ const PasswordResetPage: React.FC = () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/reset-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token,
-          new_password: newPassword,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: newPassword }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        console.log('✅ [PASSWORD RESET] Password reset successful');
-
-        // Clear any existing auth tokens to force re-login
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-
         setSuccess(true);
-        // Redirect to signin after 2 seconds
-        setTimeout(() => {
-          navigate('/signin');
-        }, 2000);
       } else {
-        console.error('❌ [PASSWORD RESET] Reset failed:', data.error);
         setError(data.error || 'Failed to reset password');
       }
-    } catch (error) {
-      console.error('❌ [PASSWORD RESET] Error:', error);
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className="signin-page">
-        <Banner />
-        <section className="signin-section">
-          <div className="signin-form-container">
-            <div className="success-container">
-              <div className="success-icon">✓</div>
-              <h2 className="success-heading">Password Reset Successful!</h2>
-              <p className="success-message">
-                Your password has been reset successfully. Redirecting to sign in...
-              </p>
-            </div>
-          </div>
-        </section>
-        <Footer />
-      </div>
-    );
-  }
+  const handleSuccessClose = () => {
+    navigate('/signin');
+  };
 
   return (
-    <div className="signin-page">
+    <div className="page">
       <Banner />
 
-      <section className="signin-section">
-        <div className="signin-form-container">
-          <h1 className="signin-title">Reset Your Password</h1>
-          <p className="signin-subtitle">Enter your new password below</p>
+      <section className="main-section main-section--centered">
+        <div className="container container--sm" style={{ maxWidth: '400px' }}>
+          <h1 className="section-title text-center">Reset Your Password</h1>
+          <p className="text-muted text-center mb-6">Enter your new password below</p>
 
-          <form className="signin-form" onSubmit={handleSubmit}>
+          <form className="auth-form" onSubmit={handleSubmit}>
             {error && (
-              <div className="error-message" style={{
-                color: '#ff0000',
-                fontSize: '14px',
-                marginBottom: '20px',
-                padding: '10px',
-                backgroundColor: '#ffebee',
-                border: '1px solid #ffcdd2',
-                borderRadius: '4px'
-              }}>
+              <div className="notice notice--error" style={{ padding: '10px', fontSize: '14px' }}>
                 {error}
               </div>
             )}
 
-            <div className="form-field">
+            <div>
               <input
                 type="password"
                 placeholder="New Password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                className="form-input"
+                maxLength={128}
+                className="auth-input"
                 autoFocus
               />
             </div>
 
-            <div className="form-field">
+            <div>
               <input
                 type="password"
                 placeholder="Confirm Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="form-input"
+                maxLength={128}
+                className="auth-input"
               />
             </div>
 
-            <button type="submit" className="signin-btn" disabled={loading}>
-              {loading ? 'Resetting...' : 'Reset Password →'}
+            <button
+              type="submit"
+              className="btn btn--primary btn--pill btn--full"
+              style={{ marginTop: '16px' }}
+              disabled={loading}
+            >
+              {loading ? 'Resetting...' : 'Reset Password'}
             </button>
           </form>
 
           <div className="auth-switch">
             <p>
               Remember your password?{' '}
-              <button
-                type="button"
-                onClick={() => navigate('/signin')}
-                className="switch-btn"
-                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-              >
+              <button type="button" onClick={() => navigate('/signin')} className="auth-link">
                 Sign in
               </button>
             </p>
@@ -171,6 +132,18 @@ const PasswordResetPage: React.FC = () => {
       </section>
 
       <Footer />
+
+      <StatusModal
+        isOpen={success}
+        onClose={handleSuccessClose}
+        status="success"
+        title="Password Reset Successful!"
+        message="Your password has been reset successfully."
+        submessage="Redirecting to sign in..."
+        autoCloseMs={2000}
+        onAutoClose={handleSuccessClose}
+        showCloseButton={true}
+      />
     </div>
   );
 };

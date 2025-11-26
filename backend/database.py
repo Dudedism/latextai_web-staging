@@ -54,7 +54,7 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_upload_used=False, is_deleted=False, **kwargs):
+    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_upload_used=False, is_deleted=False, card_fingerprints=None, **kwargs):
         super().__init__(
             name=name,
             email=email,
@@ -64,6 +64,7 @@ class User(BaseModel):
             data_consent=data_consent,
             free_upload_used=free_upload_used,
             is_deleted=is_deleted,
+            card_fingerprints=card_fingerprints if card_fingerprints is not None else [],
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -183,6 +184,49 @@ class User(BaseModel):
         return user.get('free_upload_used', False) if user else False
 
     @classmethod
+    def add_card_fingerprint(cls, email, fingerprint):
+        """
+        Add a card fingerprint to user's array if not already present.
+
+        Returns:
+            bool: True if fingerprint was added, False if already exists
+        """
+        result = mongo.db[cls.collection_name].update_one(
+            {'email': email, 'card_fingerprints': {'$ne': fingerprint}},
+            {'$addToSet': {'card_fingerprints': fingerprint}}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def has_card_fingerprint(cls, email, fingerprint):
+        """Check if user has a specific card fingerprint"""
+        user = cls.find_by_email(email)
+        if not user:
+            return False
+        return fingerprint in user.get('card_fingerprints', [])
+
+    @classmethod
+    def find_user_by_fingerprint_with_free_project(cls, fingerprint, exclude_email=None):
+        """
+        Find any user who has this fingerprint AND has claimed a free project.
+        Used to detect abuse (same card claiming free across multiple accounts).
+
+        Args:
+            fingerprint: Card fingerprint to check
+            exclude_email: Email to exclude from search (current user)
+
+        Returns:
+            User document if found, None otherwise
+        """
+        query = {
+            'card_fingerprints': fingerprint,
+            'free_upload_used': True
+        }
+        if exclude_email:
+            query['email'] = {'$ne': exclude_email}
+        return mongo.db[cls.collection_name].find_one(query)
+
+    @classmethod
     def set_upload_lock(cls, email):
         """
         Set upload lock for user to prevent simultaneous uploads.
@@ -209,7 +253,7 @@ class Project(BaseModel):
     def __init__(self, upload_filename=None, user_id=None, status='unconverted',
                  project_id=None, template=None, paid=False, is_free_project=False,
                  total_cost=0.0, filesize=0, word_count=0, page_count=0,
-                 validated=False, **kwargs):
+                 validated=False, card_fingerprint=None, **kwargs):
         super().__init__(
             upload_filename=upload_filename,
             user_id=user_id,
@@ -223,6 +267,7 @@ class Project(BaseModel):
             word_count=word_count,  # Number of words in document
             page_count=page_count,  # Number of pages in document
             validated=validated,  # Whether file has been validated (LibreOffice conversion + word count)
+            card_fingerprint=card_fingerprint,  # Stripe card fingerprint used for payment/free claim
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -400,7 +445,7 @@ class Project(BaseModel):
         return count > 0
 
     @classmethod
-    def mark_as_paid(cls, project_id, is_free=False, total_cost=0.0):
+    def mark_as_paid(cls, project_id, is_free=False, total_cost=0.0, card_fingerprint=None):
         """
         Mark a project as paid and optionally as the free project.
 
@@ -408,19 +453,32 @@ class Project(BaseModel):
             project_id: Project ID
             is_free: Whether this is the user's free project
             total_cost: Total cost (0.0 for free projects)
+            card_fingerprint: Stripe card fingerprint used for this transaction
 
         Returns:
             bool: True if update successful
         """
+        update_data = {
+            'paid': True,
+            'is_free_project': is_free,
+            'total_cost': total_cost,
+            'paid_at': datetime.utcnow(),
+            'status': 'validated'
+        }
+        if card_fingerprint:
+            update_data['card_fingerprint'] = card_fingerprint
         result = mongo.db[cls.collection_name].update_one(
             {'project_id': project_id},
-            {'$set': {
-                'paid': True,
-                'is_free_project': is_free,
-                'total_cost': total_cost,
-                'paid_at': datetime.utcnow(),
-                'status': 'validated'  # Ensure status is 'validated' after payment
-            }}
+            {'$set': update_data}
+        )
+        return result.modified_count > 0
+
+    @classmethod
+    def set_card_fingerprint(cls, project_id, fingerprint):
+        """Set the card fingerprint for a project"""
+        result = mongo.db[cls.collection_name].update_one(
+            {'project_id': project_id},
+            {'$set': {'card_fingerprint': fingerprint}}
         )
         return result.modified_count > 0
 

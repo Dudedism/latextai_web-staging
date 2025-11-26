@@ -9,8 +9,6 @@ import { ConsentModal } from '../common/ConsentModal';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { PasswordResetRequestModal } from '../common/PasswordResetRequestModal';
 import { apiRequest } from '../../utils/api';
-import '../../styles/common.css';
-import './AccountPage.css';
 
 interface AccountPageProps {
   userName?: string;
@@ -149,94 +147,94 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   }
 
   return (
-    <div className="account-page">
-      <Banner isAuthenticated={isAuthenticated} userName={user?.name} />
-      
-      <section className="account-main-section">
-        <div className="account-container">
-          <h1 className="account-title">Your Account</h1>
-          
-          <div className="account-section">
-          <div className="account-field">
-            <label>Name</label>
-            <div className="field-value">{userName}</div>
-          </div>
+    <div className="page">
+      <Banner />
 
-          <div className="account-field">
-            <label>Email</label>
-            <div className="field-value">{userEmail}</div>
-          </div>
+      <section className="main-section main-section--centered">
+        <div className="container container--sm">
+          <h1 className="section-title">Your Account</h1>
 
-          <div className="account-field">
-            <label>Email Verification Status</label>
-            <div className="field-value verification-status">
-              {isVerified ? (
-                <span className="verified-badge">✓ Verified</span>
-              ) : (
-                <>
-                  <span className="unverified-badge">Not Verified</span>
-                  <button className="verify-email-btn" onClick={handleVerifyEmail}>
-                    Send Verification Email
-                  </button>
-                </>
-              )}
+          <div className="mb-8">
+            <div className="mb-6">
+              <label className="form-label form-label--light">Name</label>
+              <div>{userName}</div>
             </div>
-          </div>
 
-          <div className="account-field">
-            <label>Data Consent</label>
-            <div className="field-value verification-status">
-              {dataConsent ? (
-                <>
-                  <span className="verified-badge">✓ Consent Granted</span>
-                  <button className="delete-account-btn" onClick={handleConsentToggle}>
-                    Revoke Consent
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="unverified-badge">Consent Not Granted</span>
-                  <button className="verify-email-btn" onClick={handleConsentToggle}>
-                    Grant Consent
-                  </button>
-                </>
-              )}
+            <div className="mb-6">
+              <label className="form-label form-label--light">Email</label>
+              <div>{userEmail}</div>
             </div>
-          </div>
 
-          <div className="account-field">
-            <label>Password</label>
-            <div className="field-value verification-status">
-              {isVerified ? (
-                <button className="verify-email-btn" onClick={handlePasswordResetClick}>
-                  Reset Password
-                </button>
-              ) : (
-                <>
-                  <button className="verify-email-btn" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+            <div className="mb-6">
+              <label className="form-label form-label--light">Email Verification Status</label>
+              <div className="flex items-center gap-4">
+                {isVerified ? (
+                  <span className="badge badge--success">✓ Verified</span>
+                ) : (
+                  <>
+                    <span className="badge badge--error">Not Verified</span>
+                    <button className="btn btn--primary btn--sm btn--pill" onClick={handleVerifyEmail}>
+                      Send Verification Email
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="form-label form-label--light">Data Consent</label>
+              <div className="flex items-center gap-4">
+                {dataConsent ? (
+                  <>
+                    <span className="badge badge--success">✓ Consent Granted</span>
+                    <button className="btn btn--danger btn--sm btn--pill" onClick={handleConsentToggle}>
+                      Revoke Consent
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="badge badge--error">Consent Not Granted</span>
+                    <button className="btn btn--primary btn--sm btn--pill" onClick={handleConsentToggle}>
+                      Grant Consent
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="form-label form-label--light">Password</label>
+              <div className="flex items-center gap-4">
+                {isVerified ? (
+                  <button className="btn btn--primary btn--sm btn--pill" onClick={handlePasswordResetClick}>
                     Reset Password
                   </button>
-                  <span className="unverified-badge" style={{ marginLeft: '12px' }}>
-                    Verify email first
-                  </span>
-                </>
-              )}
+                ) : (
+                  <>
+                    <button className="btn btn--primary btn--sm btn--pill" disabled>
+                      Reset Password
+                    </button>
+                    <span className="badge badge--error">
+                      Verify email first
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="form-label form-label--light">Account Management</label>
+              <div>
+                <button className="btn btn--danger btn--sm btn--pill" onClick={handleDeleteAccount}>
+                  Delete Account
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="account-field">
-            <label>Account Management</label>
-            <div className="field-value">
-              <button className="delete-account-btn" onClick={handleDeleteAccount}>
-                Delete Account
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <button className="sign-out-btn" onClick={handleSignOut}>
-          Sign Out
-        </button>
+          <button className="btn btn--ghost" onClick={handleSignOut}>
+            Sign Out
+          </button>
         </div>
       </section>
 

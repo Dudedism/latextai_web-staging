@@ -1,41 +1,17 @@
-export interface User {
-  email: string;
-  name: string;
-  isAdmin: boolean;
-  token: string;
-}
+// Auth event system - allows fetchInterceptor to notify React components
+type AuthEventListener = () => void;
+const authEventListeners: Set<AuthEventListener> = new Set();
 
-export const getAuthenticatedUser = (): User | null => {
-  const token = localStorage.getItem('token');
-  const email = localStorage.getItem('userEmail');
-  const name = localStorage.getItem('userName');
-  const isAdmin = localStorage.getItem('isAdmin') === 'true';
-
-  if (!token || !email || !name) {
-    console.log('🔒 [AUTH] No authenticated user (missing token/email/name)');
-    return null;
-  }
-
-  console.log(`🔒 [AUTH] User: ${email} | Admin: ${isAdmin}`);
-
-  return {
-    email,
-    name,
-    isAdmin,
-    token
-  };
+export const onAuthCleared = (listener: AuthEventListener): (() => void) => {
+  authEventListeners.add(listener);
+  return () => authEventListeners.delete(listener);
 };
 
-export const isAuthenticated = (): boolean => {
-  return getAuthenticatedUser() !== null;
+const emitAuthCleared = () => {
+  authEventListeners.forEach(listener => listener());
 };
 
-export const isAdmin = (): boolean => {
-  const user = getAuthenticatedUser();
-  return user !== null && user.isAdmin === true;
-};
-
-
+// Token getters
 export const getToken = (): string | null => {
   return localStorage.getItem('token');
 };
@@ -49,9 +25,8 @@ export const getTokenExpiry = (): number | null => {
   if (!token) return null;
 
   try {
-    // Decode JWT payload (base64 decode the middle part)
     const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp; // Unix timestamp in seconds
+    return payload.exp;
   } catch {
     return null;
   }
@@ -90,14 +65,12 @@ export const refreshAccessToken = async (silent: boolean = false): Promise<boole
 
     if (response.ok) {
       const data = await response.json();
-      // Store new tokens
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('refreshToken', data.refresh_token);
       console.log(`✅ [AUTH] Token refreshed successfully for: ${currentEmail}`);
       return true;
     } else {
       console.log(`❌ [AUTH] Token refresh failed (${response.status})`);
-      // Only clear auth on silent refresh - let interceptor handle user-initiated actions
       if (silent) {
         console.log('   Silent refresh failed - clearing expired tokens');
         logout();
@@ -115,23 +88,14 @@ export const clearAuthTokens = (): void => {
   const oldEmail = localStorage.getItem('userEmail');
   console.log(`🧹 [AUTH] Removing tokens for: ${oldEmail || 'unknown'}`);
 
-  ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin'].forEach(key => {
+  ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin', 'isVerified'].forEach(key => {
     localStorage.removeItem(key);
   });
 
   console.log('✅ [AUTH] Tokens cleared');
+  emitAuthCleared();
 };
 
 export const logout = (): void => {
   clearAuthTokens();
-};
-
-export const getAuthHeaders = () => {
-  const user = getAuthenticatedUser();
-  if (!user) return {};
-
-  return {
-    'Authorization': `Bearer ${user.token}`,
-    'Content-Type': 'application/json'
-  };
 };

@@ -102,6 +102,20 @@ def requires_admin(func):
 def signup():
     data = request.get_json()
 
+    # Validate required fields exist
+    if not data.get('name') or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Name, email, and password are required.'}), 400
+
+    # Validate input lengths
+    if len(data['name']) > 100:
+        return jsonify({'message': 'Name must be 100 characters or less.'}), 400
+    if len(data['email']) > 254:
+        return jsonify({'message': 'Email must be 254 characters or less.'}), 400
+    if len(data['password']) > 128:
+        return jsonify({'message': 'Password must be 128 characters or less.'}), 400
+    if len(data['password']) < 8:
+        return jsonify({'message': 'Password must be at least 8 characters.'}), 400
+
     if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', data['email']):
         return jsonify({'message': 'Invalid email format.'}), 400
 
@@ -238,6 +252,17 @@ def verify():
 @api_auth.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
+
+    # Validate required fields exist
+    if not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Email and password are required.'}), 400
+
+    # Validate input lengths
+    if len(data['email']) > 254:
+        return jsonify({'message': 'Email must be 254 characters or less.'}), 400
+    if len(data['password']) > 128:
+        return jsonify({'message': 'Password must be 128 characters or less.'}), 400
+
     email = data['email']
     password = data['password']
 
@@ -327,51 +352,51 @@ def refresh():
         'refresh_token': new_refresh_token
     }), 200
 
-@api_auth.route('/loginGoogle', methods=['POST'])
-def login_google():
-    data = request.get_json()
-
-    try:
-        id_info = id_token.verify_oauth2_token(data['credential'], requests.Request(), GOOGLE_CLIENT_ID)
-        email = id_info['email']
-        existing_user = User.find_by_email(email, include_deleted=False)
-
-        # Create user if none exists (check deleted users for free upload history)
-        if not existing_user:
-            name = id_info['given_name'] + ' ' + id_info['family_name']
-            pwd = generate_password_hash(str(uuid.uuid4()))
-
-            # Check deleted users for free upload history
-            deleted_users = User.find_deleted_by_email(email)
-            free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
-
-            user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
-            user.insert()
-            existing_user = User.find_by_email(email, include_deleted=False)
-
-        # Check if user is verified
-        if not existing_user.get('is_verified', False):
-            return jsonify({'message': 'Account not verified'}), 401
-
-        # Create tokens with Flask-JWT-Extended
-        access_token = create_access_token(identity=email, fresh=True)
-        refresh_token = create_refresh_token(identity=email)
-
-        # Store refresh token JTI in database for rotation and reuse detection
-        refresh_token_decoded = decode_token(refresh_token)
-        refresh_token_jti = refresh_token_decoded['jti']
-        User.store_refresh_token(email, refresh_token_jti)
-
-        return jsonify({
-            'message': 'Login successful!',
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'email': email,
-            'admin': existing_user['admin']
-        }), 200
-
-    except (ValueError, KeyError):
-        return jsonify({'message': 'Authentication failed.'}), 401
+# @api_auth.route('/loginGoogle', methods=['POST'])
+# def login_google():
+#     data = request.get_json()
+#
+#     try:
+#         id_info = id_token.verify_oauth2_token(data['credential'], requests.Request(), GOOGLE_CLIENT_ID)
+#         email = id_info['email']
+#         existing_user = User.find_by_email(email, include_deleted=False)
+#
+#         # Create user if none exists (check deleted users for free upload history)
+#         if not existing_user:
+#             name = id_info['given_name'] + ' ' + id_info['family_name']
+#             pwd = generate_password_hash(str(uuid.uuid4()))
+#
+#             # Check deleted users for free upload history
+#             deleted_users = User.find_deleted_by_email(email)
+#             free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
+#
+#             user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
+#             user.insert()
+#             existing_user = User.find_by_email(email, include_deleted=False)
+#
+#         # Check if user is verified
+#         if not existing_user.get('is_verified', False):
+#             return jsonify({'message': 'Account not verified'}), 401
+#
+#         # Create tokens with Flask-JWT-Extended
+#         access_token = create_access_token(identity=email, fresh=True)
+#         refresh_token = create_refresh_token(identity=email)
+#
+#         # Store refresh token JTI in database for rotation and reuse detection
+#         refresh_token_decoded = decode_token(refresh_token)
+#         refresh_token_jti = refresh_token_decoded['jti']
+#         User.store_refresh_token(email, refresh_token_jti)
+#
+#         return jsonify({
+#             'message': 'Login successful!',
+#             'access_token': access_token,
+#             'refresh_token': refresh_token,
+#             'email': email,
+#             'admin': existing_user['admin']
+#         }), 200
+#
+#     except (ValueError, KeyError):
+#         return jsonify({'message': 'Authentication failed.'}), 401
 
 @api_auth.route('/logout', methods=['POST'])
 @requires_auth
@@ -391,7 +416,18 @@ def logout(user):
 @api_auth.route('/changePassword', methods=['POST'])
 @requires_auth
 def change_password(user, data):
-    new_pass = generate_password_hash(data['new_password'])
+    new_password = data.get('new_password')
+
+    if not new_password:
+        return jsonify({'message': 'New password is required.'}), 400
+
+    # Validate password length
+    if len(new_password) > 128:
+        return jsonify({'message': 'Password must be 128 characters or less.'}), 400
+    if len(new_password) < 8:
+        return jsonify({'message': 'Password must be at least 8 characters.'}), 400
+
+    new_pass = generate_password_hash(new_password)
     User.update_password(user['email'], new_pass)
     return jsonify({'message': 'Password changed successfully!'}), 200
 
@@ -492,6 +528,10 @@ def request_password_reset():
     if not email:
         return jsonify({'error': 'Email is required'}), 400
 
+    # Validate email length
+    if len(email) > 254:
+        return jsonify({'error': 'Email must be 254 characters or less'}), 400
+
     print(f"🔑 [PASSWORD RESET] Password reset requested for {email}")
 
     # Find user by email
@@ -550,6 +590,12 @@ def reset_password():
 
     if not token or not new_password:
         return jsonify({'error': 'Token and new password are required'}), 400
+
+    # Validate password length
+    if len(new_password) > 128:
+        return jsonify({'error': 'Password must be 128 characters or less'}), 400
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
 
     # Create hash of token for database lookup
     token_hash = hashlib.sha256(token.encode()).hexdigest()

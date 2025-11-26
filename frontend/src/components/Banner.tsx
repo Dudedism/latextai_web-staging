@@ -1,18 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import LoadingScreen from './common/LoadingScreen';
 import './Banner.css';
 
-interface BannerProps {
-  // Legacy props - kept for backward compatibility but not used
-  isAuthenticated?: boolean;
-  userName?: string;
-}
-
-const Banner: React.FC<BannerProps> = () => {
+const Banner: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { isAuthenticated, logout } = useAuth();
 
@@ -30,9 +26,19 @@ const Banner: React.FC<BannerProps> = () => {
   }, []);
 
   const handleSignOut = async () => {
+    setIsSigningOut(true);
+    setIsDropdownOpen(false);
     await logout();
-    navigate('/');
+    if (location.pathname === '/') {
+      setIsSigningOut(false);
+    } else {
+      navigate('/');
+    }
   };
+
+  if (isSigningOut) {
+    return <LoadingScreen />;
+  }
 
   return (
     <header className="banner">
@@ -53,8 +59,18 @@ const Banner: React.FC<BannerProps> = () => {
           <button
             className="hamburger-button"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            aria-label="Menu"
           >
-            <span className="username">Menu</span>
+            <span className="menu-text">Menu</span>
+            <svg
+              className="hamburger-icon"
+              width="20"
+              height="14"
+              viewBox="0 0 20 14"
+              fill="none"
+            >
+              <path d="M1 1H19M1 7H19M1 13H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
             <svg
               className="dropdown-arrow"
               width="12"
@@ -67,8 +83,28 @@ const Banner: React.FC<BannerProps> = () => {
           </button>
           {isDropdownOpen && (
             <div className="dropdown-menu">
+              <button
+                className="mobile-menu-close"
+                onClick={() => setIsDropdownOpen(false)}
+                aria-label="Close menu"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+              {/* Mobile-only nav links */}
+              <div className="mobile-nav-links">
+                <Link to="/" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  Home
+                </Link>
+                <Link to="/about" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  About
+                </Link>
+                <Link to="/pricing" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  Pricing
+                </Link>
+              </div>
               {isAuthenticated ? (
-                // Authenticated user menu
                 <>
                   <Link to="/account" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Profile
@@ -84,7 +120,6 @@ const Banner: React.FC<BannerProps> = () => {
                   </button>
                 </>
               ) : (
-                // Unauthenticated user menu
                 <>
                   <Link to="/signin" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                     Sign In

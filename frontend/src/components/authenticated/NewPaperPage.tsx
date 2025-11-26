@@ -1,19 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
 import { ConsentModal } from '../common/ConsentModal';
 import { apiRequest } from '../../utils/api';
-import '../../styles/common.css';
-import './NewPaperPage.css';
 
 type UploadState = 'upload' | 'preview' | 'template';
 
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user: _user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -126,63 +122,77 @@ const NewPaperPage: React.FC = () => {
     );
   }
 
+  const dropzoneStyles: React.CSSProperties = {
+    width: '100%',
+    maxWidth: '500px',
+    height: '350px',
+    border: `2px dashed ${isDragging ? '#000' : '#e0e0e0'}`,
+    borderRadius: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '16px',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    background: isDragging ? '#f5f5f5' : 'white',
+  };
+
   return (
-    <div className="new-paper-page">
+    <div className="page">
       <Banner />
-      
-      <section className="new-paper-main-section">
-        <div className="new-paper-container">
-        <div className="upload-progress">
-          <div className="progress-step active">File</div>
-          <div className="progress-arrow">→</div>
-          <div className={`progress-step ${uploadState === 'preview' ? 'active' : ''}`}>Template</div>
-          <div className="progress-arrow">→</div>
-          <div className="progress-step">Upload</div>
-        </div>
 
-        <h1 className="page-title">Choose Your Word Document</h1>
-
-        {uploadState === 'upload' && (
-          <div className="upload-section">
-            <div 
-              className={`upload-dropzone ${isDragging ? 'dragging' : ''}`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={handleClick}
-            >
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <path d="M24 8V32M24 8L16 16M24 8L32 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M8 40H40" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <p className="upload-text">Drag or Click to Upload</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".doc,.docx"
-                onChange={handleFileInputChange}
-                style={{ display: 'none' }}
-              />
-            </div>
-            <button className="template-btn" disabled>
-              Choose A Template →
-            </button>
+      <section className="main-section">
+        <div className="container container--md text-center">
+          <div className="progress-steps">
+            <div className={`progress-step ${uploadState === 'upload' ? 'progress-step--active' : ''}`}>File</div>
+            <div className="progress-arrow">→</div>
+            <div className={`progress-step ${uploadState === 'preview' ? 'progress-step--active' : ''}`}>Template</div>
+            <div className="progress-arrow">→</div>
+            <div className="progress-step">Upload</div>
           </div>
-        )}
 
-        {uploadState === 'preview' && (
-          <div className="preview-section">
-            <div className="preview-info">
-              <p className="document-title">
-                <strong>Filename:</strong><br />
-                {documentTitle}
-              </p>
+          <h1 className="section-title">Choose Your Word Document</h1>
+
+          {uploadState === 'upload' && (
+            <div className="flex flex-col items-center gap-6">
+              <div
+                style={dropzoneStyles}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={handleClick}
+              >
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ color: '#666' }}>
+                  <path d="M24 8V32M24 8L16 16M24 8L32 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M8 40H40" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <p className="text-muted">Drag or Click to Upload</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".doc,.docx"
+                  onChange={handleFileInputChange}
+                  style={{ display: 'none' }}
+                />
+              </div>
+              <button className="btn btn--secondary btn--pill btn--lg" disabled>
+                Choose A Template →
+              </button>
             </div>
-            <button className="template-btn" onClick={handleChooseTemplate}>
-              Choose A Template →
-            </button>
-          </div>
-        )}
+          )}
+
+          {uploadState === 'preview' && (
+            <div className="flex flex-col items-center gap-6">
+              <div>
+                <p className="text-sm text-muted mb-2">Filename:</p>
+                <p>{documentTitle}</p>
+              </div>
+              <button className="btn btn--secondary btn--pill btn--lg" onClick={handleChooseTemplate}>
+                Choose A Template →
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

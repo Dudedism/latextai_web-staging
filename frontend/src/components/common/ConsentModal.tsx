@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './ConsentModal.css';
 import { apiRequest } from '../../utils/api';
 
 interface ConsentModalProps {
@@ -56,52 +55,52 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
   };
 
   return (
-    <div className="consent-modal-overlay" onClick={handleOverlayClick}>
-      <div className="consent-modal-content">
-        <h2 className="consent-modal-title">Help Us Make LaTexT Better</h2>
+    <div className="modal-overlay" onClick={handleOverlayClick} style={{ padding: '20px', overflowY: 'auto' }}>
+      <div className="modal-content" style={{ maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <h2 className="modal-title" style={{ fontSize: '32px', marginBottom: '32px' }}>Help Us Make LaTexT Better</h2>
 
-        <div className="consent-modal-text">
-          <p>
+        <div style={{ color: '#333', lineHeight: 1.6 }}>
+          <p style={{ marginBottom: '20px' }}>
             We use anonymized document data only to improve formatting accuracy and the AI models behind LaTexT.
           </p>
 
-          <p>
+          <p style={{ marginBottom: '20px' }}>
             By allowing us to analyze how our system handles your uploads, you help us fix errors faster, make formatting
             more reliable, and develop new features that benefit everyone.
           </p>
 
-          <p>
+          <p style={{ marginBottom: '20px' }}>
             <strong>Your privacy and ownership are fully protected.</strong> Your documents will never be sold, shared,
             or made public — they're used strictly inside LaTexT for research and technical improvement.
           </p>
 
-          <div className="consent-modal-agreement-box">
-            <label className="consent-modal-agreement-label">
+          <div style={{ margin: '32px 0', padding: '24px', background: '#f8f8f8', borderRadius: '8px', border: '2px solid #e0e0e0' }}>
+            <label style={{ display: 'flex', gap: '12px', cursor: 'pointer', alignItems: 'flex-start' }}>
               <input
                 type="checkbox"
                 checked={isChecked}
                 onChange={(e) => setIsChecked(e.target.checked)}
-                className="consent-modal-checkbox"
+                style={{ width: '20px', height: '20px', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}
               />
-              <span className="consent-modal-agreement-text">
+              <span style={{ fontSize: '15px', lineHeight: 1.6, flex: 1 }}>
                 I agree to let OpenTypesetter LLC securely retain and analyze copies of my uploaded and typeset documents
                 for internal research and product-improvement purposes.
               </span>
             </label>
           </div>
 
-          <p className="consent-modal-note">
+          <p className="text-muted text-sm" style={{ fontStyle: 'italic' }}>
             – This consent is optional and can be withdrawn at any time in your account settings.<br />
             – Declining or withdrawing consent will not affect your ability to use the Service.
           </p>
         </div>
 
-        <div className="consent-modal-actions">
-          <button className="consent-modal-btn consent-modal-btn-decline" onClick={handleDecline}>
+        <div className="modal-actions mt-8">
+          <button className="btn btn--danger btn--lg" onClick={handleDecline}>
             Decline & Revoke
           </button>
           <button
-            className="consent-modal-btn consent-modal-btn-agree"
+            className="btn btn--primary btn--lg"
             onClick={handleAgree}
             disabled={!isChecked}
           >

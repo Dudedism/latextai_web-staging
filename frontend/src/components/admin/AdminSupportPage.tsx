@@ -6,7 +6,6 @@ import LoadingScreen from '../common/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '../../utils/api';
 import { formatDate, getStatusColor } from '../../utils/formatting';
-import '../../styles/common.css';
 import './AdminSupportPage.css';
 
 interface Message {
@@ -191,6 +190,7 @@ const AdminSupportPage: React.FC = () => {
                 placeholder="Search by subject, user, or project..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                maxLength={200}
               />
             </div>
           </div>

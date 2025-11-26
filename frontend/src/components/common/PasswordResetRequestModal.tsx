@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './PasswordResetRequestModal.css';
 
 interface PasswordResetRequestModalProps {
   isOpen: boolean;
@@ -46,28 +45,28 @@ export const PasswordResetRequestModal: React.FC<PasswordResetRequestModalProps>
   };
 
   return (
-    <div className="password-reset-request-modal-overlay" onClick={handleOverlayClick}>
-      <div className="password-reset-request-modal-content">
-        <button className="password-reset-request-modal-close" onClick={onClose}>×</button>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div className="modal-content" style={{ borderRadius: '16px', padding: '32px' }}>
+        <button className="modal-close" onClick={onClose}>×</button>
 
-        <h2 className="password-reset-request-modal-title">Reset Your Password</h2>
+        <h2 className="modal-title" style={{ fontSize: '24px', marginBottom: '16px' }}>Reset Your Password</h2>
 
-        <p className="password-reset-request-modal-description">
+        <p className="text-muted mb-6" style={{ lineHeight: 1.6 }}>
           We'll send a password reset link to {userEmail}. Click the button below to receive the link.
         </p>
 
         <button
-          className="password-reset-request-button"
+          className="btn btn--primary btn--pill btn--full"
           onClick={handleSendReset}
           disabled={sending || sent}
         >
           {sending ? 'Sending...' : sent ? 'Email Sent!' : 'Send Password Reset Email'}
         </button>
 
-        {error && <p className="password-reset-request-error">{error}</p>}
-        {sent && <p className="password-reset-request-success">Password reset email sent! Check your inbox.</p>}
+        {error && <p className="text-error text-sm text-center mt-4">{error}</p>}
+        {sent && <p className="text-success text-sm text-center mt-4 font-medium">Password reset email sent! Check your inbox.</p>}
 
-        <p className="password-reset-request-modal-footer">
+        <p className="text-muted text-sm text-center mt-4" style={{ lineHeight: 1.5 }}>
           The link will expire in 1 hour. Check your spam folder if you don't see it.
         </p>
       </div>
