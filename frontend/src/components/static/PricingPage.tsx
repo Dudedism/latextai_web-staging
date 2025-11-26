@@ -68,8 +68,8 @@ const PricingPage: React.FC = () => {
 
           <h3>What's your refund policy?</h3>
           <p>
-            We offer a 7-day money-back guarantee if you're not satisfied with the conversion quality.
-            Simply contact our support team with details about the issue.
+            Refunds are available if a paid document fails to process or if the output is unusable
+            due to a system error. Contact our support team at contact@latext.ai with details about the issue.
           </p>
         </section>
         </div>

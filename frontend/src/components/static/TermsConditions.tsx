@@ -31,11 +31,7 @@ const TermsConditions: React.FC = () => {
           </p>
           <p>
             <strong>1.3 Account Deletion:</strong> You may delete your account at any time through your account settings.
-            When you delete your account, all associated documents will be permanently removed from our systems within 30 days.
-            If you prefer your documents and personal data to be deleted immediately and irreversibly upon account deletion,
-            you may request this by contacting us at contact@latext.ai. Once such a request is received, we will
-            permanently remove your data from our active systems without delay, subject only to legal or security-related
-            retention obligations.
+            When you delete your account, all associated documents and personal data will be permanently removed from our systems immediately.
           </p>
         </section>
 
@@ -97,9 +93,7 @@ const TermsConditions: React.FC = () => {
             <strong>5.1 Storage:</strong> Uploaded documents remain available in your account until you delete them.
           </p>
           <p>
-            <strong>5.2 Recycle Bin and Deletion:</strong> Deleted documents are first moved to a recycle bin accessible
-            from your account. They will be permanently deleted 30 days after being placed there, unless you choose to
-            restore them. You may also request immediate permanent deletion at any time through your account settings.
+            <strong>5.2 Deletion:</strong> When you delete a document, it is permanently removed from our systems immediately.
           </p>
           <p>
             <strong>5.3 Privacy Policy:</strong> Our Privacy Policy, which explains in detail how we handle your data,

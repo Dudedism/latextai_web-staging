@@ -119,6 +119,11 @@ def upload_file(user, data):
 
         # STEP 3: Get and validate template
         template_id = request.form.get('template', 'mq').lower()
+
+        # Validate template_id length (prevent excessively long inputs)
+        if len(template_id) > 50:
+            return jsonify({'error': 'Template ID must be 50 characters or less'}), 400
+
         is_valid, result = validate_template(template_id)
         if not is_valid:
             return jsonify({'error': result}), 400
@@ -126,6 +131,10 @@ def upload_file(user, data):
         # STEP 4: Generate project ID and create directory structure
         project_id = str(uuid.uuid4())
         filename = secure_filename(file.filename)
+
+        # Validate filename length (after secure_filename sanitization)
+        if len(filename) > 255:
+            return jsonify({'error': 'Filename must be 255 characters or less'}), 400
 
         # Create project directory: user_projects/{email}/{project_id}/
         project_dir = create_project_directory(user_email, project_id)
@@ -204,6 +213,10 @@ def validate_file(user, data):
         project_id = data.get('project_id')
         if not project_id:
             return jsonify({'error': 'project_id is required'}), 400
+
+        # Validate project_id format (should be UUID, max 36 chars)
+        if len(project_id) > 36:
+            return jsonify({'error': 'Invalid project_id format'}), 400
 
         # STEP 2: Find project in database
         project = Project.find_by_id(project_id)
@@ -378,6 +391,10 @@ def claim_free_upload(user, data):
 
     if not project_id:
         return jsonify({'error': 'project_id is required'}), 400
+
+    # Validate project_id format (should be UUID, max 36 chars)
+    if len(project_id) > 36:
+        return jsonify({'error': 'Invalid project_id format'}), 400
 
     # STEP 1: Verify project exists and belongs to user
     project = Project.find_by_id(project_id)
@@ -715,6 +732,10 @@ def get_project_tickets(user, project_id):
 @requires_auth
 def get_ticket_details(user, ticket_id):
     """Get full ticket details with all messages"""
+    # Validate ticket_id length (UUID format, max 36 chars)
+    if len(ticket_id) > 36:
+        return jsonify({'error': 'Invalid ticket_id format'}), 400
+
     # Find the ticket
     ticket_data = Ticket.find_by_id(ticket_id)
     if not ticket_data:
@@ -749,6 +770,10 @@ def get_ticket_details(user, ticket_id):
 @requires_auth(require_verified=True)
 def add_ticket_message(user, data, ticket_id):
     """Add a message to an existing ticket"""
+    # Validate ticket_id length (UUID format, max 36 chars)
+    if len(ticket_id) > 36:
+        return jsonify({'error': 'Invalid ticket_id format'}), 400
+
     # Check user verification status
     if not user.get('is_verified', False):
         return jsonify({'error': 'Please sign up to send messages'}), 401

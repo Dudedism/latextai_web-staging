@@ -59,7 +59,6 @@ const SignInPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔐 [SIGNIN PAGE] Form submitted, preventDefault called');
     setError('');
     setLoading(true);
 
@@ -95,7 +94,6 @@ const SignInPage: React.FC = () => {
           // Navigate to papers page
           navigate('/papers');
         } else {
-          console.log('❌ [SIGNIN] Login failed, showing error modal:', result.error);
           setError(result.error || 'Login failed');
           setShowErrorModal(true);
         }
@@ -187,6 +185,7 @@ const SignInPage: React.FC = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  maxLength={100}
                   className="auth-input"
                 />
               </div>
@@ -199,6 +198,7 @@ const SignInPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                maxLength={254}
                 className="auth-input"
               />
             </div>
@@ -210,6 +210,7 @@ const SignInPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                maxLength={128}
                 className="auth-input"
               />
             </div>
@@ -222,6 +223,7 @@ const SignInPage: React.FC = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                  maxLength={128}
                   className="auth-input"
                 />
               </div>

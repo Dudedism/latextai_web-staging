@@ -190,6 +190,7 @@ const AdminSupportPage: React.FC = () => {
                 placeholder="Search by subject, user, or project..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                maxLength={200}
               />
             </div>
           </div>

@@ -2,6 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatusModal } from '../common/StatusModal';
+import LandingPage from '../homepage/LandingPage';
+import Footer from '../Footer';
 
 const VerifyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -74,34 +76,38 @@ const VerifyPage: React.FC = () => {
   };
 
   return (
-    <StatusModal
-      isOpen={true}
-      onClose={handleClose}
-      status={status === 'verifying' ? 'loading' : status}
-      title={
-        status === 'verifying'
-          ? 'Verifying...'
-          : status === 'success'
-          ? 'Email Verified!'
-          : 'Verification Failed'
-      }
-      message={
-        status === 'verifying'
-          ? 'Please wait while we verify your email address.'
-          : status === 'success'
-          ? 'Your email has been successfully verified.'
-          : errorMessage
-      }
-      submessage={status === 'success' ? 'Redirecting you to home page...' : undefined}
-      autoCloseMs={status === 'success' ? 2000 : undefined}
-      onAutoClose={handleClose}
-      showCloseButton={status !== 'verifying'}
-      actionButton={
-        status === 'error'
-          ? { label: 'Go to Home', onClick: handleClose }
-          : undefined
-      }
-    />
+    <>
+      <LandingPage />
+      <Footer />
+      <StatusModal
+        isOpen={true}
+        onClose={handleClose}
+        status={status === 'verifying' ? 'loading' : status}
+        title={
+          status === 'verifying'
+            ? 'Verifying...'
+            : status === 'success'
+            ? 'Email Verified!'
+            : 'Verification Failed'
+        }
+        message={
+          status === 'verifying'
+            ? 'Please wait while we verify your email address.'
+            : status === 'success'
+            ? 'Your email has been successfully verified.'
+            : errorMessage
+        }
+        submessage={status === 'success' ? 'Redirecting you to home page...' : undefined}
+        autoCloseMs={status === 'success' ? 2000 : undefined}
+        onAutoClose={handleClose}
+        showCloseButton={status !== 'verifying'}
+        actionButton={
+          status === 'error'
+            ? { label: 'Go to Home', onClick: handleClose }
+            : undefined
+        }
+      />
+    </>
   );
 };
 

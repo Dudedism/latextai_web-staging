@@ -65,6 +65,7 @@ const ForgotPasswordPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                maxLength={254}
                 className="auth-input"
                 autoFocus
               />

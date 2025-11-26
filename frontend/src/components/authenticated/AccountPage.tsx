@@ -148,7 +148,7 @@ const AccountPage: React.FC<AccountPageProps> = () => {
 
   return (
     <div className="page">
-      <Banner isAuthenticated={isAuthenticated} userName={user?.name} />
+      <Banner />
 
       <section className="main-section main-section--centered">
         <div className="container container--sm">

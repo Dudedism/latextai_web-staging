@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { onAuthCleared, clearAuthTokens } from '../utils/auth';
 
 interface User {
   email: string;
@@ -99,6 +100,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
+  // Listen for auth cleared events (e.g., from fetchInterceptor)
+  useEffect(() => {
+    const unsubscribe = onAuthCleared(() => {
+      console.log('🔔 [AUTH CONTEXT] Auth cleared event received, syncing React state');
+      setUser(null);
+    });
+
+    return unsubscribe;
+  }, []);
+
   const isAuthenticated = user !== null;
   const isAdmin = user?.isAdmin || false;
   const isVerified = user?.isVerified || false;
@@ -143,16 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const clearAuth = () => {
     console.log('🧹 [AUTH CONTEXT] Clearing auth state');
-    const oldEmail = localStorage.getItem('userEmail');
-    console.log(`🧹 [AUTH CONTEXT] Removing tokens for: ${oldEmail || 'unknown'}`);
-
-    ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin', 'isVerified'].forEach(key => {
-      localStorage.removeItem(key);
-    });
-
-    setUser(null);
-
-    console.log('✅ [AUTH CONTEXT] Auth state cleared');
+    clearAuthTokens(); // Clears localStorage and emits event, which triggers setUser(null)
   };
 
   const login = async (

@@ -92,6 +92,7 @@ const PasswordResetPage: React.FC = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
+                maxLength={128}
                 className="auth-input"
                 autoFocus
               />
@@ -104,6 +105,7 @@ const PasswordResetPage: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                maxLength={128}
                 className="auth-input"
               />
             </div>

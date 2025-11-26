@@ -102,6 +102,20 @@ def requires_admin(func):
 def signup():
     data = request.get_json()
 
+    # Validate required fields exist
+    if not data.get('name') or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Name, email, and password are required.'}), 400
+
+    # Validate input lengths
+    if len(data['name']) > 100:
+        return jsonify({'message': 'Name must be 100 characters or less.'}), 400
+    if len(data['email']) > 254:
+        return jsonify({'message': 'Email must be 254 characters or less.'}), 400
+    if len(data['password']) > 128:
+        return jsonify({'message': 'Password must be 128 characters or less.'}), 400
+    if len(data['password']) < 8:
+        return jsonify({'message': 'Password must be at least 8 characters.'}), 400
+
     if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', data['email']):
         return jsonify({'message': 'Invalid email format.'}), 400
 
@@ -238,6 +252,17 @@ def verify():
 @api_auth.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
+
+    # Validate required fields exist
+    if not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Email and password are required.'}), 400
+
+    # Validate input lengths
+    if len(data['email']) > 254:
+        return jsonify({'message': 'Email must be 254 characters or less.'}), 400
+    if len(data['password']) > 128:
+        return jsonify({'message': 'Password must be 128 characters or less.'}), 400
+
     email = data['email']
     password = data['password']
 
@@ -391,7 +416,18 @@ def logout(user):
 @api_auth.route('/changePassword', methods=['POST'])
 @requires_auth
 def change_password(user, data):
-    new_pass = generate_password_hash(data['new_password'])
+    new_password = data.get('new_password')
+
+    if not new_password:
+        return jsonify({'message': 'New password is required.'}), 400
+
+    # Validate password length
+    if len(new_password) > 128:
+        return jsonify({'message': 'Password must be 128 characters or less.'}), 400
+    if len(new_password) < 8:
+        return jsonify({'message': 'Password must be at least 8 characters.'}), 400
+
+    new_pass = generate_password_hash(new_password)
     User.update_password(user['email'], new_pass)
     return jsonify({'message': 'Password changed successfully!'}), 200
 
@@ -492,6 +528,10 @@ def request_password_reset():
     if not email:
         return jsonify({'error': 'Email is required'}), 400
 
+    # Validate email length
+    if len(email) > 254:
+        return jsonify({'error': 'Email must be 254 characters or less'}), 400
+
     print(f"🔑 [PASSWORD RESET] Password reset requested for {email}")
 
     # Find user by email
@@ -550,6 +590,12 @@ def reset_password():
 
     if not token or not new_password:
         return jsonify({'error': 'Token and new password are required'}), 400
+
+    # Validate password length
+    if len(new_password) > 128:
+        return jsonify({'error': 'Password must be 128 characters or less'}), 400
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
 
     # Create hash of token for database lookup
     token_hash = hashlib.sha256(token.encode()).hexdigest()

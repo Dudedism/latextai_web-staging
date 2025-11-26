@@ -22,7 +22,7 @@ const PrivacyPolicy: React.FC = () => {
           <ul>
             <li>Account information (name, email address, password)</li>
             <li>Payment information (processed securely through Stripe)</li>
-            <li>Document content (temporarily stored for processing)</li>
+            <li>Uploaded documents and converted output files</li>
             <li>Usage data and analytics</li>
           </ul>
         </section>
@@ -42,7 +42,7 @@ const PrivacyPolicy: React.FC = () => {
         <section className="static-section">
           <h2>3. Data Storage and Security</h2>
           <p>
-            Your documents are temporarily stored during processing and automatically deleted after 30 days. 
+            Your documents are stored on our servers and remain available in your account until you choose to delete them.
             We implement appropriate technical and organizational measures to protect your personal information.
           </p>
         </section>
@@ -52,8 +52,6 @@ const PrivacyPolicy: React.FC = () => {
           <p>We use the following third-party services:</p>
           <ul>
             <li><strong>Stripe:</strong> For payment processing</li>
-            <li><strong>Google OAuth:</strong> For authentication (optional)</li>
-            <li><strong>AWS S3:</strong> For secure file storage</li>
           </ul>
         </section>
 

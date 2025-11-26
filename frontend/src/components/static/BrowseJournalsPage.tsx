@@ -61,6 +61,7 @@ const BrowseJournalsPage: React.FC = () => {
               placeholder="Search for your journal"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              maxLength={100}
               className="search-input"
             />
             <svg className="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -79,10 +80,10 @@ const BrowseJournalsPage: React.FC = () => {
                 <div key={template.id} className="template-card">
                   <div className="template-preview">
                     <img src={template.thumbnail} alt={template.name} />
-                    <span className="template-badge">{template.publisher}</span>
+                    <span className="template-badge">{template.name}</span>
                   </div>
                   <div className="template-info">
-                    <h3 className="template-name">{template.name}</h3>
+                    <h3 className="template-name">{template.publisher}</h3>
                     <span className="template-year">{template.year}</span>
                   </div>
                 </div>

@@ -1,18 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import LoadingScreen from './common/LoadingScreen';
 import './Banner.css';
 
-interface BannerProps {
-  // Legacy props - kept for backward compatibility but not used
-  isAuthenticated?: boolean;
-  userName?: string;
-}
-
-const Banner: React.FC<BannerProps> = () => {
+const Banner: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { isAuthenticated, logout } = useAuth();
 
@@ -30,9 +26,15 @@ const Banner: React.FC<BannerProps> = () => {
   }, []);
 
   const handleSignOut = async () => {
+    setIsSigningOut(true);
+    setIsDropdownOpen(false);
     await logout();
     navigate('/');
   };
+
+  if (isSigningOut) {
+    return <LoadingScreen />;
+  }
 
   return (
     <header className="banner">
