@@ -5,6 +5,7 @@ Run with: pytest tests/test_input_validation.py -v -s
 """
 
 import os
+import uuid
 import pytest
 import requests
 from pathlib import Path
@@ -306,6 +307,14 @@ class TestProjectValidation:
 class TestValidInputsAccepted:
     """Test that valid inputs at the boundary are accepted."""
 
+    @pytest.fixture(autouse=True)
+    def setup_cleanup(self):
+        """Clean up any test users created during boundary tests."""
+        yield
+        with app.app_context():
+            mongo.db.users.delete_many({'email': {'$regex': '^boundary_test_'}})
+            print("🧹 Cleaned up boundary test users")
+
     def test_name_at_limit(self):
         """Name exactly 100 chars should be accepted (if other validations pass)."""
         print("\n" + "="*60)
@@ -314,7 +323,7 @@ class TestValidInputsAccepted:
 
         payload = {
             "name": "A" * 100,
-            "email": "boundary_test_name@gmail.com",
+            "email": f"boundary_test_name_{uuid.uuid4().hex[:8]}@gmail.com",
             "password": "ValidPass123!"
         }
 
@@ -336,7 +345,7 @@ class TestValidInputsAccepted:
 
         payload = {
             "name": "Valid Name",
-            "email": "boundary_test_pw@gmail.com",
+            "email": f"boundary_test_pw_{uuid.uuid4().hex[:8]}@gmail.com",
             "password": "Valid12!"
         }
 

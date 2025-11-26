@@ -2,17 +2,14 @@
    GLOBAL.CSS - Consolidated styles for LaTeX.ai
    ============================================================================= */
 
-/* --- Font Import --- */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
-
 /* =============================================================================
    CSS VARIABLES
    ============================================================================= */
 :root {
-  /* Fonts */
-  --font-sans: 'Roboto', 'Open Sans', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
-  --font-mono: 'Courier New', monospace;
+  /* Fonts - System font stack for optimal performance and native feel */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --font-mono: 'SF Mono', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
 
   /* Font sizes */
   --fs-xs: 12px;

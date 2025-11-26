@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
@@ -32,6 +32,7 @@ interface PaymentDetails {
 const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAdmin } = useAuth();
 
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
@@ -40,6 +41,53 @@ const PaymentPage: React.FC = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorStatusCode, setErrorStatusCode] = useState<number | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+
+  const claimingRef = React.useRef(false);
+
+  // Handle return from Stripe setup checkout
+  useEffect(() => {
+    const setupSuccess = searchParams.get('setup_success');
+    if (setupSuccess === 'true' && projectId && !claimingRef.current) {
+      claimingRef.current = true;
+      console.log('✅ [PAYMENT] Returned from Stripe setup, claiming free upload...');
+      setSearchParams({});
+      claimFreeAfterSetup();
+    }
+  }, [searchParams, projectId]);
+
+  const claimFreeAfterSetup = async () => {
+    if (!projectId) return;
+
+    setLoading(true);
+    try {
+      await apiRequest('/api/latex/claim-free', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId })
+      });
+
+      console.log('✅ [PAYMENT] Free upload claimed successfully');
+
+      await apiRequest('/api/latex/process', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId })
+      });
+
+      console.log('✅ [PAYMENT] Processing started successfully');
+      navigate(`/papers/${projectId}/view`);
+
+    } catch (error: any) {
+      console.error('❌ [PAYMENT] Error claiming free upload:', error);
+      if (error.status === 409) {
+        setErrorMessage(error.message || 'This card has already been used for a free upload.');
+      } else {
+        setErrorMessage(error.message || 'Failed to claim free upload');
+      }
+      setErrorStatusCode(error.status);
+      setShowErrorModal(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch payment details on mount
   useEffect(() => {
@@ -86,35 +134,25 @@ const PaymentPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // STEP 1: Claim free upload (atomic operation)
-      await apiRequest('/api/latex/claim-free', {
+      console.log('🔐 [STRIPE] Creating setup session for card verification...');
+
+      const response = await apiRequest<{ checkout_url: string }>('/api/stripe/create-setup-session', {
         method: 'POST',
         body: JSON.stringify({ project_id: projectId })
       });
 
-      console.log('✅ Free upload claimed successfully');
-
-      // STEP 2: Trigger processing
-      await apiRequest('/api/latex/process', {
-        method: 'POST',
-        body: JSON.stringify({ project_id: projectId })
-      });
-
-      console.log('✅ Processing started successfully');
-
-      // STEP 3: Navigate to preview page
-      navigate(`/papers/${projectId}/view`);
+      console.log('✅ [STRIPE] Setup session created, redirecting to card verification...');
+      window.location.href = response.checkout_url;
 
     } catch (error: any) {
-      console.error('Error claiming free upload:', error);
+      console.error('❌ [STRIPE] Error creating setup session:', error);
 
       if (error.status === 409) {
-        // Free upload already used or race condition
         setErrorMessage(error.message || 'Your free upload has already been used. Please use a payment method.');
         setErrorStatusCode(409);
       } else {
         setErrorStatusCode(error.status);
-        setErrorMessage(error.message);
+        setErrorMessage(error.message || 'Failed to start card verification');
       }
 
       setShowErrorModal(true);
@@ -291,7 +329,7 @@ const PaymentPage: React.FC = () => {
                   <div className="notice-icon">🎁</div>
                   <div className="notice-content">
                     <strong>You have 1 free upload available!</strong>
-                    <p>This will use your one-time free document conversion. After this, standard pricing applies.</p>
+                    <p>Card verification required to prevent abuse. You will not be charged.</p>
                   </div>
                 </div>
                 <button
@@ -300,7 +338,7 @@ const PaymentPage: React.FC = () => {
                   disabled={loading}
                   style={{ marginTop: '12px' }}
                 >
-                  {loading ? 'Processing...' : 'Use Free Upload'}
+                  {loading ? 'Verifying...' : 'Use Free Upload'}
                 </button>
               </div>
             )}

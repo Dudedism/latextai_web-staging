@@ -29,7 +29,11 @@ const Banner: React.FC = () => {
     setIsSigningOut(true);
     setIsDropdownOpen(false);
     await logout();
-    navigate('/');
+    if (location.pathname === '/') {
+      setIsSigningOut(false);
+    } else {
+      navigate('/');
+    }
   };
 
   if (isSigningOut) {
@@ -79,6 +83,15 @@ const Banner: React.FC = () => {
           </button>
           {isDropdownOpen && (
             <div className="dropdown-menu">
+              <button
+                className="mobile-menu-close"
+                onClick={() => setIsDropdownOpen(false)}
+                aria-label="Close menu"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
               {/* Mobile-only nav links */}
               <div className="mobile-nav-links">
                 <Link to="/" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>

@@ -13,6 +13,12 @@
   gap: 80px;
 }
 
+/* Desktop: flatten the row wrappers */
+.footer-top-row,
+.footer-bottom-row {
+  display: contents;
+}
+
 .footer-brand {
   display: flex;
   flex-direction: column;
@@ -31,7 +37,7 @@
   font-size: 14px;
   color: black;
   margin: 0;
-  font-family: 'Open Sans', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .footer-section {
@@ -45,7 +51,7 @@
   font-weight: 700;
   margin: 0;
   color: black;
-  font-family: Arial, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .footer-links {
@@ -65,7 +71,7 @@
   color: black;
   text-decoration: none;
   font-size: 16px;
-  font-family: 'Open Sans', sans-serif;
+  font-family: var(--font-sans);
   transition: all 0.3s ease;
 }
 
@@ -90,19 +96,46 @@
 
   .footer-container {
     flex-direction: column;
-    gap: 40px;
-    text-align: center;
+    gap: 32px;
+  }
+
+  /* Top row: Logo + The Site side by side */
+  .footer-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
   }
 
   .footer-brand {
+    align-items: flex-start;
+  }
+
+  .footer-section-site {
+    align-items: center;
+    text-align: center;
+  }
+
+  .footer-section-site .footer-links {
     align-items: center;
   }
 
-  .footer-section {
+  /* Bottom row: Legal and Contact stacked, centered */
+  .footer-bottom-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    text-align: center;
+  }
+
+  .footer-section-legal,
+  .footer-section-contact {
     align-items: center;
   }
 
-  .footer-links {
+  .footer-section-legal .footer-links,
+  .footer-section-contact .footer-links {
     align-items: center;
   }
 }

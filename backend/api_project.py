@@ -370,9 +370,9 @@ def claim_free_upload(user, data):
     """
     Atomically claim the free upload for a project.
 
-    This is THE critical endpoint for fixing the race condition.
-    Uses MongoDB's atomic conditional update to ensure only ONE
-    request can successfully claim the free upload.
+    Requires card verification via Stripe setup mode before calling.
+    The fingerprint must be stored on the project (by webhook) and must
+    not be associated with any other user who has claimed a free upload.
 
     Request body:
         {
@@ -382,21 +382,20 @@ def claim_free_upload(user, data):
     Returns:
         Success message with project details
 
-    Race condition prevention:
-        - Uses MongoDB update_one with condition: free_upload_used=False
-        - Only ONE simultaneous request will succeed
-        - Others get modified_count=0 and return 409 Conflict
+    Validation:
+        1. Project must have card_fingerprint (set by setup webhook)
+        2. Fingerprint must be in user's card_fingerprints array
+        3. Fingerprint must not be used by another user for a free upload
+        4. Atomic claim to prevent race conditions
     """
     project_id = data.get('project_id')
 
     if not project_id:
         return jsonify({'error': 'project_id is required'}), 400
 
-    # Validate project_id format (should be UUID, max 36 chars)
     if len(project_id) > 36:
         return jsonify({'error': 'Invalid project_id format'}), 400
 
-    # STEP 1: Verify project exists and belongs to user
     project = Project.find_by_id(project_id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
@@ -404,34 +403,49 @@ def claim_free_upload(user, data):
     if project.get('user_id') != user['email']:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # STEP 2: Check project has been validated
     if not project.get('validated', False):
         return jsonify({
             'error': 'Project must be validated before claiming free upload',
             'requires_validation': True
         }), 400
 
-    # STEP 2.5: Check project status (must be 'validated')
     if project.get('status') != 'validated':
         return jsonify({
             'error': f"Project must be validated before payment (current status: {project.get('status')})",
             'requires_validation': True
         }), 400
 
-    # STEP 3: Check if project is already paid
     if project.get('paid', False):
         return jsonify({
             'error': 'Project is already paid for'
         }), 400
 
-    # STEP 4: ATOMIC OPERATION - Try to claim free upload
-    # This uses MongoDB's conditional update for race condition prevention
+    fingerprint = project.get('card_fingerprint')
+    if not fingerprint:
+        return jsonify({
+            'error': 'Card verification required. Please complete Stripe checkout first.',
+            'requires_card_verification': True
+        }), 400
+
+    if not User.has_card_fingerprint(user['email'], fingerprint):
+        return jsonify({
+            'error': 'Card fingerprint mismatch. Please complete Stripe checkout again.',
+            'requires_card_verification': True
+        }), 400
+
+    abuse_user = User.find_user_by_fingerprint_with_free_project(fingerprint, exclude_email=user['email'])
+    if abuse_user:
+        print(f"⚠️ [CLAIM-FREE] Abuse detected: fingerprint {fingerprint[:8]}... already used by {abuse_user['email']}")
+        return jsonify({
+            'error': 'This card has already been used for a free upload on another account'
+        }), 409
+
     from database import mongo
 
     result = mongo.db.users.update_one(
         {
             'email': user['email'],
-            'free_upload_used': False  # CRITICAL: Only update if false
+            'free_upload_used': False
         },
         {
             '$set': {
@@ -441,33 +455,29 @@ def claim_free_upload(user, data):
         }
     )
 
-    # STEP 5: Check if atomic operation succeeded
     if result.modified_count == 0:
-        # Another request already claimed it, or user already used free upload
         has_used_free = User.has_used_free_upload(user['email'])
         if has_used_free:
             return jsonify({
                 'error': 'You have already used your free upload',
                 'race_condition_detected': False
-            }), 409  # 409 Conflict
+            }), 409
         else:
-            # Race condition detected - another simultaneous request won
             return jsonify({
                 'error': 'Free upload was just claimed by another request',
                 'race_condition_detected': True
-            }), 409  # 409 Conflict
+            }), 409
 
     print(f"✅ [CLAIM-FREE] User {user['email']} claimed free upload for project {project_id}")
 
-    # STEP 6: Mark project as paid and free
     success = Project.mark_as_paid(
         project_id=project_id,
         is_free=True,
-        total_cost=0.0
+        total_cost=0.0,
+        card_fingerprint=fingerprint
     )
 
     if not success:
-        # Rollback the free_upload_used flag
         mongo.db.users.update_one(
             {'email': user['email']},
             {'$set': {'free_upload_used': False}}

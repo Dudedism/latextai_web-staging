@@ -352,51 +352,51 @@ def refresh():
         'refresh_token': new_refresh_token
     }), 200
 
-@api_auth.route('/loginGoogle', methods=['POST'])
-def login_google():
-    data = request.get_json()
-
-    try:
-        id_info = id_token.verify_oauth2_token(data['credential'], requests.Request(), GOOGLE_CLIENT_ID)
-        email = id_info['email']
-        existing_user = User.find_by_email(email, include_deleted=False)
-
-        # Create user if none exists (check deleted users for free upload history)
-        if not existing_user:
-            name = id_info['given_name'] + ' ' + id_info['family_name']
-            pwd = generate_password_hash(str(uuid.uuid4()))
-
-            # Check deleted users for free upload history
-            deleted_users = User.find_deleted_by_email(email)
-            free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
-
-            user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
-            user.insert()
-            existing_user = User.find_by_email(email, include_deleted=False)
-
-        # Check if user is verified
-        if not existing_user.get('is_verified', False):
-            return jsonify({'message': 'Account not verified'}), 401
-
-        # Create tokens with Flask-JWT-Extended
-        access_token = create_access_token(identity=email, fresh=True)
-        refresh_token = create_refresh_token(identity=email)
-
-        # Store refresh token JTI in database for rotation and reuse detection
-        refresh_token_decoded = decode_token(refresh_token)
-        refresh_token_jti = refresh_token_decoded['jti']
-        User.store_refresh_token(email, refresh_token_jti)
-
-        return jsonify({
-            'message': 'Login successful!',
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'email': email,
-            'admin': existing_user['admin']
-        }), 200
-
-    except (ValueError, KeyError):
-        return jsonify({'message': 'Authentication failed.'}), 401
+# @api_auth.route('/loginGoogle', methods=['POST'])
+# def login_google():
+#     data = request.get_json()
+#
+#     try:
+#         id_info = id_token.verify_oauth2_token(data['credential'], requests.Request(), GOOGLE_CLIENT_ID)
+#         email = id_info['email']
+#         existing_user = User.find_by_email(email, include_deleted=False)
+#
+#         # Create user if none exists (check deleted users for free upload history)
+#         if not existing_user:
+#             name = id_info['given_name'] + ' ' + id_info['family_name']
+#             pwd = generate_password_hash(str(uuid.uuid4()))
+#
+#             # Check deleted users for free upload history
+#             deleted_users = User.find_deleted_by_email(email)
+#             free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
+#
+#             user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
+#             user.insert()
+#             existing_user = User.find_by_email(email, include_deleted=False)
+#
+#         # Check if user is verified
+#         if not existing_user.get('is_verified', False):
+#             return jsonify({'message': 'Account not verified'}), 401
+#
+#         # Create tokens with Flask-JWT-Extended
+#         access_token = create_access_token(identity=email, fresh=True)
+#         refresh_token = create_refresh_token(identity=email)
+#
+#         # Store refresh token JTI in database for rotation and reuse detection
+#         refresh_token_decoded = decode_token(refresh_token)
+#         refresh_token_jti = refresh_token_decoded['jti']
+#         User.store_refresh_token(email, refresh_token_jti)
+#
+#         return jsonify({
+#             'message': 'Login successful!',
+#             'access_token': access_token,
+#             'refresh_token': refresh_token,
+#             'email': email,
+#             'admin': existing_user['admin']
+#         }), 200
+#
+#     except (ValueError, KeyError):
+#         return jsonify({'message': 'Authentication failed.'}), 401
 
 @api_auth.route('/logout', methods=['POST'])
 @requires_auth
