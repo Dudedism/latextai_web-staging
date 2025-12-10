@@ -20,34 +20,11 @@ export const getRefreshToken = (): string | null => {
   return localStorage.getItem('refreshToken');
 };
 
-export const getTokenExpiry = (): number | null => {
-  const token = getToken();
-  if (!token) return null;
-
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp;
-  } catch {
-    return null;
-  }
-};
-
-export const shouldRefreshToken = (): boolean => {
-  const exp = getTokenExpiry();
-  if (!exp) return false;
-
-  const now = Math.floor(Date.now() / 1000);
-  const timeLeft = exp - now;
-
-  // Refresh if token expires in less than 5 minutes (300 seconds)
-  return timeLeft > 0 && timeLeft < 300;
-};
-
-export const refreshAccessToken = async (silent: boolean = false): Promise<boolean> => {
+export const refreshAccessToken = async (): Promise<boolean> => {
   const refreshToken = getRefreshToken();
   const currentEmail = localStorage.getItem('userEmail');
 
-  console.log(`🔄 [AUTH] Refreshing token for: ${currentEmail || 'unknown'}${silent ? ' (silent)' : ''}`);
+  console.log(`🔄 [AUTH] Refreshing token for: ${currentEmail || 'unknown'}`);
 
   if (!refreshToken) {
     console.log('❌ [AUTH] No refresh token available');
@@ -71,10 +48,6 @@ export const refreshAccessToken = async (silent: boolean = false): Promise<boole
       return true;
     } else {
       console.log(`❌ [AUTH] Token refresh failed (${response.status})`);
-      if (silent) {
-        console.log('   Silent refresh failed - clearing expired tokens');
-        logout();
-      }
       return false;
     }
   } catch (error) {

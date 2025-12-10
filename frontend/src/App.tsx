@@ -22,7 +22,6 @@ import PasswordResetPage from './components/static/PasswordResetPage';
 import ForgotPasswordPage from './components/static/ForgotPasswordPage';
 import AdminSupportPage from './components/admin/AdminSupportPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
-import { shouldRefreshToken, refreshAccessToken } from './utils/auth';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -37,24 +36,6 @@ const ScrollToTop = () => {
 const AppContent = () => {
   useAuthRedirect();
 
-  // Proactive token refresh: on mount and periodically every 10 minutes
-  useEffect(() => {
-    const checkAndRefresh = async () => {
-      if (shouldRefreshToken()) {
-        console.log('🔄 [APP] Token expiring soon, refreshing proactively');
-        await refreshAccessToken(true); // silent = true (don't redirect on failure)
-      }
-    };
-
-    // Check immediately on mount
-    checkAndRefresh();
-
-    // Check every 10 minutes (600000 ms)
-    const interval = setInterval(checkAndRefresh, 600000);
-
-    return () => clearInterval(interval);
-  }, []);
-  
   return (
     <div className="App">
       <ScrollToTop />

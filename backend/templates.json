@@ -6,57 +6,62 @@
       "publisher": "IEEE",
       "year": "2025",
       "thumbnail": "/ieee.svg",
-      "latextai_name": "IEEE",
+      "latextai_name": "ieee",
       "enabled": true
     },
     {
-      "id": "mq",
-      "name": "Mankind Quarterly",
-      "publisher": "MQ",
+      "id": "ieee_conference",
+      "name": "IEEE Conference",
+      "publisher": "IEEE",
       "year": "2025",
-      "thumbnail": "/MQ_logo_rectangular_small.png",
-      "latextai_name": "MQ",
-      "enabled": false
+      "thumbnail": "/ieee_conference.png",
+      "latextai_name": "ieee_conference",
+      "enabled": true
     },
     {
       "id": "nature",
-      "name": "Nature Communications",
+      "name": "Nature Report",
       "publisher": "Nature",
       "year": "2025",
       "thumbnail": "/nature.svg",
-      "latextai_name": "Nature",
-      "enabled": false,
-      "comment": "Not yet implemented in latextai"
+      "latextai_name": "naturereport",
+      "enabled": true
+    },
+    {
+      "id": "neurips",
+      "name": "NeurIPS",
+      "publisher": "NeurIPS",
+      "year": "2025",
+      "thumbnail": "/neurips.svg",
+      "latextai_name": "neurips",
+      "enabled": true
+    },
+    {
+      "id": "springer",
+      "name": "Springer Computer",
+      "publisher": "Springer",
+      "year": "2025",
+      "thumbnail": "/springer.png",
+      "latextai_name": "springer_computer_science",
+      "enabled": true
     },
     {
       "id": "lancet",
       "name": "The Lancet",
-      "publisher": "Lancet",
+      "publisher": "The Lancet",
       "year": "2025",
       "thumbnail": "/lancet.svg",
-      "latextai_name": "Lancet",
-      "enabled": false,
-      "comment": "Not yet implemented in latextai"
+      "latextai_name": "thelancet",
+      "enabled": true
     },
     {
-      "id": "springer",
-      "name": "Springer Journal",
-      "publisher": "Springer",
+      "id": "default",
+      "name": "Default Document",
+      "publisher": "LaTeX",
       "year": "2025",
-      "thumbnail": "/springer.png",
-      "latextai_name": "Springer",
-      "enabled": false,
-      "comment": "Not yet implemented in latextai"
-    },
-    {
-      "id": "elsevier",
-      "name": "Elsevier Journal",
-      "publisher": "Elsevier",
-      "year": "2025",
-      "thumbnail": "/elsevier.png",
-      "latextai_name": "Elsevier",
-      "enabled": false,
-      "comment": "Not yet implemented in latextai"
+      "thumbnail": "/LaTeX_logo.svg",
+      "latextai_name": "default_document",
+      "enabled": true
     }
   ]
 }
