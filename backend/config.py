@@ -18,8 +18,8 @@ MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30MB (for DOCX files with many figures)
 # Flask-JWT-Extended Configuration
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 
-# Token expiry: 15 minutes access, 7 days refresh (industry standard)
-JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', '900'))  # 15 minutes
+# Token expiry: 1 day access, 7 days refresh
+JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', '86400'))  # 1 day
 JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', '604800'))  # 7 days
 
 ADMIN_IMAGES_DIR = os.getenv('ADMIN_IMAGES_DIR', './images')

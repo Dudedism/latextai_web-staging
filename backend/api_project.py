@@ -516,20 +516,13 @@ def get_projects(user):
             created_at = datetime.fromisoformat(created_at)
         date_str = created_at.strftime('%m/%d/%y')
 
-        # Map template to display name and thumbnail
-        template_map = {
-            'nature': {'name': 'Nature Communications', 'thumbnail': '/nature.svg'},
-            'the lancet': {'name': 'The Lancet', 'thumbnail': '/lancet.svg'},
-            'springer': {'name': 'Springer Journal', 'thumbnail': '/springer.svg'},
-            'elsevier': {'name': 'Elsevier Journal', 'thumbnail': '/elsevier.svg'},
-            'ieee': {'name': 'IEEE Transactions', 'thumbnail': '/ieee.svg'},
-            'mq': {'name': 'Mankind Quarterly', 'thumbnail': '/MQ_logo_rectangular_small.png'},
-        }
-
-        template_info = template_map.get(
-            proj.get('template', '').lower(),
-            {'name': 'Unknown Template', 'thumbnail': '/default.svg'}
-        )
+        # Get template info from templates.json
+        template_id = proj.get('template', '').lower()
+        template_config = get_template_by_id(template_id)
+        if template_config:
+            template_info = {'name': template_config['name'], 'thumbnail': template_config['thumbnail']}
+        else:
+            template_info = {'name': 'Unknown Template', 'thumbnail': '/default.svg'}
 
         # Map database status to frontend status
         db_status = proj.get('status', 'processing')
