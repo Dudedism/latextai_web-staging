@@ -171,12 +171,14 @@ def process_project(user, data):
             'requires_payment': True
         }), 402  # 402 Payment Required
 
-    # STEP 4: Check project status (must be 'validated' or already 'processing')
+    # STEP 4: Check project status (must be 'validated' or already processing/completed/failed)
     project_status = project.get('status')
     if project_status == 'processing':
         return jsonify({'message': 'Project is already being processed'}), 200
     if project_status == 'converted':
         return jsonify({'message': 'Project has already been converted'}), 200
+    if project_status == 'failed':
+        return jsonify({'message': 'Project processing has failed'}), 200
     if project_status != 'validated':
         return jsonify({
             'error': f"Project must be validated before processing (current status: {project_status})"
