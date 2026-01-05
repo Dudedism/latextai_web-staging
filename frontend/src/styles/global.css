@@ -601,9 +601,9 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4);
+  gap: var(--space-8);
   margin-bottom: var(--space-8);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-lg);
   color: var(--color-gray-400);
 }
 

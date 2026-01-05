@@ -106,7 +106,7 @@ const UploadConfirmPage: React.FC = () => {
   };
 
   const handleCancel = () => {
-    navigate('/papers/new');
+    navigate('/papers/new', { state: { file, returnToTemplate: true } });
   };
 
   const getLoadingMessage = () => {
@@ -165,8 +165,8 @@ const UploadConfirmPage: React.FC = () => {
           </div>
 
           <div className="flex gap-4 justify-center">
-            <button className="btn btn--secondary btn--lg" onClick={handleCancel} disabled={isLoading}>
-              ← Back
+            <button className="btn btn--ghost" onClick={handleCancel} disabled={isLoading}>
+              ← Back to Picking Template
             </button>
             <button className="btn btn--primary btn--lg" onClick={handleConfirmUpload} disabled={isLoading}>
               Confirm Upload

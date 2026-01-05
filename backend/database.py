@@ -54,7 +54,7 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_upload_used=False, is_deleted=False, card_fingerprints=None, **kwargs):
+    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_project_id=None, is_deleted=False, card_fingerprints=None, credit_balance=0, **kwargs):
         super().__init__(
             name=name,
             email=email,
@@ -62,9 +62,10 @@ class User(BaseModel):
             is_verified=is_verified,
             admin=admin,
             data_consent=data_consent,
-            free_upload_used=free_upload_used,
+            free_project_id=free_project_id,
             is_deleted=is_deleted,
             card_fingerprints=card_fingerprints if card_fingerprints is not None else [],
+            credit_balance=credit_balance,
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -96,13 +97,14 @@ class User(BaseModel):
         }))
     
     @classmethod
-    def insertdate(cls, email, data):
+    def update_fields(cls, email, data):
+        """Update arbitrary fields for a user by email"""
         result = mongo.db[cls.collection_name].update_one(
-            {'email': email}, 
+            {'email': email},
             {'$set': data}
         )
         return result.modified_count > 0
-    
+
     @classmethod
     def update_password(cls, email, password_hash):
         result = mongo.db[cls.collection_name].update_one(
@@ -129,14 +131,12 @@ class User(BaseModel):
 
     @classmethod
     def get_refresh_token_jti(cls, email):
-        """
-        Get the stored refresh token JTI for a user.
-        Returns None if no token is stored.
-        """
-        user = cls.find_by_email(email)
-        if user:
-            return user.get('refresh_token_jti')
-        return None
+        """Get the stored refresh token JTI for a user. Returns None if no token is stored."""
+        result = mongo.db[cls.collection_name].find_one(
+            {'email': email, 'is_deleted': {'$ne': True}},
+            {'refresh_token_jti': 1}
+        )
+        return result.get('refresh_token_jti') if result else None
 
     @classmethod
     def invalidate_refresh_token(cls, email):
@@ -169,19 +169,27 @@ class User(BaseModel):
         return result.modified_count > 0
 
     @classmethod
-    def mark_free_upload_used(cls, email):
-        """Mark that user has used their free upload"""
+    def set_free_project(cls, email, project_id):
+        """
+        Atomically set the free project for a user.
+        Only succeeds if user hasn't already claimed a free project.
+
+        Returns:
+            bool: True if successfully set, False if already claimed
+        """
         result = mongo.db[cls.collection_name].update_one(
-            {'email': email},
-            {'$set': {'free_upload_used': True, 'free_upload_used_at': datetime.utcnow()}}
+            {'email': email, 'free_project_id': None},
+            {'$set': {'free_project_id': project_id, 'free_project_claimed_at': datetime.utcnow()}}
         )
         return result.modified_count > 0
 
     @classmethod
-    def has_used_free_upload(cls, email):
-        """Check if user has already used their free upload"""
-        user = cls.find_by_email(email)
-        return user.get('free_upload_used', False) if user else False
+    def has_claimed_free_project(cls, email):
+        """Check if user has already claimed their free project (single-field query)"""
+        return mongo.db[cls.collection_name].count_documents(
+            {'email': email, 'free_project_id': {'$ne': None}},
+            limit=1
+        ) > 0
 
     @classmethod
     def add_card_fingerprint(cls, email, fingerprint):
@@ -198,29 +206,21 @@ class User(BaseModel):
         return result.modified_count > 0
 
     @classmethod
-    def has_card_fingerprint(cls, email, fingerprint):
-        """Check if user has a specific card fingerprint"""
-        user = cls.find_by_email(email)
-        if not user:
-            return False
-        return fingerprint in user.get('card_fingerprints', [])
-
-    @classmethod
-    def find_user_by_fingerprint_with_free_project(cls, fingerprint, exclude_email=None):
+    def find_user_with_fingerprint_and_free_claim(cls, fingerprints, exclude_email=None):
         """
-        Find any user who has this fingerprint AND has claimed a free project.
+        Find any user who has ANY of these fingerprints AND has claimed a free project.
         Used to detect abuse (same card claiming free across multiple accounts).
 
         Args:
-            fingerprint: Card fingerprint to check
+            fingerprints: List of card fingerprints to check
             exclude_email: Email to exclude from search (current user)
 
         Returns:
             User document if found, None otherwise
         """
         query = {
-            'card_fingerprints': fingerprint,
-            'free_upload_used': True
+            'card_fingerprints': {'$in': fingerprints},
+            'free_project_id': {'$ne': None}
         }
         if exclude_email:
             query['email'] = {'$ne': exclude_email}
@@ -247,27 +247,63 @@ class User(BaseModel):
         )
         return result.modified_count > 0
 
+    @classmethod
+    def get_credit_balance(cls, email):
+        """Get user's current credit balance"""
+        result = mongo.db[cls.collection_name].find_one(
+            {'email': email, 'is_deleted': {'$ne': True}},
+            {'credit_balance': 1}
+        )
+        return result.get('credit_balance', 0) if result else 0
+
+    @classmethod
+    def add_credits(cls, email, amount):
+        """
+        Add credits to user's balance atomically.
+        Returns new balance or None if user not found.
+        """
+        result = mongo.db[cls.collection_name].find_one_and_update(
+            {'email': email},
+            {'$inc': {'credit_balance': amount}},
+            return_document=True
+        )
+        return result.get('credit_balance') if result else None
+
+    @classmethod
+    def deduct_credits(cls, email, amount):
+        """
+        Deduct credits from user's balance atomically.
+        Only succeeds if user has sufficient balance.
+        Returns new balance or None if insufficient/user not found.
+        """
+        result = mongo.db[cls.collection_name].find_one_and_update(
+            {'email': email, 'credit_balance': {'$gte': amount}},
+            {'$inc': {'credit_balance': -amount}},
+            return_document=True
+        )
+        return result.get('credit_balance') if result else None
+
+
 class Project(BaseModel):
     collection_name = 'projects'
 
     def __init__(self, upload_filename=None, user_id=None, status='unconverted',
-                 project_id=None, template=None, paid=False, is_free_project=False,
-                 total_cost=0.0, filesize=0, word_count=0, page_count=0,
-                 validated=False, card_fingerprint=None, **kwargs):
+                 project_id=None, template=None, paid=False,
+                 total_credits=0, filesize=0, word_count=0, page_count=0,
+                 validated=False, feedback=None, **kwargs):
         super().__init__(
             upload_filename=upload_filename,
             user_id=user_id,
             status=status,
             project_id=project_id,
             template=template,
-            paid=paid,  # Whether this project has been paid for
-            is_free_project=is_free_project,  # Whether this is the user's free project
-            total_cost=total_cost,  # Total cost in dollars
-            filesize=filesize,  # File size in bytes
-            word_count=word_count,  # Number of words in document
-            page_count=page_count,  # Number of pages in document
-            validated=validated,  # Whether file has been validated (LibreOffice conversion + word count)
-            card_fingerprint=card_fingerprint,  # Stripe card fingerprint used for payment/free claim
+            paid=paid,
+            total_credits=total_credits,
+            filesize=filesize,
+            word_count=word_count,
+            page_count=page_count,
+            validated=validated,
+            feedback=feedback,
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -416,234 +452,45 @@ class Project(BaseModel):
         return mongo.db[cls.collection_name].count_documents({'user_id': {'$in': identifiers}})
 
     @classmethod
-    def has_paid_free_project(cls, user):
+    def mark_as_paid(cls, project_id, total_cost=0.0):
         """
-        Check if user has at least one project that was both:
-        - is_free_project=True (marked as their free project)
-        - paid=True (processing was approved/paid for)
-
-        This is used in the freemium model where a user can upload one free file.
-        Once that free file is approved for processing (paid=True), they can upload
-        more than 10 files for payment.
-
-        Note: This may seem paradoxical (free AND paid), but it makes sense:
-        - is_free_project=True means this counted as their "one free upload"
-        - paid=True means they approved it for full download/processing
-
-        Args:
-            user: User dict from database
-
-        Returns:
-            bool: True if user has a paid free project
-        """
-        identifiers = cls.get_user_identifiers(user)
-        count = mongo.db[cls.collection_name].count_documents({
-            'user_id': {'$in': identifiers},
-            'is_free_project': True,
-            'paid': True
-        })
-        return count > 0
-
-    @classmethod
-    def mark_as_paid(cls, project_id, is_free=False, total_cost=0.0, card_fingerprint=None):
-        """
-        Mark a project as paid and optionally as the free project.
+        Mark a project as paid.
 
         Args:
             project_id: Project ID
-            is_free: Whether this is the user's free project
             total_cost: Total cost (0.0 for free projects)
-            card_fingerprint: Stripe card fingerprint used for this transaction
 
         Returns:
             bool: True if update successful
         """
-        update_data = {
-            'paid': True,
-            'is_free_project': is_free,
-            'total_cost': total_cost,
-            'paid_at': datetime.utcnow(),
-            'status': 'validated'
-        }
-        if card_fingerprint:
-            update_data['card_fingerprint'] = card_fingerprint
         result = mongo.db[cls.collection_name].update_one(
             {'project_id': project_id},
-            {'$set': update_data}
+            {'$set': {
+                'paid': True,
+                'total_cost': total_cost,
+                'paid_at': datetime.utcnow(),
+                'status': 'validated'
+            }}
         )
         return result.modified_count > 0
 
     @classmethod
-    def set_card_fingerprint(cls, project_id, fingerprint):
-        """Set the card fingerprint for a project"""
+    def set_feedback(cls, project_id, feedback):
+        """
+        Set user feedback for a project.
+
+        Args:
+            project_id: Project ID
+            feedback: 'positive', 'negative', or None to clear
+
+        Returns:
+            bool: True if update successful
+        """
         result = mongo.db[cls.collection_name].update_one(
             {'project_id': project_id},
-            {'$set': {'card_fingerprint': fingerprint}}
+            {'$set': {'feedback': feedback, 'feedback_at': datetime.utcnow()}}
         )
         return result.modified_count > 0
-
-class Ticket(BaseModel):
-    collection_name = 'tickets'
-
-    def __init__(self, project_id=None, user_id=None, subject=None, status='open',
-                 ticket_id=None, messages=None, **kwargs):
-        if ticket_id is None:
-            ticket_id = str(uuid.uuid4())
-        if messages is None:
-            messages = []
-
-        super().__init__(
-            ticket_id=ticket_id,
-            project_id=project_id,
-            user_id=user_id,
-            subject=subject,
-            status=status,
-            messages=messages,
-            created_at=datetime.utcnow(),
-            **kwargs
-        )
-
-    @classmethod
-    def get_user_identifiers(cls, user):
-        """
-        Get all possible user identifiers (email and ObjectId) for backwards compatibility.
-
-        Args:
-            user: User dict from database
-
-        Returns:
-            list: List of possible user_id values [email, str(_id)]
-        """
-        identifiers = []
-        if user.get('email'):
-            identifiers.append(user['email'])
-        if user.get('_id'):
-            identifiers.append(str(user['_id']))
-        return identifiers
-
-    @classmethod
-    def find_by_id(cls, ticket_id):
-        """Find a ticket by its ticket_id"""
-        ticket = cls()
-        return ticket.find({'ticket_id': ticket_id})
-
-    @classmethod
-    def find_by_project(cls, project_id):
-        """Get all tickets for a specific project"""
-        return cls.find_all({'project_id': project_id})
-
-    @classmethod
-    def find_open_ticket_by_project(cls, project_id):
-        """Get open ticket for a project (only 1 open at a time)"""
-        ticket = cls()
-        return ticket.find({'project_id': project_id, 'status': {'$in': ['open', 'in_progress']}})
-
-    @classmethod
-    def find_by_user(cls, user):
-        """
-        Get all tickets created by a user.
-        Handles both email and ObjectId formats for backwards compatibility.
-
-        Args:
-            user: Either a user dict with 'email' and '_id', or a string (email/user_id)
-
-        Returns:
-            list: List of tickets created by the user
-        """
-        if isinstance(user, str):
-            # String passed - query for exact match
-            return cls.find_all({'user_id': user})
-        else:
-            # User dict passed - query for both email and _id
-            identifiers = cls.get_user_identifiers(user)
-            return cls.find_all({'user_id': {'$in': identifiers}})
-
-    @classmethod
-    def delete_by_user(cls, user):
-        """
-        Delete all tickets for a specific user.
-        Handles both email and ObjectId formats for backwards compatibility.
-
-        Args:
-            user: User dict from database
-
-        Returns:
-            int: Number of tickets deleted
-        """
-        identifiers = cls.get_user_identifiers(user)
-        result = mongo.db[cls.collection_name].delete_many({'user_id': {'$in': identifiers}})
-        return result.deleted_count
-
-    @classmethod
-    def transfer_to_user(cls, from_user, to_user):
-        """
-        Transfer all tickets from one user to another.
-        Used during account merging.
-
-        Args:
-            from_user: Source user dict
-            to_user: Target user dict
-
-        Returns:
-            int: Number of tickets transferred
-        """
-        from_identifiers = cls.get_user_identifiers(from_user)
-        to_email = to_user['email']  # Always use email for new assignments
-
-        result = mongo.db[cls.collection_name].update_many(
-            {'user_id': {'$in': from_identifiers}},
-            {'$set': {'user_id': to_email}}
-        )
-        return result.modified_count
-
-    def add_message(self, content, sender, sender_id):
-        """Add a new message to the ticket's messages array"""
-        message = {
-            'message_id': len(self.data['messages']),
-            'content': content,
-            'sender': sender,
-            'sender_id': sender_id,
-            'timestamp': datetime.utcnow()
-        }
-
-        # Add message to local data
-        self.data['messages'].append(message)
-
-        # Update in database
-        result = mongo.db[self.collection_name].update_one(
-            {'ticket_id': self.data['ticket_id']},
-            {'$push': {'messages': message}}
-        )
-        return result.modified_count > 0
-
-    def update_status(self, new_status):
-        """Change ticket status"""
-        self.data['status'] = new_status
-        result = mongo.db[self.collection_name].update_one(
-            {'ticket_id': self.data['ticket_id']},
-            {'$set': {'status': new_status}}
-        )
-        return result.modified_count > 0
-
-    def count_user_messages_in_last_hour(self):
-        """Count messages from user in last 60 minutes (for rate limiting)"""
-        if 'messages' not in self.data:
-            return 0
-
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-        count = 0
-
-        for msg in self.data['messages']:
-            if msg['sender'] == 'user' and msg.get('timestamp'):
-                # Handle both datetime objects and ISO strings
-                timestamp = msg['timestamp']
-                if isinstance(timestamp, str):
-                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                if timestamp > one_hour_ago:
-                    count += 1
-
-        return count
-
 
 class UsedToken(BaseModel):
     collection_name = 'used_tokens'
@@ -685,3 +532,45 @@ class UsedToken(BaseModel):
             'used_at': {'$lt': cutoff_date}
         })
         return result.deleted_count
+
+
+class CreditTransaction(BaseModel):
+    collection_name = 'credit_transactions'
+
+    def __init__(self, user_id=None, transaction_type=None, amount=0, balance_after=0,
+                 description=None, project_id=None, stripe_session_id=None, **kwargs):
+        super().__init__(
+            transaction_id=str(uuid.uuid4()),
+            user_id=user_id,
+            transaction_type=transaction_type,
+            amount=amount,
+            balance_after=balance_after,
+            description=description,
+            project_id=project_id,
+            stripe_session_id=stripe_session_id,
+            created_at=datetime.utcnow(),
+            **kwargs
+        )
+
+    @classmethod
+    def create(cls, user_id, transaction_type, amount, balance_after, description,
+               project_id=None, stripe_session_id=None):
+        """Create and save a new credit transaction"""
+        txn = cls(
+            user_id=user_id,
+            transaction_type=transaction_type,
+            amount=amount,
+            balance_after=balance_after,
+            description=description,
+            project_id=project_id,
+            stripe_session_id=stripe_session_id
+        )
+        txn.insert()
+        return txn.data
+
+    @classmethod
+    def get_user_transactions(cls, email, limit=50):
+        """Get recent transactions for a user, newest first"""
+        return list(mongo.db[cls.collection_name].find(
+            {'user_id': email}
+        ).sort('created_at', -1).limit(limit))

@@ -17,6 +17,7 @@ interface ProjectResponse {
   status: string;
   paid?: boolean;
   compilation_failed?: boolean;
+  feedback?: 'positive' | 'negative' | null;
 }
 
 const PreviewPage: React.FC = () => {
@@ -28,6 +29,7 @@ const PreviewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(null);
   const { id: paperId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -61,6 +63,7 @@ const PreviewPage: React.FC = () => {
       const projectStatus = project.status;
       const projectPaid = project.paid || false;
       const projectCompilationFailed = project.compilation_failed || false;
+      setFeedback(project.feedback || null);
 
       const currentPath = window.location.pathname;
       const isViewingThisProject = currentPath === `/papers/${paperId}/view`;
@@ -93,7 +96,7 @@ const PreviewPage: React.FC = () => {
 
         if (paymentStartTime.current && Date.now() - paymentStartTime.current > PAYMENT_TIMEOUT) {
           console.log('[PREVIEW] Payment verification timeout');
-          setErrorMessage('Payment verification timed out. Please try again or contact support.');
+          setErrorMessage('Payment verification timed out. Please try again or contact us at contact@latext.ai.');
           setShowErrorModal(true);
           return;
         }
@@ -168,10 +171,6 @@ const PreviewPage: React.FC = () => {
     };
   }, [pdfUrl]);
 
-  const handleGoToSupport = () => {
-    navigate(`/papers/${paperId}/support`);
-  };
-
   const handleErrorModalClose = () => {
     setShowErrorModal(false);
     navigate(`/papers/${paperId}/payment`);
@@ -218,6 +217,19 @@ const PreviewPage: React.FC = () => {
       } else {
         console.error('Error downloading package:', error);
       }
+    }
+  };
+
+  const handleFeedback = async (value: 'positive' | 'negative') => {
+    if (feedback !== null) return;
+    try {
+      await apiRequest(`/api/latex/project/${paperId}/feedback`, {
+        method: 'POST',
+        body: JSON.stringify({ feedback: value }),
+      });
+      setFeedback(value);
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
     }
   };
 
@@ -313,7 +325,9 @@ const PreviewPage: React.FC = () => {
               <div className="error-state">
                 <h2 className="processing-title">Processing Failed</h2>
                 <p className="processing-subtitle">{error || 'An error occurred while processing your document.'}</p>
-                <button className="btn btn-dark" onClick={handleGoToSupport} style={{ marginTop: '24px' }}>Contact Support</button>
+                <p className="processing-subtitle" style={{ marginTop: '16px' }}>
+                  Please contact us at <a href="mailto:contact@latext.ai" style={{ color: '#2196f3', fontWeight: 600 }}>contact@latext.ai</a>
+                </p>
               </div>
             </div>
           ) : status === 'completed' && compilationFailed ? (
@@ -325,6 +339,9 @@ const PreviewPage: React.FC = () => {
                 </p>
                 <p className="processing-subtitle" style={{ maxWidth: '600px', margin: '16px auto 0' }}>
                   You can still download the .tex file, .bib file, and full compilation package below to compile locally.
+                </p>
+                <p className="processing-subtitle" style={{ marginTop: '16px' }}>
+                  Need help? Contact us at <a href="mailto:contact@latext.ai" style={{ color: '#2196f3', fontWeight: 600 }}>contact@latext.ai</a>
                 </p>
               </div>
             </div>
@@ -345,6 +362,55 @@ const PreviewPage: React.FC = () => {
               )}
             </div>
           ) : null}
+
+          {/* Feedback Section - Only show when completed */}
+          {status === 'completed' && (
+            <div className="content-section">
+              <h3 className="section-heading">
+                {feedback ? 'Thanks for your feedback!' : 'How was the output quality?'}
+              </h3>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                <button
+                  onClick={() => handleFeedback('positive')}
+                  disabled={feedback !== null}
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    border: feedback === 'positive' ? '3px solid #4caf50' : '2px solid #e0e0e0',
+                    background: feedback === 'positive' ? '#e8f5e9' : 'white',
+                    cursor: feedback !== null ? 'default' : 'pointer',
+                    opacity: feedback !== null && feedback !== 'positive' ? 0.4 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Good"
+                >
+                  <img src="/green-thumbs-up-11246.svg" alt="Thumbs up" width="28" height="28" />
+                </button>
+                <button
+                  onClick={() => handleFeedback('negative')}
+                  disabled={feedback !== null}
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    border: feedback === 'negative' ? '3px solid #f44336' : '2px solid #e0e0e0',
+                    background: feedback === 'negative' ? '#ffebee' : 'white',
+                    cursor: feedback !== null ? 'default' : 'pointer',
+                    opacity: feedback !== null && feedback !== 'negative' ? 0.4 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Bad"
+                >
+                  <img src="/thumbs-down-14922.svg" alt="Thumbs down" width="28" height="28" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Download Section - Always Visible, Disabled During Processing */}
           <div className="content-section">
@@ -388,21 +454,6 @@ const PreviewPage: React.FC = () => {
               </button>
             </div>
           </div>
-
-          {/* Support Section - Only Visible When Converted */}
-          {status === 'completed' && (
-            <div className="content-section">
-              <p className="section-heading">
-                Are you happy with the quality of this formatting?
-              </p>
-              <p className="section-description">
-                If not: submit a support ticket
-              </p>
-              <button className="btn btn-dark" onClick={handleGoToSupport}>
-                Go to Support
-              </button>
-            </div>
-          )}
 
           {/* Admin Debug Controls */}
           {isAdmin && (

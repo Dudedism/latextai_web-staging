@@ -33,7 +33,7 @@ def test_user():
         user = create_test_user(
             name="Upload Validation Test User",
             is_verified=True,
-            free_upload_used=False,
+            free_project_id=None,
             mongo_db=mongo.db,
             base_url=BASE_URL
         )

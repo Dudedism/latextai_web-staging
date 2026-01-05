@@ -24,7 +24,7 @@ from google.oauth2 import id_token
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import *
-from database import User, Project, Ticket, UsedToken, mongo
+from database import User, Project, UsedToken, mongo
 from email_service import send_verification_email, send_password_reset_email
 from itsdangerous import URLSafeTimedSerializer
 
@@ -137,11 +137,18 @@ def signup():
 
     pwd = generate_password_hash(data['password'])
 
-    # Check if any deleted users with this email have used their free upload
+    # Check if any deleted users with this email have used their free upload or have card fingerprints
     deleted_users = User.find_deleted_by_email(data['email'])
-    free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
+    inherited_free_project_id = None
+    inherited_card_fingerprints = []
+    for du in deleted_users:
+        if du.get('free_project_id'):
+            inherited_free_project_id = du.get('free_project_id')
+        if du.get('card_fingerprints'):
+            inherited_card_fingerprints.extend(du.get('card_fingerprints', []))
+    inherited_card_fingerprints = list(set(inherited_card_fingerprints))
 
-    if free_upload_already_used:
+    if inherited_free_project_id:
         print(f"ℹ️  [SIGNUP] User {data['email']} has previously used free upload (from deleted account)")
 
     # Create user with is_verified=False (requires email verification)
@@ -149,9 +156,10 @@ def signup():
         name=data['name'],
         email=data['email'],
         password=pwd,
-        is_verified=False,  # User must verify email
+        is_verified=False,
         admin=False,
-        free_upload_used=free_upload_already_used  # Inherit from deleted accounts
+        free_project_id=inherited_free_project_id,
+        card_fingerprints=inherited_card_fingerprints
     )
 
     user.insert()
@@ -229,9 +237,8 @@ def verify():
         # Mark token as used BEFORE verifying user
         UsedToken.mark_token_used(token_hash, 'email_verification', email)
 
-        # Update the user's is_verified status to True using the insertdate method
         print(f"📝 [VERIFY] Marking user as verified...")
-        User.insertdate(email, {"is_verified": True})
+        User.update_fields(email, {"is_verified": True})
         print(f"✅ [VERIFY] User verification successful!")
 
         # Return JSON response with user email for frontend to update auth state
@@ -437,7 +444,7 @@ def delete_account(user, data):
     """
     'Delete' user account by orphaning it.
     - Deletes all projects (including uploaded files) and tickets
-    - Keeps user record with email and free_upload_used for tracking
+    - Keeps user record with email, free_project_id, and card_fingerprints for abuse tracking
     - Strips all personal information
     - Marks account as deleted
     - Sets random password to prevent login
@@ -470,24 +477,20 @@ def delete_account(user, data):
             shutil.rmtree(user_dir, ignore_errors=True)
             print(f"   Deleted user directory: {user_dir}")
 
-        # Delete all tickets created by user using convenience function
-        tickets_deleted = Ticket.delete_by_user(user)
-        print(f"   Deleted {tickets_deleted} tickets")
-
         # Invalidate user's refresh tokens
         User.invalidate_refresh_token(user['email'])
         print(f"   Invalidated refresh tokens")
 
-        # Orphan the user account (keep email + free_upload_used, strip everything else)
+        # Orphan the user account (keep email, free_project_id, card_fingerprints for abuse tracking)
         orphan_data = {
             'is_deleted': True,
             'deleted_at': datetime.datetime.utcnow(),
             'name': '[DELETED]',
-            'password': generate_password_hash(str(uuid.uuid4())),  # Random password
+            'password': generate_password_hash(str(uuid.uuid4())),
             'is_verified': False,
             'admin': False,
             'data_consent': None,
-            # Keep: email, free_upload_used (if exists)
+            'credit_balance': 0,
         }
 
         update_result = mongo.db.users.update_one(
@@ -497,7 +500,7 @@ def delete_account(user, data):
 
         if update_result.modified_count > 0:
             print(f"✅ [DELETE ACCOUNT] User account orphaned successfully")
-            print(f"   Email retained: {user['email']}, free_upload_used: {user.get('free_upload_used', False)}")
+            print(f"   Email retained: {user['email']}, free_project_id: {user.get('free_project_id')}")
             return jsonify({'message': 'Account deleted successfully!'}), 200
         else:
             print(f"❌ [DELETE ACCOUNT] Failed to orphan user account")

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
@@ -10,6 +10,7 @@ type UploadState = 'upload' | 'preview' | 'template';
 
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -17,6 +18,15 @@ const NewPaperPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<{ id: string; name?: string } | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { file?: File; returnToTemplate?: boolean } | null;
+    if (state?.file && state?.returnToTemplate) {
+      setUploadedFile(state.file);
+      setDocumentTitle(state.file.name);
+      setUploadState('template');
+    }
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -57,6 +67,12 @@ const NewPaperPage: React.FC = () => {
 
   const handleChooseTemplate = () => {
     setUploadState('template');
+  };
+
+  const handleBackToFile = () => {
+    setUploadedFile(null);
+    setDocumentTitle('');
+    setUploadState('upload');
   };
 
   const handleTemplateSelect = async (templateId: string, templateName?: string) => {
@@ -112,7 +128,7 @@ const NewPaperPage: React.FC = () => {
   if (uploadState === 'template') {
     return (
       <>
-        <ChooseTemplatePage onSelectTemplate={handleTemplateSelect} />
+        <ChooseTemplatePage onSelectTemplate={handleTemplateSelect} onBack={handleBackToFile} />
         <ConsentModal
           isOpen={showConsentModal}
           onClose={() => setShowConsentModal(false)}
@@ -190,6 +206,9 @@ const NewPaperPage: React.FC = () => {
               </div>
               <button className="btn btn--secondary btn--pill btn--lg" onClick={handleChooseTemplate}>
                 Choose A Template →
+              </button>
+              <button className="btn btn--ghost" onClick={handleBackToFile}>
+                ← Choose a Different File
               </button>
             </div>
           )}

@@ -10,7 +10,7 @@ import ProcessingPage from './components/authenticated/ProcessingPage';
 import PreviewPage from './components/authenticated/PreviewPage';
 import UploadConfirmPage from './components/authenticated/UploadConfirmPage';
 import PaymentPage from './components/authenticated/PaymentPage';
-import SupportPage from './components/authenticated/SupportPage';
+import CreditTopUpPage from './components/authenticated/CreditTopUpPage';
 import PrivacyPolicy from './components/static/PrivacyPolicy';
 import TermsConditions from './components/static/TermsConditions';
 import AboutPage from './components/static/AboutPage';
@@ -20,7 +20,6 @@ import SignInPage from './components/static/SignInPage';
 import VerifyPage from './components/static/VerifyPage';
 import PasswordResetPage from './components/static/PasswordResetPage';
 import ForgotPasswordPage from './components/static/ForgotPasswordPage';
-import AdminSupportPage from './components/admin/AdminSupportPage';
 import useAuthRedirect from './hooks/useAuthRedirect';
 
 const ScrollToTop = () => {
@@ -47,9 +46,9 @@ const AppContent = () => {
         <Route path="/papers/consent" element={<ConsentPage />} />
         <Route path="/papers/upload-confirm" element={<UploadConfirmPage />} />
         <Route path="/papers/:projectId/payment" element={<PaymentPage />} />
+        <Route path="/credits" element={<CreditTopUpPage />} />
         <Route path="/papers/processing" element={<ProcessingPage />} />
         <Route path="/papers/:id/view" element={<PreviewPage />} />
-        <Route path="/papers/:id/support" element={<SupportPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsConditions />} />
         <Route path="/about" element={<AboutPage />} />
@@ -60,8 +59,6 @@ const AppContent = () => {
         <Route path="/verify" element={<VerifyPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<PasswordResetPage />} />
-        {/* Admin Routes */}
-        <Route path="/admin/support" element={<AdminSupportPage />} />
       </Routes>
     </div>
   );

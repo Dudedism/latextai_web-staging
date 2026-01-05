@@ -10,7 +10,7 @@ from werkzeug.security import generate_password_hash
 
 
 def create_test_user(name=None, email=None, password=None, is_verified=True,
-                     free_upload_used=False, admin=False, mongo_db=None,
+                     free_project_id=None, admin=False, mongo_db=None,
                      base_url=None):
     """Create a test user directly in MongoDB and get auth tokens via API."""
     # Generate defaults if not provided
@@ -35,7 +35,7 @@ def create_test_user(name=None, email=None, password=None, is_verified=True,
         'email': email,
         'password': generate_password_hash(password),
         'is_verified': is_verified,
-        'free_upload_used': free_upload_used,
+        'free_project_id': free_project_id,
         'admin': admin,
         'data_consent': None,
         'is_deleted': False,
@@ -62,7 +62,7 @@ def create_test_user(name=None, email=None, password=None, is_verified=True,
         'password': password,
         'name': name,
         'is_verified': is_verified,
-        'free_upload_used': free_upload_used,
+        'free_project_id': free_project_id,
         'admin': admin,
         'access_token': tokens['access_token'],
         'refresh_token': tokens['refresh_token']
@@ -97,9 +97,9 @@ def delete_test_user(email, mongo_db):
 
 def create_test_project(user_email, project_id=None, upload_filename=None,
                        template='ieee', status='uploaded', paid=False,
-                       is_free_project=False, total_cost=None, filesize=50000,
+                       total_cost=None, filesize=50000,
                        page_count=None, word_count=None, validated=False,
-                       mongo_db=None):
+                       card_verified_at=None, mongo_db=None):
     """Create a test project directly in MongoDB."""
     # Validate required parameters
     if mongo_db is None:
@@ -121,7 +121,6 @@ def create_test_project(user_email, project_id=None, upload_filename=None,
         'template': template,
         'status': status,
         'paid': paid,
-        'is_free_project': is_free_project,
         'total_cost': total_cost,
         'filesize': filesize,
         'page_count': page_count,
@@ -129,6 +128,8 @@ def create_test_project(user_email, project_id=None, upload_filename=None,
         'validated': validated,
         'created_at': datetime.utcnow()
     }
+    if card_verified_at:
+        project_doc['card_verified_at'] = card_verified_at
 
     mongo_db.projects.insert_one(project_doc)
     print(f"✅ Created test project: {project_id}")
@@ -140,12 +141,12 @@ def create_test_project(user_email, project_id=None, upload_filename=None,
         'template': template,
         'status': status,
         'paid': paid,
-        'is_free_project': is_free_project,
         'total_cost': total_cost,
         'filesize': filesize,
         'page_count': page_count,
         'word_count': word_count,
-        'validated': validated
+        'validated': validated,
+        'card_verified_at': card_verified_at
     }
 
 

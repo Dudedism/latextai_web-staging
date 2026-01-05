@@ -14,9 +14,10 @@ interface Template {
 
 interface ChooseTemplatePageProps {
   onSelectTemplate?: (templateId: string, templateName?: string) => void;
+  onBack?: () => void;
 }
 
-const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplate }) => {
+const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplate, onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -67,7 +68,7 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
             <div className="progress-step">Upload</div>
           </div>
 
-          <h1 className="browse-title">Choose Your Template</h1>
+          <h1 className="section-title">Choose Your Template</h1>
 
           <div className="browse-search">
             <input
@@ -108,6 +109,14 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
               ))
             )}
           </div>
+
+          {onBack && (
+            <div className="text-center mt-8">
+              <button className="btn btn--ghost" onClick={onBack}>
+                ← Choose a Different File
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

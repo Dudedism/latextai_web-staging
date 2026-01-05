@@ -1,87 +1,61 @@
 """
 Pricing calculation utilities for document conversion.
 
-Pricing model matches frontend PricingPage.tsx:
-- Base: $4.99 for up to 15 pages (one-sided) or 7 pages (two-sided)
-- Additional pages: $0.50 per page
-
-All prices in USD.
+Credit-based pricing model:
+- 1 credit = 1 cent ($0.01)
+- Base: 500 credits for up to 15 pages
+- Additional pages: 50 credits per page
 """
 
-# Pricing configuration (matches PricingPage.tsx)
 PRICING_CONFIG = {
-    'base_cost': 4.99,         # Base conversion fee
-    'base_pages': 15,          # Pages included in base price (one-sided)
-    'per_page_cost': 0.50,     # Cost per additional page beyond base_pages
-    'min_cost': 4.99,          # Minimum charge (same as base_cost)
-    'max_cost': 100.00,        # Maximum charge (safety limit)
+    'base_credits': 500,
+    'base_pages': 15,
+    'per_page_credits': 50,
+    'min_credits': 500,
+    'max_credits': 10000,
 }
 
 
 def calculate_cost(page_count):
     """
-    Calculate cost for document processing based on page count.
-
-    Pricing model:
-    - Base: $4.99 for up to 15 pages
-    - Additional: $0.50 per page beyond 15
+    Calculate credit cost for document processing based on page count.
 
     Args:
-        page_count (int): Number of pages in document (from LibreOffice PDF conversion)
+        page_count (int): Number of pages in document
 
     Returns:
         dict: Cost breakdown containing:
-            - base_cost (float): Base conversion fee ($4.99)
+            - base_credits (int): Base conversion fee (500)
             - additional_pages (int): Pages beyond base amount
-            - additional_cost (float): Cost for additional pages
-            - total (float): Total cost
+            - additional_credits (int): Credits for additional pages
+            - total_credits (int): Total credits required
+            - total_dollars (float): Dollar equivalent
             - breakdown (str): Human-readable breakdown
-
-    Example:
-        >>> calculate_cost(20)
-        {
-            'base_cost': 4.99,
-            'additional_pages': 5,
-            'additional_cost': 2.50,
-            'total': 7.49,
-            'breakdown': 'Base (15 pages): $4.99 + Additional (5 pages): $2.50'
-        }
     """
-    base = PRICING_CONFIG['base_cost']
+    base = PRICING_CONFIG['base_credits']
     base_pages = PRICING_CONFIG['base_pages']
 
-    # Calculate additional pages beyond base
     additional_pages = max(0, page_count - base_pages)
+    additional_credits = additional_pages * PRICING_CONFIG['per_page_credits']
 
-    # Calculate cost for additional pages
-    additional_cost = additional_pages * PRICING_CONFIG['per_page_cost']
+    total = base + additional_credits
+    total = max(PRICING_CONFIG['min_credits'], min(total, PRICING_CONFIG['max_credits']))
 
-    # Calculate total
-    total = base + additional_cost
-
-    # Apply min/max limits
-    total = max(PRICING_CONFIG['min_cost'], min(total, PRICING_CONFIG['max_cost']))
-
-    # Create breakdown string
     if additional_pages > 0:
-        breakdown = f"Base ({base_pages} pages): ${base:.2f} + Additional ({additional_pages} pages): ${additional_cost:.2f}"
+        breakdown = f"Base ({base_pages} pages): {base} credits + Additional ({additional_pages} pages): {additional_credits} credits"
     else:
-        breakdown = f"Base (up to {base_pages} pages): ${base:.2f}"
+        breakdown = f"Base (up to {base_pages} pages): {base} credits"
 
     return {
-        'base_cost': base,
+        'base_credits': base,
         'additional_pages': additional_pages,
-        'additional_cost': additional_cost,
-        'total': round(total, 2),
+        'additional_credits': additional_credits,
+        'total_credits': total,
+        'total_dollars': total / 100,
         'breakdown': breakdown
     }
 
 
 def get_pricing_config():
-    """
-    Get current pricing configuration.
-
-    Returns:
-        dict: Current pricing configuration
-    """
+    """Get current pricing configuration."""
     return PRICING_CONFIG.copy()

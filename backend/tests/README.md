@@ -101,12 +101,12 @@ This project has **two separate backend services**:
 ```
 User → latext-site/backend → latextai service
        (/api/latex/upload)    (/api/upload)
-       [Checks free_upload]   [Does conversion]
+       [Checks free_project]  [Does conversion]
 ```
 
 ### Security Vulnerability Being Tested
 
-**Race Condition:** A user could spam the upload button to send multiple parallel requests. If the `free_upload_used` check and update are not atomic, multiple uploads could all pass the check before any marks it as used.
+**Race Condition:** A user could spam the claim-free button to send multiple parallel requests. If the `free_project_id` check and set operations are not atomic, multiple claims could all pass the check before any sets the field.
 
 ### Test Requirements
 
@@ -116,10 +116,10 @@ User → latext-site/backend → latextai service
 
 ### How the Tests Work
 
-The tests send multiple simultaneous requests to `/api/latex/upload`:
+The tests send multiple simultaneous requests to `/api/latex/claim-free`:
 
 1. Request hits latext-site/backend
-2. Backend checks `free_upload_used` and `upload_in_progress` lock
+2. Backend checks `free_project_id` and card verification
 3. Backend attempts to forward to latextai service
 4. **Test expects latextai to fail** (connection refused is fine)
 5. We verify only ONE request got past the lock/check

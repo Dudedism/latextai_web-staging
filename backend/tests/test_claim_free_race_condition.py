@@ -6,15 +6,15 @@ by sending multiple simultaneous claim-free requests (race condition exploit).
 
 Security Issue:
 - A malicious user could spam the claim-free button to send multiple parallel requests
-- If the `free_upload_used` check and mark operations are not atomic,
-  multiple claims could all pass the check before any marks the field as used
+- If the `free_project_id` check and set operations are not atomic,
+  multiple claims could all pass the check before any sets the field
 
 Expected Behavior:
 - Only ONE claim-free request should succeed with HTTP 200
 - All other simultaneous requests should fail with HTTP 409 (Conflict)
 
 Test Strategy:
-1. Create a verified test user with free_upload_used=False
+1. Create a verified test user with free_project_id=None
 2. Create 3 uploaded projects in the database (status='uploaded', paid=False)
 3. Launch 3 parallel claim-free requests for EACH project (9 total parallel requests)
 4. Verify that only ONE request succeeded across all 9 attempts
@@ -25,6 +25,7 @@ import pytest
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from datetime import datetime
 
 # Import database models and test utilities
 import sys
@@ -45,7 +46,7 @@ def test_user_with_projects():
         user = create_test_user(
             name="Claim Free Race Test User",
             is_verified=True,
-            free_upload_used=False,
+            free_project_id=None,
             mongo_db=mongo.db,
             base_url=BASE_URL
         )
@@ -59,12 +60,12 @@ def test_user_with_projects():
                 template='ieee',
                 status='uploaded',  # Must be 'uploaded' to claim free
                 paid=False,  # Must be unpaid to claim free
-                is_free_project=False,
                 total_cost=4.99,
                 filesize=50000,
                 page_count=10,
                 word_count=3000,
                 validated=True,  # Must be validated
+                card_verified_at=datetime.utcnow(),  # Card must be verified
                 mongo_db=mongo.db
             )
             project_ids.append(project['project_id'])
@@ -73,7 +74,7 @@ def test_user_with_projects():
         print(f"\n📦 Test setup complete:")
         print(f"   User: {user['email']}")
         print(f"   Projects: {len(project_ids)}")
-        print(f"   Free upload used: False")
+        print(f"   Free project: None")
 
         user['project_ids'] = project_ids
 
@@ -157,8 +158,8 @@ def test_parallel_claim_free_race_condition(test_user_token):
     Expected Results:
     1. Only ONE request should succeed (HTTP 200)
     2. All other 8 requests should fail with HTTP 409 (Conflict)
-    3. Database should show free_upload_used=True
-    4. Only ONE project should be marked as paid and free
+    3. Database should show free_project_id is set
+    4. Only ONE project should be marked as paid
     """
     print("\n" + "="*80)
     print("TEST: Parallel Claim-Free Race Condition (9 Simultaneous Requests)")
@@ -264,25 +265,24 @@ def test_parallel_claim_free_race_condition(test_user_token):
     # ASSERTION 4: Verify database state
     print(f"\n🔍 Verifying database state...")
     with app.app_context():
-        # Check user's free_upload_used flag
+        # Check user's free_project_id is set
         user = User.find_by_email(test_user_token['email'])
         assert user is not None, "User not found in database"
-        assert user.get('free_upload_used') == True, "User's free_upload_used should be True"
-        print(f"   ✅ User free_upload_used = True")
+        assert user.get('free_project_id') is not None, "User's free_project_id should be set"
+        print(f"   ✅ User free_project_id = {user.get('free_project_id')[:8]}...")
 
         # Count paid projects
         paid_projects = 0
-        free_projects = 0
         for project_id in project_ids:
             project = Project.find_by_id(project_id)
             if project and project.get('paid'):
                 paid_projects += 1
-                if project.get('is_free_project'):
-                    free_projects += 1
 
         assert paid_projects == 1, f"Expected 1 paid project, got {paid_projects}"
-        assert free_projects == 1, f"Expected 1 free project, got {free_projects}"
-        print(f"   ✅ Exactly 1 project marked as paid and free")
+
+        # Verify the free_project_id matches the paid project
+        assert user.get('free_project_id') in project_ids, "free_project_id should be one of the test projects"
+        print(f"   ✅ Exactly 1 project marked as paid")
 
     print("\n" + "="*80)
     print("✅ TEST PASSED: Race condition properly prevented by atomic operation")
@@ -355,6 +355,6 @@ if __name__ == "__main__":
     Expected Output:
     ✅ Only 1 claim-free request succeeds (HTTP 200)
     ❌ 8 claim-free requests fail (HTTP 409 Conflict)
-    ✅ Database shows free_upload_used=True
-    ✅ Only 1 project is marked as paid and free
+    ✅ Database shows free_project_id is set
+    ✅ Only 1 project is marked as paid
     """)

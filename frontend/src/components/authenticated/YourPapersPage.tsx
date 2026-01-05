@@ -68,10 +68,6 @@ const YourPapersPage: React.FC = () => {
     }
   };
 
-  const handleSupport = (paperId: string) => {
-    navigate(`/papers/${paperId}/support`);
-  };
-
   const handleNewPaper = () => {
     // Check email verification status before allowing upload
     if (!isVerified) {
@@ -118,7 +114,10 @@ const YourPapersPage: React.FC = () => {
                   <path d="M14 14L17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </div>
-              <button className="btn btn--secondary btn--pill" onClick={handleNewPaper}>
+              <button className="btn btn--outline btn--pill" onClick={() => navigate('/credits')}>
+                Top Up Credits
+              </button>
+              <button className="btn btn--outline btn--pill" onClick={handleNewPaper}>
                 New Paper
                 <span style={{ fontSize: '18px', fontWeight: 300 }}>+</span>
               </button>
@@ -179,14 +178,6 @@ const YourPapersPage: React.FC = () => {
                       <span className="btn-text">Delete</span>
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                         <path d="M7 3h6M3 5h14M5 5l1 12c0 1 0 2 2 2h4c2 0 2-1 2-2l1-12M8 8v7M12 8v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                    <button className="paper-action-btn" onClick={() => handleSupport(paper.id)}>
-                      <span className="btn-text">Support</span>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" strokeWidth="1.5"/>
-                        <path d="M10 14V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                        <circle cx="10" cy="7" r="0.5" stroke="currentColor" strokeWidth="1.5"/>
                       </svg>
                     </button>
                   </div>
