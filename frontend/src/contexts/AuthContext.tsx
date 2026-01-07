@@ -4,7 +4,6 @@ import { onAuthCleared, clearAuthTokens } from '../utils/auth';
 
 interface User {
   email: string;
-  name: string;
   isAdmin: boolean;
   isVerified: boolean;
 }
@@ -16,7 +15,7 @@ interface AuthContextType {
   isVerified: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  setAuthData: (data: { access_token: string; refresh_token: string; email: string; name: string; admin: boolean; is_verified?: boolean }) => void;
+  setAuthData: (data: { access_token: string; refresh_token: string; email: string; admin: boolean; is_verified?: boolean }) => void;
   clearAuth: () => void;
   refreshVerificationStatus: () => Promise<void>;
 }
@@ -71,17 +70,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initAuth = () => {
       const token = localStorage.getItem('token');
       const email = localStorage.getItem('userEmail');
-      const name = localStorage.getItem('userName');
       const isAdmin = localStorage.getItem('isAdmin') === 'true';
       const cachedVerified = localStorage.getItem('isVerified');
 
-      if (token && email && name) {
+      if (token && email) {
         console.log('🔒 [AUTH CONTEXT] Initializing auth state');
         console.log(`🔒 [AUTH CONTEXT] User: ${email} | Admin: ${isAdmin} | Verified: ${cachedVerified}`);
 
         setUser({
           email,
-          name,
           isAdmin,
           isVerified: cachedVerified === 'true'
         });
@@ -118,7 +115,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     access_token: string;
     refresh_token: string;
     email: string;
-    name: string;
     admin: boolean;
     is_verified?: boolean;
   }) => {
@@ -129,7 +125,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('refreshToken', data.refresh_token);
     localStorage.setItem('userEmail', data.email);
-    localStorage.setItem('userName', data.name);
     localStorage.setItem('isAdmin', data.admin.toString());
 
     // Store verification status if provided
@@ -144,7 +139,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     setUser({
       email: data.email,
-      name: data.name,
       isAdmin: data.admin,
       isVerified: data.is_verified || false
     });
@@ -181,7 +175,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           access_token: data.access_token,
           refresh_token: data.refresh_token,
           email: email,
-          name: data.name,
           admin: data.admin || false,
           is_verified: data.is_verified || false
         });

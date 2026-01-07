@@ -36,7 +36,7 @@ def create_setup_session(user, data):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if not project.get('validated', False):
@@ -193,6 +193,7 @@ def handle_credit_topup_completed(session, metadata):
     """Handle credit top-up completion: add credits to user balance."""
     user_email = metadata.get('user_email')
     credits = int(metadata.get('credits', 0))
+    session_id = session['id']
 
     if not user_email or not credits:
         print(f"❌ [STRIPE] Missing user_email or credits in metadata")
@@ -201,18 +202,30 @@ def handle_credit_topup_completed(session, metadata):
     print(f"💳 [STRIPE] Credit top-up completed for {user_email}: {credits} credits")
 
     try:
-        new_balance = User.add_credits(user_email, credits)
-        if new_balance is None:
+        # IDEMPOTENCY CHECK: Prevent duplicate credit additions from webhook retries
+        existing_txn = mongo.db.credit_transactions.find_one({'stripe_session_id': session_id})
+        if existing_txn:
+            print(f"⚠️  [STRIPE] Webhook already processed for session {session_id} (idempotent)")
+            return jsonify({'received': True}), 200
+
+        user = User.find_by_email(user_email)
+        if not user:
             print(f"❌ [STRIPE] User {user_email} not found")
             return jsonify({'error': 'User not found'}), 404
 
+        new_balance = User.add_credits(user_email, credits)
+        if new_balance is None:
+            print(f"❌ [STRIPE] Failed to add credits to {user_email}")
+            return jsonify({'error': 'Failed to add credits'}), 500
+
         CreditTransaction.create(
-            user_id=user_email,
+            user_email=user_email,
+            user_id=str(user['_id']),
             transaction_type='topup',
             amount=credits,
             balance_after=new_balance,
             description=f'Top-up: {credits} credits (${credits / 100:.2f})',
-            stripe_session_id=session['id']
+            stripe_session_id=session_id
         )
 
         print(f"✅ [STRIPE] Added {credits} credits to {user_email}, new balance: {new_balance}")

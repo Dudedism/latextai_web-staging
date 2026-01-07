@@ -93,6 +93,13 @@ const PaymentPage: React.FC = () => {
   };
 
   useEffect(() => {
+    const setupSuccess = searchParams.get('setup_success');
+    if (setupSuccess === 'true') {
+      // Skip fetching payment details when returning from Stripe setup
+      // claimFreeAfterSetup() handles the flow from here
+      return;
+    }
+
     const fetchPaymentDetails = async () => {
       if (!projectId) {
         console.error('❌ [PAYMENT] No project ID provided');
@@ -119,7 +126,7 @@ const PaymentPage: React.FC = () => {
     };
 
     fetchPaymentDetails();
-  }, [projectId]);
+  }, [projectId, searchParams]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;

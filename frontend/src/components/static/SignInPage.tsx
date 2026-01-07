@@ -14,7 +14,6 @@ const SignInPage: React.FC = () => {
   const [authMode, setAuthMode] = useState<AuthMode>(() =>
     location.pathname === '/signin' ? 'signin' : 'signup'
   );
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,7 +37,6 @@ const SignInPage: React.FC = () => {
       setConfirmPassword('');
       setAgreeToTerms(false);
       // Clear all fields if not coming from successful registration
-      setName('');
       setEmail('');
     } else {
       // Only clear passwords after successful registration
@@ -76,13 +74,6 @@ const SignInPage: React.FC = () => {
         setLoading(false);
         return;
       }
-
-      if (!name.trim()) {
-        setError('Name is required');
-        setShowErrorModal(true);
-        setLoading(false);
-        return;
-      }
     }
 
     try {
@@ -99,7 +90,7 @@ const SignInPage: React.FC = () => {
         }
       } else {
         // Handle signup with direct fetch (now with auto-login)
-        const body = { name, email, password };
+        const body = { email, password };
 
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/signup`, {
           method: 'POST',
@@ -123,7 +114,6 @@ const SignInPage: React.FC = () => {
               access_token: data.access_token,
               refresh_token: data.refresh_token,
               email: data.email,
-              name: data.name,
               admin: data.admin || false,
               is_verified: false  // New users are not verified by default
             });
@@ -177,20 +167,6 @@ const SignInPage: React.FC = () => {
           </h1>
 
           <form className="auth-form" onSubmit={handleSubmit}>
-            {authMode === 'signup' && (
-              <div>
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  maxLength={100}
-                  className="auth-input"
-                />
-              </div>
-            )}
-
             <div>
               <input
                 type="email"

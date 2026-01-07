@@ -24,7 +24,6 @@ def test_user():
     """Create a verified test user with tokens."""
     with app.app_context():
         user = create_test_user(
-            name="Input Validation Test User",
             is_verified=True,
             free_project_id=None,
             mongo_db=mongo.db,
@@ -39,25 +38,6 @@ def test_user():
 class TestSignupValidation:
     """Test /api/signup input validation."""
 
-    def test_name_too_long(self):
-        """Name over 100 chars should be rejected."""
-        print("\n" + "="*60)
-        print("TEST: Signup - Name too long (>100 chars)")
-        print("="*60)
-
-        payload = {
-            "name": "A" * 101,
-            "email": "test_toolong@gmail.com",
-            "password": "ValidPass123!"
-        }
-
-        response = requests.post(f"{BASE_URL}/api/signup", json=payload)
-
-        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
-        assert "100" in response.json().get('message', '').lower() or "name" in response.json().get('message', '').lower()
-
-        print("✅ TEST PASSED: Name >100 chars rejected")
-
     def test_email_too_long(self):
         """Email over 254 chars should be rejected."""
         print("\n" + "="*60)
@@ -65,7 +45,6 @@ class TestSignupValidation:
         print("="*60)
 
         payload = {
-            "name": "Valid Name",
             "email": "a" * 250 + "@test.com",
             "password": "ValidPass123!"
         }
@@ -83,7 +62,6 @@ class TestSignupValidation:
         print("="*60)
 
         payload = {
-            "name": "Valid Name",
             "email": "test_pwlong@gmail.com",
             "password": "A" * 129
         }
@@ -102,7 +80,6 @@ class TestSignupValidation:
         print("="*60)
 
         payload = {
-            "name": "Valid Name",
             "email": "test_pwshort@gmail.com",
             "password": "Short1!"
         }
@@ -120,7 +97,7 @@ class TestSignupValidation:
         print("TEST: Signup - Missing fields")
         print("="*60)
 
-        payload = {"name": "Only Name"}
+        payload = {"email": "only@email.com"}
 
         response = requests.post(f"{BASE_URL}/api/signup", json=payload)
 
@@ -315,28 +292,6 @@ class TestValidInputsAccepted:
             mongo.db.users.delete_many({'email': {'$regex': '^boundary_test_'}})
             print("🧹 Cleaned up boundary test users")
 
-    def test_name_at_limit(self):
-        """Name exactly 100 chars should be accepted (if other validations pass)."""
-        print("\n" + "="*60)
-        print("TEST: Signup - Name at limit (100 chars)")
-        print("="*60)
-
-        payload = {
-            "name": "A" * 100,
-            "email": f"boundary_test_name_{uuid.uuid4().hex[:8]}@gmail.com",
-            "password": "ValidPass123!"
-        }
-
-        response = requests.post(f"{BASE_URL}/api/signup", json=payload)
-
-        # Should pass length validation (may fail on other validations like duplicate email)
-        # We just check it's not rejected for length
-        if response.status_code == 400:
-            msg = response.json().get('message', '').lower()
-            assert "100" not in msg and "name" not in msg, "Name at limit should not be rejected for length"
-
-        print("✅ TEST PASSED: Name at 100 chars not rejected for length")
-
     def test_password_at_min_limit(self):
         """Password exactly 8 chars should be accepted."""
         print("\n" + "="*60)
@@ -344,7 +299,6 @@ class TestValidInputsAccepted:
         print("="*60)
 
         payload = {
-            "name": "Valid Name",
             "email": f"boundary_test_pw_{uuid.uuid4().hex[:8]}@gmail.com",
             "password": "Valid12!"
         }

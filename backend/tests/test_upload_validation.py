@@ -31,7 +31,6 @@ def test_user():
     """Create a verified test user with tokens."""
     with app.app_context():
         user = create_test_user(
-            name="Upload Validation Test User",
             is_verified=True,
             free_project_id=None,
             mongo_db=mongo.db,
@@ -122,7 +121,7 @@ def test_valid_document_upload(test_user):
             assert project['paid'] == False, "Project should not be paid yet"
             assert project.get('page_count') is None, f"Page count should be None (not yet validated), got {project.get('page_count')}"
             assert project.get('word_count') is None, f"Word count should be None (not yet validated), got {project.get('word_count')}"
-            assert project['user_id'] == test_user['email'], "Project should belong to test user"
+            assert project['user_email'] == test_user['email'], "Project should belong to test user"
 
         print(f"\n✅ Project created in database: {project_id}")
         print(f"   Status: {project['status']}")
@@ -157,7 +156,7 @@ def test_valid_document_validation(test_user):
     try:
         # Get the project_id from the first test's upload
         with app.app_context():
-            projects = list(mongo.db.projects.find({'user_id': test_user['email']}))
+            projects = list(mongo.db.projects.find({'user_email': test_user['email']}))
             assert len(projects) >= 1, "Should have at least 1 uploaded project"
             project_id = projects[0]['project_id']
 
@@ -219,10 +218,11 @@ def test_valid_document_validation(test_user):
 
         # ASSERTION 5: Cost estimate should be valid
         cost_estimate = response_data['cost_estimate']
-        assert 'total' in cost_estimate, "Cost estimate should contain total"
-        assert cost_estimate['total'] >= 4.99, f"Cost should be at least $4.99, got ${cost_estimate['total']}"
+        assert 'total_credits' in cost_estimate, "Cost estimate should contain total_credits"
+        assert 'total_dollars' in cost_estimate, "Cost estimate should contain total_dollars"
+        assert cost_estimate['total_credits'] >= 500, f"Cost should be at least 500 credits, got {cost_estimate['total_credits']}"
 
-        print(f"\n💰 Cost estimate: ${cost_estimate['total']}")
+        print(f"\n💰 Cost estimate: {cost_estimate['total_credits']} credits (${cost_estimate['total_dollars']})")
 
         # ASSERTION 6: Verify project in database
         with app.app_context():
@@ -333,22 +333,28 @@ def test_high_word_ratio_validation_rejection(test_user):
         error_msg = validate_data['error'].lower()
         print(f"\n❌ Rejected (as expected): {validate_data['error']}")
 
-        # ASSERTION 3: Verify project was deleted from database
+        # ASSERTION 3: Verify project was orphaned in database
         with app.app_context():
             project = Project.find_by_id(project_id)
-            assert project is None, f"Project should be deleted after validation failure, but still exists"
+            assert project is not None, "Project record should still exist (orphaned)"
+            assert project.get('is_orphaned') == True, "Project should be marked as orphaned"
+            assert project.get('user_email') is None, "Project user_email should be None (orphaned)"
 
-        print(f"\n✅ Project deleted from database after validation failure")
+        print(f"\n✅ Project orphaned in database after validation failure")
 
         print("\n✅ TEST PASSED: High word ratio document validation rejected")
         print("="*80)
 
     finally:
-        # CLEANUP: Ensure project and files are deleted even if test fails
+        # CLEANUP: Hard delete project (not orphan) for test cleanup
         if project_id:
             with app.app_context():
-                Project.delete_with_files(project_id, test_user['email'])
-                print(f"🧹 Cleanup: Deleted project {project_id} and files")
+                import shutil
+                project_dir = os.path.join('user_projects', test_user['email'], project_id)
+                if os.path.exists(project_dir):
+                    shutil.rmtree(project_dir, ignore_errors=True)
+                mongo.db.projects.delete_one({'project_id': project_id})
+                print(f"🧹 Cleanup: Hard deleted project {project_id}")
 
 
 def test_accurate_price_calculation(test_user):
@@ -359,7 +365,7 @@ def test_accurate_price_calculation(test_user):
     - Upload succeeds
     - Validation succeeds
     - Page count is 21
-    - Cost is calculated correctly: $4.99 + (21-15)*$0.50 = $7.99
+    - Cost is calculated correctly: 500 + (21-15)*50 = 800 credits ($8.00)
     """
     print("\n" + "="*80)
     print("TEST: Accurate Price Calculation (21 Pages)")
@@ -447,17 +453,21 @@ def test_accurate_price_calculation(test_user):
         print(f"   Words: {metadata.get('word_count', 'N/A')}")
         print(f"   Filesize: {metadata.get('filesize', 'N/A')} bytes")
 
-        # ASSERTION 6: Cost should be $7.99 (21 pages)
-        # Pricing: $4.99 base (15 pages) + (21-15)*$0.50 = $4.99 + $3.00 = $7.99
+        # ASSERTION 6: Cost should be 800 credits / $8.00 (21 pages)
+        # Pricing: 500 credits base (15 pages) + (21-15)*50 = 500 + 300 = 800 credits
         cost_estimate = validate_data['cost_estimate']
-        assert 'total' in cost_estimate, "Cost estimate should contain total"
+        assert 'total_credits' in cost_estimate, "Cost estimate should contain total_credits"
+        assert 'total_dollars' in cost_estimate, "Cost estimate should contain total_dollars"
 
-        expected_cost = 7.99
-        actual_cost = cost_estimate['total']
-        assert actual_cost == expected_cost, f"Cost should be ${expected_cost}, got ${actual_cost}"
+        expected_credits = 800
+        expected_dollars = 8.00
+        actual_credits = cost_estimate['total_credits']
+        actual_dollars = cost_estimate['total_dollars']
+        assert actual_credits == expected_credits, f"Cost should be {expected_credits} credits, got {actual_credits}"
+        assert actual_dollars == expected_dollars, f"Cost should be ${expected_dollars}, got ${actual_dollars}"
 
-        print(f"\n💰 Cost estimate: ${actual_cost}")
-        print(f"   Expected: ${expected_cost}")
+        print(f"\n💰 Cost estimate: {actual_credits} credits (${actual_dollars})")
+        print(f"   Expected: {expected_credits} credits (${expected_dollars})")
         print(f"   Breakdown: {cost_estimate.get('breakdown', 'N/A')}")
 
         # ASSERTION 7: Verify project in database
@@ -466,12 +476,12 @@ def test_accurate_price_calculation(test_user):
             assert project is not None, "Project should exist in database"
             assert project['validated'] == True, f"Project validated should be True, got {project['validated']}"
             assert project['page_count'] == 21, f"Page count in DB should be 21, got {project.get('page_count')}"
-            assert project['total_cost'] == expected_cost, f"Total cost in DB should be ${expected_cost}, got ${project.get('total_cost')}"
+            assert project['total_credits'] == expected_credits, f"Total credits in DB should be {expected_credits}, got {project.get('total_credits')}"
 
         print(f"\n✅ Project validated in database: {project_id}")
         print(f"   Validated: {project['validated']}")
         print(f"   Pages: {project['page_count']}")
-        print(f"   Cost: ${project['total_cost']}")
+        print(f"   Credits: {project['total_credits']}")
 
         print("\n✅ TEST PASSED: Price calculated accurately for 21-page document")
         print("="*80)
@@ -499,7 +509,7 @@ if __name__ == "__main__":
     ✓ Valid document upload (fast, < 1 second)
     ✓ Valid document validation (slow, LibreOffice + word count)
     ✓ High word-to-page ratio rejection during validation (>3000 words/page)
-    ✓ Accurate price calculation (21 pages = $7.99)
+    ✓ Accurate price calculation (21 pages = 800 credits / $8.00)
 
     To run this test:
     1. Set BACKEND_URL environment variable (e.g., export BACKEND_URL=http://localhost:8000)
@@ -511,6 +521,6 @@ if __name__ == "__main__":
     ✅ Valid document uploads successfully (validated=False)
     ✅ Valid document validates successfully (11 pages, 3000-4500 words)
     ✅ High ratio file uploads successfully
-    ❌ High ratio file validation rejected (>3000 words/page, project deleted)
-    ✅ Accurate price document validates with correct cost ($7.99 for 21 pages)
+    ❌ High ratio file validation rejected (>3000 words/page, project orphaned)
+    ✅ Accurate price document validates with correct cost (800 credits / $8.00 for 21 pages)
     """)

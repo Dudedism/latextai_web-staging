@@ -43,15 +43,13 @@ const VerifyPage: React.FC = () => {
           const accessToken = localStorage.getItem('token');
           const refreshToken = localStorage.getItem('refreshToken');
           const storedEmail = localStorage.getItem('userEmail');
-          const storedName = localStorage.getItem('userName');
           const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
 
-          if (accessToken && refreshToken && storedEmail && storedName && storedEmail === data.email) {
+          if (accessToken && refreshToken && storedEmail && storedEmail === data.email) {
             setAuthData({
               access_token: accessToken,
               refresh_token: refreshToken,
               email: storedEmail,
-              name: storedName,
               admin: storedIsAdmin,
               is_verified: true
             });

@@ -24,7 +24,6 @@ def test_user():
     """Create a verified test user with tokens."""
     with app.app_context():
         user = create_test_user(
-            name="User Creation Test User",
             is_verified=True,
             free_project_id=None,
             mongo_db=mongo.db,
@@ -46,8 +45,6 @@ def test_user_creation(test_user):
     print("="*60)
 
     print(f"✅ Test user exists: {test_user['email']}")
-    print(f"   Name: {test_user['name']}")
-    print(f"   Email: {test_user['email']}")
 
     # Verify user can login (which proves they were created and verified)
     login_payload = {
@@ -62,7 +59,6 @@ def test_user_creation(test_user):
     data = response.json()
     assert 'access_token' in data
     assert 'refresh_token' in data
-    assert data['name'] == test_user['name']
 
     print("✅ TEST PASSED: User was created and can login")
 
@@ -77,7 +73,6 @@ def test_duplicate_user_rejected(test_user):
 
     # Try to create a user with the same email as test_user (which already exists)
     duplicate_payload = {
-        "name": "Duplicate User",
         "email": test_user['email'],  # Same email as existing test user
         "password": "DifferentPassword123"
     }
@@ -110,7 +105,6 @@ def test_invalid_email_rejected():
     print("="*60)
 
     invalid_payload = {
-        "name": "Invalid User",
         "email": "not-an-email",  # Invalid email format
         "password": "SomePassword123"
     }

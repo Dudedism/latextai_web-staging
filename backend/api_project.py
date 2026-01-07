@@ -50,16 +50,16 @@ def validate_template(template_id):
         return False, f"Template '{template['name']}' is not yet available"
     return True, template
 
-def create_user_directory(user_id):
+def create_user_directory(user_email):
     """Create a directory for a user's projects if it doesn't exist"""
-    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_id))
+    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_email))
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
     return user_dir
 
-def create_project_directory(user_id, project_id):
+def create_project_directory(user_email, project_id):
     """Create a specific project directory for a user"""
-    user_dir = create_user_directory(user_id)
+    user_dir = create_user_directory(user_email)
     project_dir = os.path.join(user_dir, str(project_id))
     if not os.path.exists(project_dir):
         os.makedirs(project_dir, exist_ok=True)
@@ -99,8 +99,9 @@ def upload_file(user, data):
 
     try:
         # STEP 1: Check upload limits (10 projects max until user has paid free project)
-        project_count = Project.count_user_projects(user)
-        has_paid_free = Project.has_paid_free_project(user)
+        user_id = str(user['_id'])
+        project_count = Project.count_user_projects(user_id)
+        has_paid_free = Project.has_paid_free_project(user_id)
 
         if project_count >= 10 and not has_paid_free:
             return jsonify({
@@ -157,7 +158,8 @@ def upload_file(user, data):
         # No metadata yet - will be populated by /validate endpoint
         project = Project(
             project_id=project_id,
-            user_id=user_email,
+            user_email=user_email,
+            user_id=user_id,
             upload_filename=filename,
             template=template_id,
             status='uploaded',  # Uploaded but not yet validated
@@ -223,7 +225,7 @@ def validate_file(user, data):
             return jsonify({'error': 'Project not found'}), 404
 
         # STEP 3: Verify ownership
-        if project['user_id'] != user_email:
+        if project.get('user_id') != str(user['_id']):
             return jsonify({'error': 'Unauthorized'}), 403
 
         # STEP 4: Check if already validated
@@ -345,7 +347,7 @@ def get_cost_estimate(user):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Get page count from project metadata
@@ -398,7 +400,7 @@ def claim_free_upload(user, data):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if not project.get('validated', False):
@@ -435,7 +437,10 @@ def claim_free_upload(user, data):
 
     abuse_user = User.find_user_with_fingerprint_and_free_claim(user_fingerprints, exclude_email=user['email'])
     if abuse_user:
-        print(f"⚠️ [CLAIM-FREE] Abuse detected: card already used by {abuse_user['email']}")
+        print(f"⚠️ [CLAIM-FREE] Abuse detected: card already used by another account")
+        # Mark this user's free upload as forfeited due to abuse
+        User.set_free_project(user['email'], 'ABUSE_BLOCKED')
+        print(f"⚠️ [CLAIM-FREE] User {user['email']} free upload forfeited due to card reuse")
         return jsonify({
             'error': 'This card has already been used for a free upload on another account'
         }), 409
@@ -479,7 +484,7 @@ def claim_free_upload(user, data):
 @requires_auth
 def get_projects(user):
     """Get all projects for the authenticated user"""
-    projects = Project.find_by_user(user['email'])
+    projects = Project.find_by_user(str(user['_id']))
 
     # Format projects for frontend
     formatted_projects = []
@@ -527,24 +532,32 @@ def get_projects(user):
 @api_project.route('/project/<project_id>', methods=['DELETE'])
 @requires_auth
 def delete_project(user, project_id):
-    """Delete a project and its associated files"""
+    """Delete a project: orphan DB record, delete local files, notify latextai server"""
+    from api_latext import delete_project_on_latextai
+
     user_email = user['email']
 
-    # Verify project belongs to user
     project = Project.find_by_id(project_id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user_email:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Delete project and files using comprehensive database function
+    # Delete local files and orphan database record
     success, message = Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
 
-    if success:
-        return jsonify({'message': message}), 200
-    else:
+    if not success:
         return jsonify({'error': message}), 500
+
+    # Notify latextai server to delete its copy of the files
+    latextai_success, latextai_message = delete_project_on_latextai(user_email, project_id)
+    if latextai_success:
+        print(f"✅ [DELETE] Latextai: {latextai_message}")
+    else:
+        print(f"⚠️  [DELETE] Latextai: {latextai_message}")
+
+    return jsonify({'message': message}), 200
 
 @api_project.route('/project/<project_id>', methods=['GET'])
 @requires_auth
@@ -555,7 +568,7 @@ def get_project(user, project_id):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     return jsonify({
@@ -579,7 +592,7 @@ def get_payment_details(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify ownership
-    if project.get('user_id') != user_email:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project is validated
@@ -606,7 +619,7 @@ def get_payment_details(user, project_id):
     cost_estimate = calculate_cost(page_count)
 
     # Check if user can use free upload
-    can_use_free = not User.has_used_free_upload(user_email)
+    can_use_free = not User.has_claimed_free_project(user_email)
 
     # Get user's credit balance
     credit_balance = User.get_credit_balance(user_email)
@@ -634,7 +647,7 @@ def submit_feedback(user, data, project_id):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if project.get('status') != 'converted':

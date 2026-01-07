@@ -99,16 +99,15 @@ def requires_admin(func):
     return requires_auth(func, require_admin=True)
 
 @api_auth.route('/signup', methods=['POST'])
+@limiter.limit("30 per minute")
 def signup():
     data = request.get_json()
 
     # Validate required fields exist
-    if not data.get('name') or not data.get('email') or not data.get('password'):
-        return jsonify({'message': 'Name, email, and password are required.'}), 400
+    if not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Email and password are required.'}), 400
 
     # Validate input lengths
-    if len(data['name']) > 100:
-        return jsonify({'message': 'Name must be 100 characters or less.'}), 400
     if len(data['email']) > 254:
         return jsonify({'message': 'Email must be 254 characters or less.'}), 400
     if len(data['password']) > 128:
@@ -153,7 +152,6 @@ def signup():
 
     # Create user with is_verified=False (requires email verification)
     user = User(
-        name=data['name'],
         email=data['email'],
         password=pwd,
         is_verified=False,
@@ -186,7 +184,6 @@ def signup():
         'access_token': access_token,
         'refresh_token': refresh_token,
         'email': email,
-        'name': data['name'],
         'admin': False
     }), 201
 
@@ -257,6 +254,7 @@ def verify():
         return jsonify({'error': 'The verification link has expired or is invalid'}), 400
 
 @api_auth.route('/login', methods=['POST'])
+@limiter.limit("60 per minute")
 def login():
     data = request.get_json()
 
@@ -290,7 +288,6 @@ def login():
             'access_token': access_token,
             'refresh_token': refresh_token,
             'admin': user['admin'],
-            'name': user['name'],
             'is_verified': user.get('is_verified', False)
         }), 200
     else:  # if it's not legit, error
@@ -443,49 +440,86 @@ def change_password(user, data):
 def delete_account(user, data):
     """
     'Delete' user account by orphaning it.
-    - Deletes all projects (including uploaded files) and tickets
-    - Keeps user record with email, free_project_id, and card_fingerprints for abuse tracking
-    - Strips all personal information
+    - Orphans all projects (removes user_email, keeps user_id for stats)
+    - Orphans all credit transactions (removes user_email, keeps user_id)
+    - Deletes all used tokens
+    - Deletes local uploaded files
+    - Sends deletion request to latextai server
+    - Keeps user record with _id, free_project_id, and card_fingerprints for abuse tracking
+    - Strips email and personal information
     - Marks account as deleted
-    - Sets random password to prevent login
     """
     USER_PROJECTS_DIR = 'user_projects'
+    user_id = str(user['_id'])
 
     print(f"🗑️  [DELETE ACCOUNT] User {user['email']} requested account deletion")
 
     try:
-        # Get all projects owned by user
-        projects = Project.find_by_user(user)
-        print(f"   Found {len(projects)} projects to delete")
+        # Get all projects owned by user (includes non-orphaned only)
+        projects = Project.find_by_user(user_id)
+        print(f"   Found {len(projects)} projects to orphan")
 
-        # Delete each project with its files
-        projects_deleted = 0
+        # Delete local files for each project, then orphan the project in DB
+        projects_orphaned = 0
         for project in projects:
-            success, message = Project.delete_with_files(
-                project.get('project_id'),
-                user['email'],
-                USER_PROJECTS_DIR
-            )
-            if success:
-                projects_deleted += 1
+            project_id = project.get('project_id')
 
-        print(f"   Deleted {projects_deleted} projects with files")
+            # Delete local files
+            project_dir = os.path.join(USER_PROJECTS_DIR, user['email'], project_id)
+            if os.path.exists(project_dir):
+                shutil.rmtree(project_dir, ignore_errors=True)
+
+            # Orphan project in database (remove user_email, keep user_id for stats)
+            mongo.db.projects.update_one(
+                {'project_id': project_id},
+                {
+                    '$set': {
+                        'user_email': None,
+                        'upload_filename': None,
+                        'error_message': None,
+                        'is_orphaned': True,
+                        'orphaned_at': datetime.datetime.utcnow()
+                    }
+                }
+            )
+            projects_orphaned += 1
+
+        print(f"   Orphaned {projects_orphaned} projects")
+
+        # Orphan credit transactions (remove user_email, keep user_id)
+        txn_result = mongo.db.credit_transactions.update_many(
+            {'user_id': user_id},
+            {'$set': {'user_email': None}}
+        )
+        print(f"   Orphaned {txn_result.modified_count} credit transactions")
+
+        # Delete used tokens
+        tokens_deleted = UsedToken.delete_by_email(user['email'])
+        print(f"   Deleted {tokens_deleted} used tokens")
 
         # Delete user directory if it exists
         user_dir = os.path.join(USER_PROJECTS_DIR, user['email'])
         if os.path.exists(user_dir):
             shutil.rmtree(user_dir, ignore_errors=True)
-            print(f"   Deleted user directory: {user_dir}")
+            print(f"   Deleted local user directory: {user_dir}")
+
+        # Send deletion request to latextai server
+        from api_latext import delete_user_on_latextai
+        latextai_success, latextai_message = delete_user_on_latextai(user['email'])
+        if latextai_success:
+            print(f"   ✅ Latextai: {latextai_message}")
+        else:
+            print(f"   ⚠️  Latextai: {latextai_message}")
 
         # Invalidate user's refresh tokens
         User.invalidate_refresh_token(user['email'])
         print(f"   Invalidated refresh tokens")
 
-        # Orphan the user account (keep email, free_project_id, card_fingerprints for abuse tracking)
+        # Orphan the user account (keep _id, free_project_id, card_fingerprints for abuse tracking)
         orphan_data = {
             'is_deleted': True,
             'deleted_at': datetime.datetime.utcnow(),
-            'name': '[DELETED]',
+            'email': None,
             'password': generate_password_hash(str(uuid.uuid4())),
             'is_verified': False,
             'admin': False,
@@ -500,7 +534,7 @@ def delete_account(user, data):
 
         if update_result.modified_count > 0:
             print(f"✅ [DELETE ACCOUNT] User account orphaned successfully")
-            print(f"   Email retained: {user['email']}, free_project_id: {user.get('free_project_id')}")
+            print(f"   user_id retained: {user_id}, free_project_id: {user.get('free_project_id')}")
             return jsonify({'message': 'Account deleted successfully!'}), 200
         else:
             print(f"❌ [DELETE ACCOUNT] Failed to orphan user account")
@@ -560,7 +594,7 @@ def request_password_reset():
     # Send password reset email
     email_sent = send_password_reset_email(
         email,
-        user.get('name', 'User'),
+        'User',
         reset_url
     )
 

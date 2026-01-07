@@ -61,7 +61,7 @@ export const clearAuthTokens = (): void => {
   const oldEmail = localStorage.getItem('userEmail');
   console.log(`🧹 [AUTH] Removing tokens for: ${oldEmail || 'unknown'}`);
 
-  ['token', 'refreshToken', 'userEmail', 'userName', 'isAdmin', 'isVerified'].forEach(key => {
+  ['token', 'refreshToken', 'userEmail', 'isAdmin', 'isVerified'].forEach(key => {
     localStorage.removeItem(key);
   });
 

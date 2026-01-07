@@ -29,7 +29,6 @@ def test_user():
     """Create a verified test user with tokens."""
     with app.app_context():
         user = create_test_user(
-            name="Refresh Token Test User",
             is_verified=True,
             free_project_id=None,
             mongo_db=mongo.db,
@@ -61,7 +60,6 @@ def test_normal_login(test_user):
     data = response.json()
     assert 'access_token' in data, "No access_token in response"
     assert 'refresh_token' in data, "No refresh_token in response"
-    assert data['name'] == test_user['name'], f"Expected name {test_user['name']}, got {data['name']}"
 
     print("✅ TEST PASSED: User received both tokens")
 

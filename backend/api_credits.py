@@ -29,7 +29,7 @@ def get_history(user):
     limit = request.args.get('limit', 50, type=int)
     limit = min(limit, 100)
 
-    transactions = CreditTransaction.get_user_transactions(user['email'], limit)
+    transactions = CreditTransaction.get_user_transactions(str(user['_id']), limit)
 
     result = []
     for txn in transactions:
@@ -88,6 +88,7 @@ def create_topup_session(user, data):
                 'quantity': 1,
             }],
             mode='payment',
+            allow_promotion_codes=True,
             success_url=f'{FRONTEND_URL}/credits?topup_success=true&credits={credits}',
             cancel_url=f'{FRONTEND_URL}/credits?topup_cancelled=true',
             metadata={

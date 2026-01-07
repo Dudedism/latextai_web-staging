@@ -51,20 +51,88 @@ def validate_template(template_id):
     return True, template
 
 
-def create_user_directory(user_id):
+def create_user_directory(user_email):
     """Create a directory for a user's projects if it doesn't exist"""
-    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_id))
+    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_email))
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
     return user_dir
 
-def create_project_directory(user_id, project_id):
+def create_project_directory(user_email, project_id):
     """Create a specific project directory for a user"""
-    user_dir = create_user_directory(user_id)
+    user_dir = create_user_directory(user_email)
     project_dir = os.path.join(user_dir, str(project_id))
     if not os.path.exists(project_dir):
         os.makedirs(project_dir, exist_ok=True)
     return project_dir
+
+
+def delete_user_on_latextai(user_email):
+    """
+    Send deletion request to latextai server to delete user's project files.
+
+    Args:
+        user_email: User's email address
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        response = requests.delete(
+            f"{LATEXTAI_SERVICE_URL}/api/user",
+            headers={'X-API-Key': LATEXTAI_API_KEY},
+            params={'user_email': user_email},
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            return True, "User deleted from latextai"
+        elif response.status_code == 404:
+            return True, "User not found on latextai (already deleted or never existed)"
+        else:
+            return False, f"Latextai deletion failed: {response.status_code}"
+
+    except requests.exceptions.ConnectionError:
+        return False, "Could not connect to latextai server"
+    except requests.exceptions.Timeout:
+        return False, "Latextai server timeout"
+    except Exception as e:
+        return False, f"Latextai deletion error: {str(e)}"
+
+
+def delete_project_on_latextai(user_email, project_id):
+    """
+    Send deletion request to latextai server to delete a single project's files.
+
+    Args:
+        user_email: User's email address
+        project_id: Project UUID
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        response = requests.delete(
+            f"{LATEXTAI_SERVICE_URL}/api/project/{project_id}",
+            headers={'X-API-Key': LATEXTAI_API_KEY},
+            params={'user_email': user_email},
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            return True, "Project deleted from latextai"
+        elif response.status_code == 404:
+            return True, "Project not found on latextai (already deleted or never existed)"
+        else:
+            return False, f"Latextai deletion failed: {response.status_code}"
+
+    except requests.exceptions.ConnectionError:
+        return False, "Could not connect to latextai server"
+    except requests.exceptions.Timeout:
+        return False, "Latextai server timeout"
+    except Exception as e:
+        return False, f"Latextai deletion error: {str(e)}"
+
 
 @api_latext.route('/admin/mark-paid', methods=['POST'])
 @requires_auth(require_verified=True)
@@ -160,7 +228,7 @@ def process_project(user, data):
         return jsonify({'error': 'Project not found'}), 404
 
     # STEP 2: Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # STEP 3: Check project status (must be 'validated' or already processing/completed/failed)
@@ -197,30 +265,44 @@ def process_project(user, data):
                 'requires_topup': True
             }), 402
 
-        new_balance = User.deduct_credits(user['email'], credits_required)
-        if new_balance is None:
-            return jsonify({
-                'error': 'Failed to deduct credits. Please try again.',
-                'requires_topup': True
-            }), 402
-
-        CreditTransaction.create(
-            user_id=user['email'],
-            transaction_type='deduct',
-            amount=-credits_required,
-            balance_after=new_balance,
-            description=f"Conversion: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
-            project_id=project_id
-        )
-
-        mongo.db.projects.update_one(
-            {'project_id': project_id},
+        # ATOMIC: Mark project as paid FIRST to prevent double-charge race condition
+        # Only one concurrent request can succeed with this update
+        mark_result = mongo.db.projects.update_one(
+            {'project_id': project_id, 'paid': False},
             {'$set': {
                 'paid': True,
                 'paid_with_credits': True,
                 'credits_charged': credits_required,
                 'paid_at': datetime.utcnow()
             }}
+        )
+
+        if mark_result.modified_count == 0:
+            # Another request already marked this project as paid
+            print(f"⚠️  [CREDITS] Project {project_id} already paid (race condition prevented)")
+            return jsonify({'message': 'Project already paid'}), 200
+
+        # Now deduct credits (we own the project payment)
+        new_balance = User.deduct_credits(user['email'], credits_required)
+        if new_balance is None:
+            # Rollback: Clear paid status since we couldn't charge
+            mongo.db.projects.update_one(
+                {'project_id': project_id},
+                {'$set': {'paid': False, 'paid_with_credits': False, 'credits_charged': None, 'paid_at': None}}
+            )
+            return jsonify({
+                'error': 'Failed to deduct credits. Please try again.',
+                'requires_topup': True
+            }), 402
+
+        CreditTransaction.create(
+            user_email=user['email'],
+            user_id=str(user['_id']),
+            transaction_type='deduct',
+            amount=-credits_required,
+            balance_after=new_balance,
+            description=f"Conversion: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
+            project_id=project_id
         )
 
         print(f"💳 [CREDITS] Charged {credits_required} credits for project {project_id}")
@@ -318,7 +400,7 @@ def get_pdf(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -369,7 +451,7 @@ def get_tex(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -420,7 +502,7 @@ def get_bib(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -471,7 +553,7 @@ def get_package(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed

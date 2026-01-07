@@ -11,7 +11,6 @@ import { PasswordResetRequestModal } from '../common/PasswordResetRequestModal';
 import { apiRequest } from '../../utils/api';
 
 interface AccountPageProps {
-  userName?: string;
   userEmail?: string;
 }
 
@@ -26,7 +25,6 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   const [loading, setLoading] = useState(true);
 
   // Use user data from context
-  const userName = user?.name || 'User';
   const userEmail = user?.email || 'user@example.com';
 
   // Fetch data consent status on mount
@@ -55,7 +53,6 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   console.log('👤 [ACCOUNT PAGE] Render state:', {
     isAuthenticated,
     userEmail,
-    userName,
     isVerified,
     dataConsent
   });
@@ -155,11 +152,6 @@ const AccountPage: React.FC<AccountPageProps> = () => {
           <h1 className="section-title">Your Account</h1>
 
           <div className="mb-8">
-            <div className="mb-6">
-              <label className="form-label form-label--light">Name</label>
-              <div>{userName}</div>
-            </div>
-
             <div className="mb-6">
               <label className="form-label form-label--light">Email</label>
               <div>{userEmail}</div>

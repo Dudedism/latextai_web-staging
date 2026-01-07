@@ -54,9 +54,8 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, name=None, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_project_id=None, is_deleted=False, card_fingerprints=None, credit_balance=0, **kwargs):
+    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_project_id=None, is_deleted=False, card_fingerprints=None, credit_balance=0, **kwargs):
         super().__init__(
-            name=name,
             email=email,
             password=password,
             is_verified=is_verified,
@@ -287,12 +286,13 @@ class User(BaseModel):
 class Project(BaseModel):
     collection_name = 'projects'
 
-    def __init__(self, upload_filename=None, user_id=None, status='unconverted',
+    def __init__(self, upload_filename=None, user_email=None, user_id=None, status='unconverted',
                  project_id=None, template=None, paid=False,
                  total_credits=0, filesize=0, word_count=0, page_count=0,
                  validated=False, feedback=None, **kwargs):
         super().__init__(
             upload_filename=upload_filename,
+            user_email=user_email,
             user_id=user_id,
             status=status,
             project_id=project_id,
@@ -309,78 +309,22 @@ class Project(BaseModel):
         )
 
     @classmethod
-    def get_user_identifiers(cls, user):
-        """
-        Get all possible user identifiers (email and ObjectId) for backwards compatibility.
-
-        Args:
-            user: User dict from database
-
-        Returns:
-            list: List of possible user_id values [email, str(_id)]
-        """
-        identifiers = []
-        if user.get('email'):
-            identifiers.append(user['email'])
-        if user.get('_id'):
-            identifiers.append(str(user['_id']))
-        return identifiers
+    def find_by_user(cls, user_id):
+        """Find all non-orphaned projects for a user by user_id."""
+        return cls.find_all({'user_id': user_id, 'is_orphaned': {'$ne': True}})
 
     @classmethod
-    def find_by_user(cls, user):
-        """
-        Find all projects for a specific user.
-        Handles both email and ObjectId formats for backwards compatibility.
-
-        Args:
-            user: Either a user dict with 'email' and '_id', or a string (email/user_id)
-
-        Returns:
-            list: List of projects owned by the user
-        """
-        if isinstance(user, str):
-            # String passed - query for exact match
-            return cls.find_all({'user_id': user})
-        else:
-            # User dict passed - query for both email and _id
-            identifiers = cls.get_user_identifiers(user)
-            return cls.find_all({'user_id': {'$in': identifiers}})
-
-    @classmethod
-    def delete_by_user(cls, user):
-        """
-        Delete all projects for a specific user.
-        Handles both email and ObjectId formats for backwards compatibility.
-
-        Args:
-            user: User dict from database
-
-        Returns:
-            int: Number of projects deleted
-        """
-        identifiers = cls.get_user_identifiers(user)
-        result = mongo.db[cls.collection_name].delete_many({'user_id': {'$in': identifiers}})
+    def delete_by_user(cls, user_id):
+        """Delete all projects for a user by user_id."""
+        result = mongo.db[cls.collection_name].delete_many({'user_id': user_id})
         return result.deleted_count
 
     @classmethod
-    def transfer_to_user(cls, from_user, to_user):
-        """
-        Transfer all projects from one user to another.
-        Used during account merging.
-
-        Args:
-            from_user: Source user dict
-            to_user: Target user dict
-
-        Returns:
-            int: Number of projects transferred
-        """
-        from_identifiers = cls.get_user_identifiers(from_user)
-        to_email = to_user['email']  # Always use email for new assignments
-
+    def transfer_to_user(cls, from_user_id, to_user_id, to_user_email):
+        """Transfer all projects from one user to another."""
         result = mongo.db[cls.collection_name].update_many(
-            {'user_id': {'$in': from_identifiers}},
-            {'$set': {'user_id': to_email}}
+            {'user_id': from_user_id},
+            {'$set': {'user_id': to_user_id, 'user_email': to_user_email}}
         )
         return result.modified_count
 
@@ -393,7 +337,8 @@ class Project(BaseModel):
     @classmethod
     def delete_with_files(cls, project_id, user_email, user_projects_dir='user_projects'):
         """
-        Delete a project and its associated files.
+        Delete a project's files and orphan the database record.
+        Keeps user_id for statistics, clears user_email for privacy.
 
         Args:
             project_id: Project UUID
@@ -407,18 +352,30 @@ class Project(BaseModel):
         import shutil
 
         try:
-            # Delete files
+            # Delete local files
             project_dir = os.path.join(user_projects_dir, user_email, project_id)
             if os.path.exists(project_dir):
                 shutil.rmtree(project_dir, ignore_errors=True)
-                print(f"✅ [DELETE] Deleted files for project {project_id}")
+                print(f"✅ [DELETE] Deleted local files for project {project_id}")
             else:
-                print(f"⚠️  [DELETE] No files found for project {project_id}")
+                print(f"⚠️  [DELETE] No local files found for project {project_id}")
 
-            # Delete from database
-            delete_result = mongo.db[cls.collection_name].delete_one({'project_id': project_id})
-            if delete_result.deleted_count > 0:
-                print(f"✅ [DELETE] Deleted project {project_id} from database")
+            # Orphan the project in database (keep user_id for stats)
+            result = mongo.db[cls.collection_name].update_one(
+                {'project_id': project_id},
+                {
+                    '$set': {
+                        'user_email': None,
+                        'upload_filename': None,
+                        'error_message': None,
+                        'is_orphaned': True,
+                        'orphaned_at': datetime.utcnow()
+                    }
+                }
+            )
+
+            if result.matched_count > 0:
+                print(f"✅ [DELETE] Orphaned project {project_id} in database")
                 return True, f"Project {project_id} deleted successfully"
             else:
                 print(f"⚠️  [DELETE] Project {project_id} not found in database")
@@ -438,18 +395,17 @@ class Project(BaseModel):
         return result.modified_count > 0
 
     @classmethod
-    def count_user_projects(cls, user):
-        """
-        Count total number of projects for a user.
+    def count_user_projects(cls, user_id):
+        """Count total number of non-orphaned projects for a user."""
+        return mongo.db[cls.collection_name].count_documents({'user_id': user_id, 'is_orphaned': {'$ne': True}})
 
-        Args:
-            user: User dict from database
-
-        Returns:
-            int: Total project count
-        """
-        identifiers = cls.get_user_identifiers(user)
-        return mongo.db[cls.collection_name].count_documents({'user_id': {'$in': identifiers}})
+    @classmethod
+    def has_paid_free_project(cls, user_id):
+        """Check if user has any paid project (for upload limit logic)."""
+        return mongo.db[cls.collection_name].count_documents(
+            {'user_id': user_id, 'paid': True, 'is_orphaned': {'$ne': True}},
+            limit=1
+        ) > 0
 
     @classmethod
     def mark_as_paid(cls, project_id, total_cost=0.0):
@@ -533,14 +489,21 @@ class UsedToken(BaseModel):
         })
         return result.deleted_count
 
+    @classmethod
+    def delete_by_email(cls, email):
+        """Delete all tokens for a user (used on account deletion)"""
+        result = mongo.db[cls.collection_name].delete_many({'email': email})
+        return result.deleted_count
+
 
 class CreditTransaction(BaseModel):
     collection_name = 'credit_transactions'
 
-    def __init__(self, user_id=None, transaction_type=None, amount=0, balance_after=0,
+    def __init__(self, user_email=None, user_id=None, transaction_type=None, amount=0, balance_after=0,
                  description=None, project_id=None, stripe_session_id=None, **kwargs):
         super().__init__(
             transaction_id=str(uuid.uuid4()),
+            user_email=user_email,
             user_id=user_id,
             transaction_type=transaction_type,
             amount=amount,
@@ -553,10 +516,11 @@ class CreditTransaction(BaseModel):
         )
 
     @classmethod
-    def create(cls, user_id, transaction_type, amount, balance_after, description,
+    def create(cls, user_email, user_id, transaction_type, amount, balance_after, description,
                project_id=None, stripe_session_id=None):
         """Create and save a new credit transaction"""
         txn = cls(
+            user_email=user_email,
             user_id=user_id,
             transaction_type=transaction_type,
             amount=amount,
@@ -569,8 +533,8 @@ class CreditTransaction(BaseModel):
         return txn.data
 
     @classmethod
-    def get_user_transactions(cls, email, limit=50):
+    def get_user_transactions(cls, user_id, limit=50):
         """Get recent transactions for a user, newest first"""
         return list(mongo.db[cls.collection_name].find(
-            {'user_id': email}
+            {'user_id': user_id}
         ).sort('created_at', -1).limit(limit))
