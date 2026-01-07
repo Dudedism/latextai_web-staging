@@ -98,15 +98,15 @@ def create_topup_session(user, data):
             },
         )
 
-        print(f"✅ [CREDITS] Top-up session created: {checkout_session.id} for {user['email']}")
-        print(f"💰 [CREDITS] Amount: {credits} credits (${credits / 100:.2f})")
+        print(f"✅ [CREDITS] Top-up session created: {checkout_session.id}")
+        print(f"💰 [CREDITS] Amount: {credits} credits")
 
         return jsonify({
             'checkout_url': checkout_session.url
         }), 200
 
     except stripe.error.StripeError as e:
-        print(f"❌ [CREDITS] Error creating top-up session: {str(e)}")
+        print(f"❌ [CREDITS] Stripe error: {e}")
         return jsonify({
-            'error': f'Failed to create checkout session: {str(e)}'
+            'error': 'Failed to create checkout session. Please try again.'
         }), 500

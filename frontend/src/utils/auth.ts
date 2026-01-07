@@ -22,12 +22,8 @@ export const getRefreshToken = (): string | null => {
 
 export const refreshAccessToken = async (): Promise<boolean> => {
   const refreshToken = getRefreshToken();
-  const currentEmail = localStorage.getItem('userEmail');
-
-  console.log(`🔄 [AUTH] Refreshing token for: ${currentEmail || 'unknown'}`);
 
   if (!refreshToken) {
-    console.log('❌ [AUTH] No refresh token available');
     return false;
   }
 
@@ -44,28 +40,20 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       const data = await response.json();
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('refreshToken', data.refresh_token);
-      console.log(`✅ [AUTH] Token refreshed successfully for: ${currentEmail}`);
       return true;
     } else {
-      console.log(`❌ [AUTH] Token refresh failed (${response.status})`);
       return false;
     }
   } catch (error) {
-    console.error('❌ [AUTH] Error refreshing token:', error);
+    console.error('Error refreshing token:', error);
     return false;
   }
 };
 
 export const clearAuthTokens = (): void => {
-  console.log('🧹 [AUTH] Clearing all auth tokens');
-  const oldEmail = localStorage.getItem('userEmail');
-  console.log(`🧹 [AUTH] Removing tokens for: ${oldEmail || 'unknown'}`);
-
   ['token', 'refreshToken', 'userEmail', 'isAdmin', 'isVerified'].forEach(key => {
     localStorage.removeItem(key);
   });
-
-  console.log('✅ [AUTH] Tokens cleared');
   emitAuthCleared();
 };
 

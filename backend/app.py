@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
-import traceback
 import os
 
 from api_admin import api_admin
@@ -80,10 +79,6 @@ def log_request():
         print("Authorization: [NONE]")
 
     if request.method in ['POST', 'PUT', 'PATCH']:
-        if request.is_json:
-            print(f"JSON: {request.get_json(silent=True)}")
-        elif request.form:
-            print(f"Form: {dict(request.form)}")
         if request.files:
             print(f"Files: {list(request.files.keys())}")
     print(f"{'='*60}\n")
@@ -98,18 +93,14 @@ def log_response(response):
 # Add 422 error handler
 @app.errorhandler(422)
 def handle_unprocessable_entity(e):
-    print("\n🔥 422 ERROR CAUGHT!")
-    print(f"Error: {e}")
-    traceback.print_exc()
-    return jsonify({'error': 'Unprocessable Entity', 'message': str(e)}), 422
+    print(f"\n🔥 422 ERROR: {e}")
+    return jsonify({'error': 'Invalid request data'}), 422
 
 # Add generic exception handler
 @app.errorhandler(Exception)
 def handle_exception(e):
-    print("\n💥 UNHANDLED EXCEPTION!")
-    print(f"Error: {e}")
-    traceback.print_exc()
-    return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
+    print(f"\n💥 UNHANDLED EXCEPTION: {e}")
+    return jsonify({'error': 'An unexpected error occurred'}), 500
 
 # Basic Flask config
 app.config["MONGO_URI"] = MONGO_URI
@@ -148,7 +139,6 @@ try:
         print(f"Database name: {mongo.db.name}")
 except Exception as e:
     print(f"ERROR: Failed to connect to MongoDB: {e}")
-    print(f"MongoDB URI: {MONGO_URI}")
 
 @app.route('/')
 def hello():

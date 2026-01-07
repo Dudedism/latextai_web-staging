@@ -64,16 +64,16 @@ def create_setup_session(user, data):
             },
         )
 
-        print(f"✅ [STRIPE] Setup session created: {checkout_session.id} for project {project_id}")
+        print(f"✅ [STRIPE] Setup session created for project {project_id}")
 
         return jsonify({
             'checkout_url': checkout_session.url
         }), 200
 
     except stripe.error.StripeError as e:
-        print(f"❌ [STRIPE] Error creating setup session: {str(e)}")
+        print(f"❌ [STRIPE] Error creating setup session: {e}")
         return jsonify({
-            'error': f'Failed to create setup session: {str(e)}'
+            'error': 'Failed to create setup session. Please try again.'
         }), 500
 
 
@@ -181,12 +181,12 @@ def handle_setup_completed(session, project_id, user_email):
             }}
         )
 
-        print(f"✅ [STRIPE] Card verified for project {project_id}, fingerprint added to user {user_email}")
+        print(f"✅ [STRIPE] Card verified for project {project_id}")
         return jsonify({'received': True}), 200
 
     except Exception as e:
-        print(f"❌ [STRIPE] Error processing setup: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ [STRIPE] Error processing setup: {e}")
+        return jsonify({'error': 'Failed to process card verification'}), 500
 
 
 def handle_credit_topup_completed(session, metadata):
@@ -199,7 +199,7 @@ def handle_credit_topup_completed(session, metadata):
         print(f"❌ [STRIPE] Missing user_email or credits in metadata")
         return jsonify({'error': 'Invalid metadata'}), 400
 
-    print(f"💳 [STRIPE] Credit top-up completed for {user_email}: {credits} credits")
+    print(f"💳 [STRIPE] Credit top-up completed: {credits} credits")
 
     try:
         # IDEMPOTENCY CHECK: Prevent duplicate credit additions from webhook retries
@@ -210,12 +210,12 @@ def handle_credit_topup_completed(session, metadata):
 
         user = User.find_by_email(user_email)
         if not user:
-            print(f"❌ [STRIPE] User {user_email} not found")
+            print(f"❌ [STRIPE] User not found")
             return jsonify({'error': 'User not found'}), 404
 
         new_balance = User.add_credits(user_email, credits)
         if new_balance is None:
-            print(f"❌ [STRIPE] Failed to add credits to {user_email}")
+            print(f"❌ [STRIPE] Failed to add credits")
             return jsonify({'error': 'Failed to add credits'}), 500
 
         CreditTransaction.create(
@@ -228,9 +228,9 @@ def handle_credit_topup_completed(session, metadata):
             stripe_session_id=session_id
         )
 
-        print(f"✅ [STRIPE] Added {credits} credits to {user_email}, new balance: {new_balance}")
+        print(f"✅ [STRIPE] Added {credits} credits, new balance: {new_balance}")
         return jsonify({'received': True}), 200
 
     except Exception as e:
-        print(f"❌ [STRIPE] Error processing credit top-up: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ [STRIPE] Error processing credit top-up: {e}")
+        return jsonify({'error': 'Failed to process credit top-up'}), 500

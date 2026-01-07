@@ -187,9 +187,9 @@ def upload_file(user, data):
         }), 200
 
     except Exception as e:
-        print(f"❌ [UPLOAD] Error: {str(e)}")
+        print(f"❌ [UPLOAD] Error: {e}")
         return jsonify({
-            'error': f'Upload failed: {str(e)}'
+            'error': 'Upload failed. Please try again.'
         }), 500
 
 @api_project.route('/validate', methods=['POST'])
@@ -254,10 +254,10 @@ def validate_file(user, data):
             print(f"✅ [VALIDATE] Metadata extracted: {page_count} pages, {word_count} words, {filesize} bytes")
         except Exception as e:
             # Validation failed - delete project and files
-            print(f"❌ [VALIDATE] Document processing error: {str(e)}")
+            print(f"❌ [VALIDATE] Document processing error: {e}")
             Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
             return jsonify({
-                'error': f'Failed to process document: {str(e)}'
+                'error': 'Failed to process document. Please ensure it is a valid Word file.'
             }), 500
 
         # STEP 7: Validate word-to-page ratio
@@ -309,16 +309,16 @@ def validate_file(user, data):
         }), 200
 
     except Exception as e:
-        print(f"❌ [VALIDATE] Unexpected error: {str(e)}")
+        print(f"❌ [VALIDATE] Unexpected error: {e}")
         # Clean up project and files on unexpected error
         try:
             if 'project_id' in locals() and project_id and 'user_email' in locals():
                 Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
         except Exception as cleanup_error:
-            print(f"⚠️  [VALIDATE] Cleanup error: {str(cleanup_error)}")
+            print(f"⚠️  [VALIDATE] Cleanup error: {cleanup_error}")
 
         return jsonify({
-            'error': f'Validation failed: {str(e)}'
+            'error': 'Validation failed. Please try again.'
         }), 500
 
 @api_project.route('/cost-estimate', methods=['GET'])
@@ -440,7 +440,7 @@ def claim_free_upload(user, data):
         print(f"⚠️ [CLAIM-FREE] Abuse detected: card already used by another account")
         # Mark this user's free upload as forfeited due to abuse
         User.set_free_project(user['email'], 'ABUSE_BLOCKED')
-        print(f"⚠️ [CLAIM-FREE] User {user['email']} free upload forfeited due to card reuse")
+        print(f"⚠️ [CLAIM-FREE] Free upload forfeited due to card reuse")
         return jsonify({
             'error': 'This card has already been used for a free upload on another account'
         }), 409
@@ -457,7 +457,7 @@ def claim_free_upload(user, data):
                 'error': 'Failed to claim free upload'
             }), 500
 
-    print(f"✅ [CLAIM-FREE] User {user['email']} claimed free upload for project {project_id}")
+    print(f"✅ [CLAIM-FREE] Free upload claimed for project {project_id}")
 
     mark_success = Project.mark_as_paid(project_id=project_id, total_cost=0.0)
 

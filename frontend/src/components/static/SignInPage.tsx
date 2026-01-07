@@ -106,8 +106,6 @@ const SignInPage: React.FC = () => {
           // Signup successful with auto-login - store auth data
           setError('');
 
-          console.log('📥 [SIGNUP] Backend response:', data);
-
           if (data.access_token && data.refresh_token) {
             // Auto-login: Store tokens and user data using AuthContext
             setAuthData({
@@ -118,17 +116,11 @@ const SignInPage: React.FC = () => {
               is_verified: false  // New users are not verified by default
             });
 
-            console.log('✅ [SIGNUP] Registration and auto-login successful');
-            console.log('📧 [SIGNUP] Setting signup email:', data.email);
-            console.log('🔔 [SIGNUP] Showing verification modal...');
-
             // Store email for verification modal
             setSignupEmail(data.email);
 
             // Show verification modal (user must close it to continue)
             setShowVerificationModal(true);
-
-            console.log('🔔 [SIGNUP] Modal state set to:', true);
 
             // Don't navigate automatically - let user close modal first
           } else {

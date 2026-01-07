@@ -118,7 +118,7 @@ def resend_verification_email(user):
     # Send verification email
     try:
         send_verification_email(user['email'], 'User', verify_url)
-        print(f"📧 [RESEND] Verification email sent to {user['email']}")
+        print(f"📧 [RESEND] Verification email sent")
         return jsonify({'message': 'Verification email sent successfully'}), 200
     except Exception as e:
         print(f"❌ [RESEND] Failed to send verification email: {e}")

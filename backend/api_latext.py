@@ -188,7 +188,7 @@ def admin_mark_paid(user, data):
         }}
     )
 
-    print(f"🔧 [ADMIN] Project {project_id} marked as paid by {user['email']}")
+    print(f"🔧 [ADMIN] Project {project_id} marked as paid")
 
     return jsonify({
         'message': 'Project marked as paid',
@@ -379,15 +379,15 @@ def process_project(user, data):
                 }), response.status_code
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ [PROCESS] Network error: {str(e)}")
+        print(f"❌ [PROCESS] Network error: {e}")
         return jsonify({
-            'error': f'Failed to connect to processing service: {str(e)}'
+            'error': 'Failed to connect to processing service. Please try again.'
         }), 500
 
     except Exception as e:
-        print(f"❌ [PROCESS] Error: {str(e)}")
+        print(f"❌ [PROCESS] Error: {e}")
         return jsonify({
-            'error': f'Processing failed: {str(e)}'
+            'error': 'Processing failed. Please try again.'
         }), 500
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
@@ -435,7 +435,8 @@ def get_pdf(user, project_id):
             return jsonify({'error': 'PDF not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download PDF: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] PDF download error: {e}")
+        return jsonify({'error': 'Failed to download PDF'}), 500
 
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
 @requires_auth(require_verified=True)
@@ -486,7 +487,8 @@ def get_tex(user, project_id):
             return jsonify({'error': 'LaTeX file not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download LaTeX file: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] TeX download error: {e}")
+        return jsonify({'error': 'Failed to download LaTeX file'}), 500
 
 @api_latext.route('/project/<project_id>/bib', methods=['GET'])
 @requires_auth(require_verified=True)
@@ -537,7 +539,8 @@ def get_bib(user, project_id):
             return jsonify({'error': 'BibTeX file not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download BibTeX file: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] BibTeX download error: {e}")
+        return jsonify({'error': 'Failed to download BibTeX file'}), 500
 
 @api_latext.route('/project/<project_id>/package', methods=['GET'])
 @requires_auth(require_verified=True)
@@ -588,5 +591,6 @@ def get_package(user, project_id):
             return jsonify({'error': 'Compilation package not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download compilation package: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] Package download error: {e}")
+        return jsonify({'error': 'Failed to download compilation package'}), 500
 

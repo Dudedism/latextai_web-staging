@@ -148,7 +148,7 @@ def signup():
     inherited_card_fingerprints = list(set(inherited_card_fingerprints))
 
     if inherited_free_project_id:
-        print(f"ℹ️  [SIGNUP] User {data['email']} has previously used free upload (from deleted account)")
+        print(f"ℹ️  [SIGNUP] User has previously used free upload (from deleted account)")
 
     # Create user with is_verified=False (requires email verification)
     user = User(
@@ -162,7 +162,7 @@ def signup():
 
     user.insert()
 
-    print(f"✅ [SIGNUP] User registered: {data['email']}")
+    print(f"✅ [SIGNUP] User registered")
 
     # Note: Verification email is NOT sent automatically on signup
     # User will see a modal prompting them to request verification when needed
@@ -191,7 +191,6 @@ def signup():
 def verify():
     token = request.args.get('token')  # Get token from query string
     print(f"\n🔍 [VERIFY] Verification request received")
-    print(f"   Token: {token[:50] if token else 'None'}...")
 
     if not token:
         print(f"❌ [VERIFY] No token provided")
@@ -207,20 +206,15 @@ def verify():
 
     try:
         # Decrypt the token to get the email
-        print(f"🔓 [VERIFY] Attempting to decrypt token...")
         email = s.loads(token, max_age=86400)  # 24 hour expiration
-        print(f"✅ [VERIFY] Token decrypted successfully: {email}")
+        print(f"✅ [VERIFY] Token decrypted successfully")
 
         # Find the user by email
-        print(f"🔍 [VERIFY] Looking up user: {email}")
         user = User.find_by_email(email, include_deleted=False)
 
         if not user:
-            print(f"❌ [VERIFY] User not found: {email}")
+            print(f"❌ [VERIFY] User not found")
             return jsonify({'error': 'User not found'}), 404
-
-        print(f"✅ [VERIFY] User found: {email}")
-        print(f"   Current verification status: {user.get('is_verified', False)}")
 
         # Check if the user is already verified
         if user.get('is_verified', False):
@@ -234,9 +228,8 @@ def verify():
         # Mark token as used BEFORE verifying user
         UsedToken.mark_token_used(token_hash, 'email_verification', email)
 
-        print(f"📝 [VERIFY] Marking user as verified...")
         User.update_fields(email, {"is_verified": True})
-        print(f"✅ [VERIFY] User verification successful!")
+        print(f"✅ [VERIFY] User verification successful")
 
         # Return JSON response with user email for frontend to update auth state
         return jsonify({
@@ -246,11 +239,7 @@ def verify():
         }), 200
 
     except Exception as e:
-        print(f"❌ [VERIFY] Verification failed!")
-        print(f"   Exception type: {type(e).__name__}")
-        print(f"   Exception message: {str(e)}")
-        import traceback
-        print(f"   Traceback:\n{traceback.format_exc()}")
+        print(f"❌ [VERIFY] Verification failed: {e}")
         return jsonify({'error': 'The verification link has expired or is invalid'}), 400
 
 @api_auth.route('/login', methods=['POST'])
@@ -309,19 +298,14 @@ def refresh():
     identity = get_jwt_identity()
     current_token_jti = get_jwt()['jti']
 
-    print(f"\n🔄 Refresh request from: {identity}")
-    print(f"   Token JTI: {current_token_jti}")
+    print(f"\n🔄 Refresh request")
 
     # Get the stored refresh token JTI from database
     stored_token_jti = User.get_refresh_token_jti(identity)
-    print(f"   Stored JTI: {stored_token_jti}")
 
     # REUSE DETECTION: Check if this token was already used
     if stored_token_jti != current_token_jti:
-        print(f"🚨 TOKEN REUSE DETECTED for {identity}!")
-        print(f"   Expected JTI: {stored_token_jti}")
-        print(f"   Received JTI: {current_token_jti}")
-        print(f"   Action: Invalidating all refresh tokens for this user")
+        print(f"🚨 TOKEN REUSE DETECTED - Invalidating all refresh tokens")
 
         # Invalidate all refresh tokens for this user
         User.invalidate_refresh_token(identity)
@@ -332,7 +316,7 @@ def refresh():
         }), 401
 
     # Token is valid - proceed with rotation
-    print(f"✅ Token valid - proceeding with rotation")
+    print(f"✅ Token valid - rotating")
 
     # Generate NEW access token (15 minutes for all users)
     new_access_token = create_access_token(
@@ -348,8 +332,7 @@ def refresh():
     new_refresh_token_jti = new_refresh_token_decoded['jti']
     User.store_refresh_token(identity, new_refresh_token_jti)
 
-    print(f"✅ Tokens rotated successfully")
-    print(f"   New Refresh JTI: {new_refresh_token_jti}")
+    print(f"✅ Tokens rotated")
 
     return jsonify({
         'access_token': new_access_token,
@@ -411,10 +394,10 @@ def logout(user):
     """
     try:
         User.invalidate_refresh_token(user['email'])
-        print(f"🚪 [LOGOUT] User {user['email']} logged out, tokens invalidated")
+        print(f"🚪 [LOGOUT] User logged out")
         return jsonify({'message': 'Logged out successfully'}), 200
     except Exception as e:
-        print(f"❌ [LOGOUT] Error logging out user {user['email']}: {e}")
+        print(f"❌ [LOGOUT] Error logging out: {e}")
         return jsonify({'error': 'Failed to logout'}), 500
 
 @api_auth.route('/changePassword', methods=['POST'])
@@ -452,7 +435,7 @@ def delete_account(user, data):
     USER_PROJECTS_DIR = 'user_projects'
     user_id = str(user['_id'])
 
-    print(f"🗑️  [DELETE ACCOUNT] User {user['email']} requested account deletion")
+    print(f"🗑️  [DELETE ACCOUNT] Account deletion requested")
 
     try:
         # Get all projects owned by user (includes non-orphaned only)
@@ -534,7 +517,6 @@ def delete_account(user, data):
 
         if update_result.modified_count > 0:
             print(f"✅ [DELETE ACCOUNT] User account orphaned successfully")
-            print(f"   user_id retained: {user_id}, free_project_id: {user.get('free_project_id')}")
             return jsonify({'message': 'Account deleted successfully!'}), 200
         else:
             print(f"❌ [DELETE ACCOUNT] Failed to orphan user account")
@@ -569,27 +551,26 @@ def request_password_reset():
     if len(email) > 254:
         return jsonify({'error': 'Email must be 254 characters or less'}), 400
 
-    print(f"🔑 [PASSWORD RESET] Password reset requested for {email}")
+    print(f"🔑 [PASSWORD RESET] Password reset requested")
 
     # Find user by email
     user = User.find_by_email(email, include_deleted=False)
 
     # Always return success to prevent email enumeration
     if not user:
-        print(f"⚠️  [PASSWORD RESET] User {email} not found (returning success anyway)")
+        print(f"⚠️  [PASSWORD RESET] User not found (returning success anyway)")
         return jsonify({'message': 'If this email is registered and verified, a password reset link has been sent'}), 200
 
     # Check if user is verified
     if not user.get('is_verified', False):
-        print(f"⚠️  [PASSWORD RESET] User {email} is not verified (returning success anyway)")
+        print(f"⚠️  [PASSWORD RESET] User not verified (returning success anyway)")
         return jsonify({'message': 'If this email is registered and verified, a password reset link has been sent'}), 200
 
     # Generate password reset token (expires in 1 hour)
     reset_token = s.dumps(email)  # Uses EMAIL_VERIFICATION_SALT from serializer
     reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
 
-    print(f"   Generated reset token for {email}")
-    print(f"   Reset URL: {reset_url}")
+    print(f"   Generated reset token")
 
     # Send password reset email
     email_sent = send_password_reset_email(
@@ -599,9 +580,9 @@ def request_password_reset():
     )
 
     if email_sent:
-        print(f"✅ [PASSWORD RESET] Reset email sent to {email}")
+        print(f"✅ [PASSWORD RESET] Reset email sent")
     else:
-        print(f"❌ [PASSWORD RESET] Failed to send email to {email}")
+        print(f"❌ [PASSWORD RESET] Failed to send email")
 
     # Always return success to prevent email enumeration
     return jsonify({'message': 'If this email is registered and verified, a password reset link has been sent'}), 200
@@ -645,15 +626,15 @@ def reset_password():
     # Validate token (1 hour expiry) - uses EMAIL_VERIFICATION_SALT from serializer
     try:
         email = s.loads(token, max_age=3600)
-        print(f"🔑 [PASSWORD RESET] Valid token for {email}")
+        print(f"🔑 [PASSWORD RESET] Valid token")
     except Exception as e:
-        print(f"❌ [PASSWORD RESET] Invalid or expired token: {str(e)}")
+        print(f"❌ [PASSWORD RESET] Invalid or expired token")
         return jsonify({'error': 'Invalid or expired reset link'}), 400
 
     # Find user
     user = User.find_by_email(email, include_deleted=False)
     if not user:
-        print(f"❌ [PASSWORD RESET] User {email} not found")
+        print(f"❌ [PASSWORD RESET] User not found")
         return jsonify({'error': 'User not found'}), 404
 
     # Mark token as used BEFORE updating password
@@ -666,6 +647,6 @@ def reset_password():
     # Invalidate all refresh tokens (force re-login)
     User.invalidate_refresh_token(email)
 
-    print(f"✅ [PASSWORD RESET] Password reset successful for {email}")
+    print(f"✅ [PASSWORD RESET] Password reset successful")
     return jsonify({'message': 'Password reset successful'}), 200
 

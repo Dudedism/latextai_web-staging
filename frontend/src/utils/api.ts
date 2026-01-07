@@ -10,10 +10,6 @@ export const apiFetch = async (
   options: RequestInit = {}
 ): Promise<Response> => {
   const token = getToken();
-  const userEmail = localStorage.getItem('userEmail');
-
-  console.log(`📡 [API] ${options.method || 'GET'} ${endpoint}`);
-  console.log(`📡 [API] User: ${userEmail || 'none'}`);
 
   // Add Authorization header if token exists
   const headers: Record<string, string> = {
@@ -22,9 +18,6 @@ export const apiFetch = async (
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-    console.log(`📡 [API] Token: ${token.substring(0, 20)}...`);
-  } else {
-    console.log('⚠️  [API] No token available');
   }
 
   // Make the request
@@ -32,8 +25,6 @@ export const apiFetch = async (
     ...options,
     headers,
   });
-
-  console.log(`📡 [API] Response: ${response.status} ${response.statusText}`);
 
   // Note: 401 handling is done by fetchInterceptor (global window.fetch wrapper)
   // The interceptor will automatically attempt token refresh and retry the request
