@@ -13,7 +13,6 @@ import os
 BASE_URL = os.getenv('BACKEND_URL')
 
 # Hardcoded test user credentials
-TEST_USER_NAME = "TestUser_AutomatedTests"
 TEST_USER_EMAIL = f"testuser_{uuid.uuid4().hex[:8]}@gmail.com"
 TEST_USER_PASSWORD = "TestPassword123!_SecureEnough"
 
@@ -27,7 +26,6 @@ def test_user_credentials():
     Email has a unique ID to avoid conflicts between test runs.
     """
     return {
-        "name": TEST_USER_NAME,
         "email": TEST_USER_EMAIL,
         "password": TEST_USER_PASSWORD
     }
@@ -42,7 +40,6 @@ def test_user(test_user_credentials):
     The user is automatically verified (backend sets is_verified=True by default).
     """
     print(f"\n🔧 Creating test user for session")
-    print(f"   Name: {test_user_credentials['name']}")
     print(f"   Email: {test_user_credentials['email']}")
 
     response = requests.post(f"{BASE_URL}/api/signup", json=test_user_credentials)
@@ -83,6 +80,5 @@ def login_tokens(test_user):
 
     return {
         "access_token": data['access_token'],
-        "refresh_token": data['refresh_token'],
-        "user_name": data['name']
+        "refresh_token": data['refresh_token']
     }

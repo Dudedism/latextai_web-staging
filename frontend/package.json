@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:development": "env-cmd -f .env.development npm run build",
-    "build:staging": "env-cmd -f .env.staging npm run build",
-    "build:production": "env-cmd -f .env.production npm run build",
+    "build:staging": "env-cmd -f .env.staging npm run build && cp public/robots-staging.txt dist/robots.txt",
+    "build:production": "env-cmd -f .env.production npm run build && cp public/robots-production.txt dist/robots.txt",
     "lint": "eslint .",
     "preview": "vite preview"
   },

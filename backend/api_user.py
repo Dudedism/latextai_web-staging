@@ -11,7 +11,6 @@ api_user = Blueprint('api_user_blueprint', __name__, url_prefix='/api/user')
 def get_profile(user):
     return jsonify({
         'email': user['email'],
-        'name': user.get('name', ''),
         'info': user.get('info', {}),
         'created_at': user.get('created_at')
     }), 200
@@ -31,9 +30,7 @@ def update_profile(user, data):
     
     if 'info' in data:
         user_obj.data['info'] = data['info']
-    if 'name' in data:
-        user_obj.data['name'] = data['name']
-    
+
     if user_obj.save():
         return jsonify({'message': 'Profile updated successfully'}), 200
 
@@ -120,8 +117,8 @@ def resend_verification_email(user):
 
     # Send verification email
     try:
-        send_verification_email(user['email'], user_data.get('name', 'User'), verify_url)
-        print(f"📧 [RESEND] Verification email sent to {user['email']}")
+        send_verification_email(user['email'], 'User', verify_url)
+        print(f"📧 [RESEND] Verification email sent")
         return jsonify({'message': 'Verification email sent successfully'}), 200
     except Exception as e:
         print(f"❌ [RESEND] Failed to send verification email: {e}")

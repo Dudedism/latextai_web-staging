@@ -22,17 +22,7 @@ def send_verification_email(recipient_email, recipient_name, verification_url):
     Raises:
         ApiException: If Brevo API call fails
     """
-    print(f"\n📧 [EMAIL] Attempting to send verification email...")
-    print(f"   Recipient: {recipient_email}")
-    print(f"   Name: {recipient_name}")
-    print(f"   Verification URL: {verification_url}")
-
-    # Configure API key authorization
-    print(f"   Configuring Brevo API...")
-    print(f"   API Key present: {bool(BREVO_API_KEY)}")
-    print(f"   API Key prefix: {BREVO_API_KEY[:20] if BREVO_API_KEY else 'None'}...")
-    print(f"   Sender email: {BREVO_SENDER_EMAIL}")
-    print(f"   Sender name: {BREVO_SENDER_NAME}")
+    print(f"\n📧 [EMAIL] Sending verification email...")
 
     configuration = sib_api_v3_sdk.Configuration()
     configuration.api_key['api-key'] = BREVO_API_KEY
@@ -42,13 +32,10 @@ def send_verification_email(recipient_email, recipient_name, verification_url):
 
     # Load HTML template
     template_path = os.path.join(os.path.dirname(__file__), 'verification_email.html')
-    print(f"   Loading HTML template from: {template_path}")
-    print(f"   Template exists: {os.path.exists(template_path)}")
 
     try:
         with open(template_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
-        print(f"   Template loaded successfully ({len(html_content)} characters)")
     except Exception as e:
         print(f"❌ [EMAIL] Failed to load template: {e}")
         raise
@@ -56,7 +43,6 @@ def send_verification_email(recipient_email, recipient_name, verification_url):
     # Replace placeholders
     html_content = html_content.replace('{{USER_NAME}}', recipient_name)
     html_content = html_content.replace('{{VERIFICATION_URL}}', verification_url)
-    print(f"   Placeholders replaced successfully")
 
     # Create email object
     send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
@@ -65,30 +51,16 @@ def send_verification_email(recipient_email, recipient_name, verification_url):
         subject="Verify your Latext.ai account",
         html_content=html_content
     )
-    print(f"   Email object created successfully")
 
     try:
-        print(f"   Calling Brevo API to send email...")
-        # Send the email
         api_response = api_instance.send_transac_email(send_smtp_email)
-        print(f"✅ [EMAIL] Verification email sent successfully!")
-        print(f"   Message ID: {api_response.message_id}")
-        print(f"   API Response: {api_response}")
+        print(f"✅ [EMAIL] Verification email sent")
         return True
     except ApiException as e:
-        print(f"❌ [EMAIL] Brevo API call failed!")
-        print(f"   Status code: {e.status}")
-        print(f"   Reason: {e.reason}")
-        print(f"   Body: {e.body}")
-        print(f"   Headers: {e.headers}")
-        print(f"   Full error: {e}")
+        print(f"❌ [EMAIL] Brevo API error: {e.status} {e.reason}")
         return False
     except Exception as e:
-        print(f"❌ [EMAIL] Unexpected error sending email!")
-        print(f"   Error type: {type(e).__name__}")
-        print(f"   Error message: {str(e)}")
-        import traceback
-        print(f"   Traceback: {traceback.format_exc()}")
+        print(f"❌ [EMAIL] Error sending email: {e}")
         return False
 
 
@@ -107,10 +79,7 @@ def send_password_reset_email(recipient_email, recipient_name, reset_url):
     Raises:
         ApiException: If Brevo API call fails
     """
-    print(f"\n📧 [EMAIL] Attempting to send password reset email...")
-    print(f"   Recipient: {recipient_email}")
-    print(f"   Name: {recipient_name}")
-    print(f"   Reset URL: {reset_url}")
+    print(f"\n📧 [EMAIL] Sending password reset email...")
 
     # Configure API key authorization
     configuration = sib_api_v3_sdk.Configuration()
@@ -121,12 +90,10 @@ def send_password_reset_email(recipient_email, recipient_name, reset_url):
 
     # Load HTML template
     template_path = os.path.join(os.path.dirname(__file__), 'password_reset_email.html')
-    print(f"   Loading HTML template from: {template_path}")
 
     try:
         with open(template_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
-        print(f"   Template loaded successfully ({len(html_content)} characters)")
     except Exception as e:
         print(f"❌ [EMAIL] Failed to load template: {e}")
         raise
@@ -134,7 +101,6 @@ def send_password_reset_email(recipient_email, recipient_name, reset_url):
     # Replace placeholders
     html_content = html_content.replace('{{USER_NAME}}', recipient_name)
     html_content = html_content.replace('{{RESET_URL}}', reset_url)
-    print(f"   Placeholders replaced successfully")
 
     # Create email object
     send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
@@ -143,22 +109,14 @@ def send_password_reset_email(recipient_email, recipient_name, reset_url):
         subject="Reset your Latext.ai password",
         html_content=html_content
     )
-    print(f"   Email object created successfully")
 
     try:
-        print(f"   Calling Brevo API to send email...")
-        # Send the email
         api_response = api_instance.send_transac_email(send_smtp_email)
-        print(f"✅ [EMAIL] Password reset email sent successfully!")
-        print(f"   Message ID: {api_response.message_id}")
+        print(f"✅ [EMAIL] Password reset email sent")
         return True
     except ApiException as e:
-        print(f"❌ [EMAIL] Brevo API call failed!")
-        print(f"   Status code: {e.status}")
-        print(f"   Reason: {e.reason}")
+        print(f"❌ [EMAIL] Brevo API error: {e.status} {e.reason}")
         return False
     except Exception as e:
-        print(f"❌ [EMAIL] Unexpected error sending email!")
-        print(f"   Error type: {type(e).__name__}")
-        print(f"   Error message: {str(e)}")
+        print(f"❌ [EMAIL] Error sending email: {e}")
         return False

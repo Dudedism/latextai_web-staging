@@ -8,10 +8,11 @@ import { apiRequest } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface CostEstimate {
-  base_cost: number;
+  base_credits: number;
   additional_pages: number;
-  additional_cost: number;
-  total: number;
+  additional_credits: number;
+  total_credits: number;
+  total_dollars: number;
   breakdown: string;
 }
 
@@ -20,6 +21,7 @@ interface Metadata {
   page_count: number;
   word_count: number;
   filename: string;
+  template: string;
 }
 
 interface PaymentDetails {
@@ -27,6 +29,8 @@ interface PaymentDetails {
   metadata: Metadata;
   cost_estimate: CostEstimate;
   can_use_free: boolean;
+  credit_balance: number;
+  has_sufficient_credits: boolean;
 }
 
 const PaymentPage: React.FC = () => {
@@ -44,7 +48,6 @@ const PaymentPage: React.FC = () => {
 
   const claimingRef = React.useRef(false);
 
-  // Handle return from Stripe setup checkout
   useEffect(() => {
     const setupSuccess = searchParams.get('setup_success');
     if (setupSuccess === 'true' && projectId && !claimingRef.current) {
@@ -89,8 +92,14 @@ const PaymentPage: React.FC = () => {
     }
   };
 
-  // Fetch payment details on mount
   useEffect(() => {
+    const setupSuccess = searchParams.get('setup_success');
+    if (setupSuccess === 'true') {
+      // Skip fetching payment details when returning from Stripe setup
+      // claimFreeAfterSetup() handles the flow from here
+      return;
+    }
+
     const fetchPaymentDetails = async () => {
       if (!projectId) {
         console.error('❌ [PAYMENT] No project ID provided');
@@ -117,7 +126,7 @@ const PaymentPage: React.FC = () => {
     };
 
     fetchPaymentDetails();
-  }, [projectId]);
+  }, [projectId, searchParams]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
@@ -148,7 +157,7 @@ const PaymentPage: React.FC = () => {
       console.error('❌ [STRIPE] Error creating setup session:', error);
 
       if (error.status === 409) {
-        setErrorMessage(error.message || 'Your free upload has already been used. Please use a payment method.');
+        setErrorMessage(error.message || 'Your free upload has already been used. Please use credits.');
         setErrorStatusCode(409);
       } else {
         setErrorStatusCode(error.status);
@@ -161,7 +170,7 @@ const PaymentPage: React.FC = () => {
     }
   };
 
-  const handlePayWithStripe = async () => {
+  const handleProcessWithCredits = async () => {
     if (!projectId) {
       setErrorMessage('Project ID not found');
       setShowErrorModal(true);
@@ -170,25 +179,32 @@ const PaymentPage: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('💳 [STRIPE] Creating checkout session...');
+      console.log('💳 [CREDITS] Processing with credits...');
 
-      const response = await apiRequest<{ checkout_url: string }>('/api/stripe/create-checkout-session', {
+      await apiRequest('/api/latex/process', {
         method: 'POST',
         body: JSON.stringify({ project_id: projectId })
       });
 
-      console.log('✅ [STRIPE] Checkout session created, redirecting...');
-
-      // Redirect to Stripe Checkout
-      window.location.href = response.checkout_url;
+      console.log('✅ [CREDITS] Processing started successfully');
+      navigate(`/papers/${projectId}/view`);
 
     } catch (error: any) {
-      console.error('❌ [STRIPE] Error creating checkout session:', error);
-      setErrorStatusCode(error.status);
-      setErrorMessage(error.message || 'Failed to create checkout session');
-      setShowErrorModal(true);
+      console.error('❌ [CREDITS] Error processing:', error);
+      if (error.status === 402 && error.requires_topup) {
+        navigate('/credits');
+      } else {
+        setErrorStatusCode(error.status);
+        setErrorMessage(error.message || 'Failed to process document');
+        setShowErrorModal(true);
+      }
+    } finally {
       setLoading(false);
     }
+  };
+
+  const handleTopUpCredits = () => {
+    navigate('/credits');
   };
 
   const handleAdminQuickProcess = async () => {
@@ -200,7 +216,6 @@ const PaymentPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // STEP 1: Mark as paid
       console.log('🔧 [ADMIN] Marking project as paid...');
       await apiRequest('/api/latex/admin/mark-paid', {
         method: 'POST',
@@ -208,7 +223,6 @@ const PaymentPage: React.FC = () => {
       });
       console.log('✅ [ADMIN] Project marked as paid');
 
-      // STEP 2: Start processing
       console.log('🔧 [ADMIN] Starting processing...');
       await apiRequest('/api/latex/process', {
         method: 'POST',
@@ -216,7 +230,6 @@ const PaymentPage: React.FC = () => {
       });
       console.log('✅ [ADMIN] Processing started');
 
-      // STEP 3: Navigate to view page
       navigate(`/papers/${projectId}/view`);
     } catch (error: any) {
       console.error('❌ [ADMIN] Error:', error);
@@ -259,7 +272,7 @@ const PaymentPage: React.FC = () => {
     );
   }
 
-  const { cost_estimate: costEstimate, metadata, can_use_free: canUseFree } = paymentDetails;
+  const { cost_estimate: costEstimate, metadata, can_use_free: canUseFree, credit_balance: creditBalance, has_sufficient_credits: hasSufficientCredits } = paymentDetails;
 
   return (
     <div className="page">
@@ -267,16 +280,6 @@ const PaymentPage: React.FC = () => {
 
       <section className="main-section">
         <div className="container container--md">
-          <div className="progress-steps">
-            <div className="progress-step">File</div>
-            <div className="progress-arrow">→</div>
-            <div className="progress-step">Template</div>
-            <div className="progress-arrow">→</div>
-            <div className="progress-step">Upload</div>
-            <div className="progress-arrow">→</div>
-            <div className="progress-step progress-step--active">Payment</div>
-          </div>
-
           <h1 className="section-title text-center">Review & Payment</h1>
 
           <div className="flex flex-col gap-6">
@@ -287,6 +290,10 @@ const PaymentPage: React.FC = () => {
                 <div className="detail-item">
                   <span className="detail-label">File:</span>
                   <span className="detail-value">{metadata.filename}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Template:</span>
+                  <span className="detail-value">{metadata.template}</span>
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">Size:</span>
@@ -301,24 +308,45 @@ const PaymentPage: React.FC = () => {
 
             {/* Cost Breakdown */}
             <div>
-              <h2 className="section-heading">Cost Breakdown</h2>
+              <h2 className="section-heading">Cost</h2>
               <div className="detail-grid">
                 <div className="detail-item">
-                  <span className="detail-label">Base conversion fee (up to 15 pages):</span>
-                  <span className="detail-value">${costEstimate.base_cost.toFixed(2)}</span>
+                  <span className="detail-label">Base (up to 15 pages):</span>
+                  <span className="detail-value">{costEstimate.base_credits} credits</span>
                 </div>
                 {costEstimate.additional_pages > 0 && (
                   <div className="detail-item">
                     <span className="detail-label">
-                      Additional pages ({costEstimate.additional_pages} × $0.50):
+                      Additional ({costEstimate.additional_pages} pages × 50):
                     </span>
-                    <span className="detail-value">${costEstimate.additional_cost.toFixed(2)}</span>
+                    <span className="detail-value">{costEstimate.additional_credits} credits</span>
                   </div>
                 )}
-                <div className="detail-item" style={{ borderTop: '2px solid var(--color-gray-300)', paddingTop: '12px', fontWeight: 'bold' }}>
-                  <span className="detail-label" style={{ fontWeight: 'bold', color: 'var(--color-black)' }}>Total:</span>
-                  <span className="detail-value" style={{ fontSize: '18px' }}>${costEstimate.total.toFixed(2)}</span>
+                <div className="detail-item" style={{ borderTop: '2px solid var(--color-gray-300)', paddingTop: '12px' }}>
+                  <span className="detail-label font-bold">Total:</span>
+                  <span className="detail-value font-bold">{costEstimate.total_credits} credits (${costEstimate.total_dollars.toFixed(2)})</span>
                 </div>
+              </div>
+            </div>
+
+            {/* Credit Balance */}
+            <div>
+              <h2 className="section-heading">Your Balance</h2>
+              <div className="detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Available credits:</span>
+                  <span className={`detail-value font-bold ${hasSufficientCredits ? 'text-success' : 'text-error'}`}>
+                    {creditBalance.toLocaleString()} credits
+                  </span>
+                </div>
+                {!hasSufficientCredits && (
+                  <div className="detail-item">
+                    <span className="detail-label">Need:</span>
+                    <span className="detail-value text-error">
+                      {(costEstimate.total_credits - creditBalance).toLocaleString()} more credits
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -349,13 +377,23 @@ const PaymentPage: React.FC = () => {
               Cancel
             </button>
 
-            <button
-              className="btn btn--primary btn--lg"
-              onClick={handlePayWithStripe}
-              disabled={loading}
-            >
-              {loading ? 'Processing...' : `Pay $${costEstimate.total.toFixed(2)}`}
-            </button>
+            {hasSufficientCredits ? (
+              <button
+                className="btn btn--primary btn--lg"
+                onClick={handleProcessWithCredits}
+                disabled={loading}
+              >
+                {loading ? 'Processing...' : `Process Now (${costEstimate.total_credits} credits)`}
+              </button>
+            ) : (
+              <button
+                className="btn btn--primary btn--lg"
+                onClick={handleTopUpCredits}
+                disabled={loading}
+              >
+                Top Up Credits
+              </button>
+            )}
           </div>
 
           {/* Admin Debug Controls */}
@@ -373,18 +411,6 @@ const PaymentPage: React.FC = () => {
                   style={{ backgroundColor: '#4CAF50', color: 'white' }}
                 >
                   {loading ? 'Processing...' : '⚡ Quick Process (Admin)'}
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setPaymentDetails(prev => prev ? {
-                      ...prev,
-                      can_use_free: !prev.can_use_free
-                    } : null);
-                  }}
-                  style={{ backgroundColor: '#2196F3', color: 'white' }}
-                >
-                  {canUseFree ? '🎁 Mock: Free → Paid' : '💳 Mock: Paid → Free'}
                 </button>
               </div>
             </div>

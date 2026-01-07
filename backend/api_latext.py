@@ -5,7 +5,7 @@ import json
 import requests
 from flask import jsonify, Blueprint, request, send_file, Response
 from api_auth import requires_auth
-from database import User, Project, Ticket
+from database import User, Project, CreditTransaction, mongo
 from datetime import datetime
 from config import LATEXTAI_SERVICE_URL, LATEXTAI_API_KEY
 from utils.document_utils import extract_docx_metadata, validate_docx_file
@@ -51,20 +51,88 @@ def validate_template(template_id):
     return True, template
 
 
-def create_user_directory(user_id):
+def create_user_directory(user_email):
     """Create a directory for a user's projects if it doesn't exist"""
-    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_id))
+    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_email))
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
     return user_dir
 
-def create_project_directory(user_id, project_id):
+def create_project_directory(user_email, project_id):
     """Create a specific project directory for a user"""
-    user_dir = create_user_directory(user_id)
+    user_dir = create_user_directory(user_email)
     project_dir = os.path.join(user_dir, str(project_id))
     if not os.path.exists(project_dir):
         os.makedirs(project_dir, exist_ok=True)
     return project_dir
+
+
+def delete_user_on_latextai(user_email):
+    """
+    Send deletion request to latextai server to delete user's project files.
+
+    Args:
+        user_email: User's email address
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        response = requests.delete(
+            f"{LATEXTAI_SERVICE_URL}/api/user",
+            headers={'X-API-Key': LATEXTAI_API_KEY},
+            params={'user_email': user_email},
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            return True, "User deleted from latextai"
+        elif response.status_code == 404:
+            return True, "User not found on latextai (already deleted or never existed)"
+        else:
+            return False, f"Latextai deletion failed: {response.status_code}"
+
+    except requests.exceptions.ConnectionError:
+        return False, "Could not connect to latextai server"
+    except requests.exceptions.Timeout:
+        return False, "Latextai server timeout"
+    except Exception as e:
+        return False, f"Latextai deletion error: {str(e)}"
+
+
+def delete_project_on_latextai(user_email, project_id):
+    """
+    Send deletion request to latextai server to delete a single project's files.
+
+    Args:
+        user_email: User's email address
+        project_id: Project UUID
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        response = requests.delete(
+            f"{LATEXTAI_SERVICE_URL}/api/project/{project_id}",
+            headers={'X-API-Key': LATEXTAI_API_KEY},
+            params={'user_email': user_email},
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            return True, "Project deleted from latextai"
+        elif response.status_code == 404:
+            return True, "Project not found on latextai (already deleted or never existed)"
+        else:
+            return False, f"Latextai deletion failed: {response.status_code}"
+
+    except requests.exceptions.ConnectionError:
+        return False, "Could not connect to latextai server"
+    except requests.exceptions.Timeout:
+        return False, "Latextai server timeout"
+    except Exception as e:
+        return False, f"Latextai deletion error: {str(e)}"
+
 
 @api_latext.route('/admin/mark-paid', methods=['POST'])
 @requires_auth(require_verified=True)
@@ -109,12 +177,10 @@ def admin_mark_paid(user, data):
         }), 400
 
     # Mark as paid (admin bypass)
-    from database import mongo
     mongo.db.projects.update_one(
         {'project_id': project_id},
         {'$set': {
             'paid': True,
-            'is_free_project': False,
             'admin_marked_paid': True,  # Flag to track admin override
             'admin_marked_by': user['email'],
             'admin_marked_at': datetime.utcnow(),
@@ -122,7 +188,7 @@ def admin_mark_paid(user, data):
         }}
     )
 
-    print(f"🔧 [ADMIN] Project {project_id} marked as paid by {user['email']}")
+    print(f"🔧 [ADMIN] Project {project_id} marked as paid")
 
     return jsonify({
         'message': 'Project marked as paid',
@@ -135,8 +201,8 @@ def process_project(user, data):
     """
     Initiate processing by forwarding to latextai service.
 
-    This endpoint is called AFTER payment (either free or paid via Stripe).
-    It forwards the uploaded DOCX file to latextai for conversion.
+    This endpoint handles payment via credits OR processes already-paid projects
+    (free upload, admin bypass).
 
     Request body:
         {
@@ -146,9 +212,10 @@ def process_project(user, data):
     Returns:
         Success message with processing status
 
-    Prerequisites:
-        - Project must exist and be 'uploaded'
-        - Project must be marked as paid (paid=True)
+    Flow:
+        1. If already paid (free upload/admin), proceed directly
+        2. If not paid, deduct credits and mark as paid
+        3. Forward to latextai for processing
     """
     project_id = data.get('project_id')
 
@@ -161,17 +228,10 @@ def process_project(user, data):
         return jsonify({'error': 'Project not found'}), 404
 
     # STEP 2: Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # STEP 3: Check project is paid
-    if not project.get('paid', False):
-        return jsonify({
-            'error': 'Project must be paid for before processing',
-            'requires_payment': True
-        }), 402  # 402 Payment Required
-
-    # STEP 4: Check project status (must be 'validated' or already processing/completed/failed)
+    # STEP 3: Check project status (must be 'validated' or already processing/completed/failed)
     project_status = project.get('status')
     if project_status == 'processing':
         return jsonify({'message': 'Project is already being processed'}), 200
@@ -184,11 +244,68 @@ def process_project(user, data):
             'error': f"Project must be validated before processing (current status: {project_status})"
         }), 400
 
-    # STEP 4.5: Verify project has been validated (has metadata)
+    # STEP 3.5: Verify project has been validated (has metadata)
     if not project.get('validated', False):
         return jsonify({
             'error': 'Project has not been validated. Please validate before processing.'
         }), 400
+
+    # STEP 4: Handle payment - either already paid or deduct credits
+    if not project.get('paid', False):
+        page_count = project.get('page_count', 0)
+        cost_info = calculate_cost(page_count)
+        credits_required = cost_info['total_credits']
+
+        current_balance = User.get_credit_balance(user['email'])
+        if current_balance < credits_required:
+            return jsonify({
+                'error': 'Insufficient credits',
+                'credits_required': credits_required,
+                'credits_available': current_balance,
+                'requires_topup': True
+            }), 402
+
+        # ATOMIC: Mark project as paid FIRST to prevent double-charge race condition
+        # Only one concurrent request can succeed with this update
+        mark_result = mongo.db.projects.update_one(
+            {'project_id': project_id, 'paid': False},
+            {'$set': {
+                'paid': True,
+                'paid_with_credits': True,
+                'credits_charged': credits_required,
+                'paid_at': datetime.utcnow()
+            }}
+        )
+
+        if mark_result.modified_count == 0:
+            # Another request already marked this project as paid
+            print(f"⚠️  [CREDITS] Project {project_id} already paid (race condition prevented)")
+            return jsonify({'message': 'Project already paid'}), 200
+
+        # Now deduct credits (we own the project payment)
+        new_balance = User.deduct_credits(user['email'], credits_required)
+        if new_balance is None:
+            # Rollback: Clear paid status since we couldn't charge
+            mongo.db.projects.update_one(
+                {'project_id': project_id},
+                {'$set': {'paid': False, 'paid_with_credits': False, 'credits_charged': None, 'paid_at': None}}
+            )
+            return jsonify({
+                'error': 'Failed to deduct credits. Please try again.',
+                'requires_topup': True
+            }), 402
+
+        CreditTransaction.create(
+            user_email=user['email'],
+            user_id=str(user['_id']),
+            transaction_type='deduct',
+            amount=-credits_required,
+            balance_after=new_balance,
+            description=f"Conversion: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
+            project_id=project_id
+        )
+
+        print(f"💳 [CREDITS] Charged {credits_required} credits for project {project_id}")
 
     # STEP 5: Get template configuration
     template_id = project.get('template')
@@ -241,13 +358,10 @@ def process_project(user, data):
 
             if response.status_code == 202:
                 # STEP 8: Update project status to 'processing'
-                project_obj = Project.find_by_id(project_id)
-                if project_obj:
-                    from database import mongo
-                    mongo.db.projects.update_one(
-                        {'project_id': project_id},
-                        {'$set': {'status': 'processing'}}
-                    )
+                mongo.db.projects.update_one(
+                    {'project_id': project_id},
+                    {'$set': {'status': 'processing'}}
+                )
 
                 print(f"✅ [PROCESS] Project {project_id} sent to latextai successfully")
 
@@ -265,15 +379,15 @@ def process_project(user, data):
                 }), response.status_code
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ [PROCESS] Network error: {str(e)}")
+        print(f"❌ [PROCESS] Network error: {e}")
         return jsonify({
-            'error': f'Failed to connect to processing service: {str(e)}'
+            'error': 'Failed to connect to processing service. Please try again.'
         }), 500
 
     except Exception as e:
-        print(f"❌ [PROCESS] Error: {str(e)}")
+        print(f"❌ [PROCESS] Error: {e}")
         return jsonify({
-            'error': f'Processing failed: {str(e)}'
+            'error': 'Processing failed. Please try again.'
         }), 500
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
@@ -286,7 +400,7 @@ def get_pdf(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -321,7 +435,8 @@ def get_pdf(user, project_id):
             return jsonify({'error': 'PDF not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download PDF: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] PDF download error: {e}")
+        return jsonify({'error': 'Failed to download PDF'}), 500
 
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
 @requires_auth(require_verified=True)
@@ -337,7 +452,7 @@ def get_tex(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -372,7 +487,8 @@ def get_tex(user, project_id):
             return jsonify({'error': 'LaTeX file not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download LaTeX file: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] TeX download error: {e}")
+        return jsonify({'error': 'Failed to download LaTeX file'}), 500
 
 @api_latext.route('/project/<project_id>/bib', methods=['GET'])
 @requires_auth(require_verified=True)
@@ -388,7 +504,7 @@ def get_bib(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -423,7 +539,8 @@ def get_bib(user, project_id):
             return jsonify({'error': 'BibTeX file not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download BibTeX file: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] BibTeX download error: {e}")
+        return jsonify({'error': 'Failed to download BibTeX file'}), 500
 
 @api_latext.route('/project/<project_id>/package', methods=['GET'])
 @requires_auth(require_verified=True)
@@ -439,7 +556,7 @@ def get_package(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project has been processed
@@ -474,5 +591,6 @@ def get_package(user, project_id):
             return jsonify({'error': 'Compilation package not found'}), response.status_code
 
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Failed to download compilation package: {str(e)}'}), 500
+        print(f"❌ [DOWNLOAD] Package download error: {e}")
+        return jsonify({'error': 'Failed to download compilation package'}), 500
 

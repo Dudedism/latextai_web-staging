@@ -5,7 +5,7 @@ import json
 from flask import jsonify, Blueprint, request
 from werkzeug.utils import secure_filename
 from api_auth import requires_auth
-from database import User, Project, Ticket
+from database import User, Project
 from datetime import datetime
 from utils.document_utils import extract_docx_metadata, validate_docx_file, validate_word_page_ratio
 from utils.pricing import calculate_cost
@@ -50,16 +50,16 @@ def validate_template(template_id):
         return False, f"Template '{template['name']}' is not yet available"
     return True, template
 
-def create_user_directory(user_id):
+def create_user_directory(user_email):
     """Create a directory for a user's projects if it doesn't exist"""
-    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_id))
+    user_dir = os.path.join(USER_PROJECTS_DIR, str(user_email))
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
     return user_dir
 
-def create_project_directory(user_id, project_id):
+def create_project_directory(user_email, project_id):
     """Create a specific project directory for a user"""
-    user_dir = create_user_directory(user_id)
+    user_dir = create_user_directory(user_email)
     project_dir = os.path.join(user_dir, str(project_id))
     if not os.path.exists(project_dir):
         os.makedirs(project_dir, exist_ok=True)
@@ -99,8 +99,9 @@ def upload_file(user, data):
 
     try:
         # STEP 1: Check upload limits (10 projects max until user has paid free project)
-        project_count = Project.count_user_projects(user)
-        has_paid_free = Project.has_paid_free_project(user)
+        user_id = str(user['_id'])
+        project_count = Project.count_user_projects(user_id)
+        has_paid_free = Project.has_paid_free_project(user_id)
 
         if project_count >= 10 and not has_paid_free:
             return jsonify({
@@ -157,13 +158,13 @@ def upload_file(user, data):
         # No metadata yet - will be populated by /validate endpoint
         project = Project(
             project_id=project_id,
-            user_id=user_email,
+            user_email=user_email,
+            user_id=user_id,
             upload_filename=filename,
             template=template_id,
             status='uploaded',  # Uploaded but not yet validated
             paid=False,
-            is_free_project=False,
-            total_cost=None,  # Will be calculated during validation
+            total_credits=None,  # Will be calculated during validation
             filesize=filesize,
             page_count=None,  # Will be populated during validation
             word_count=None,  # Will be populated during validation
@@ -186,9 +187,9 @@ def upload_file(user, data):
         }), 200
 
     except Exception as e:
-        print(f"❌ [UPLOAD] Error: {str(e)}")
+        print(f"❌ [UPLOAD] Error: {e}")
         return jsonify({
-            'error': f'Upload failed: {str(e)}'
+            'error': 'Upload failed. Please try again.'
         }), 500
 
 @api_project.route('/validate', methods=['POST'])
@@ -224,7 +225,7 @@ def validate_file(user, data):
             return jsonify({'error': 'Project not found'}), 404
 
         # STEP 3: Verify ownership
-        if project['user_id'] != user_email:
+        if project.get('user_id') != str(user['_id']):
             return jsonify({'error': 'Unauthorized'}), 403
 
         # STEP 4: Check if already validated
@@ -253,10 +254,10 @@ def validate_file(user, data):
             print(f"✅ [VALIDATE] Metadata extracted: {page_count} pages, {word_count} words, {filesize} bytes")
         except Exception as e:
             # Validation failed - delete project and files
-            print(f"❌ [VALIDATE] Document processing error: {str(e)}")
+            print(f"❌ [VALIDATE] Document processing error: {e}")
             Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
             return jsonify({
-                'error': f'Failed to process document: {str(e)}'
+                'error': 'Failed to process document. Please ensure it is a valid Word file.'
             }), 500
 
         # STEP 7: Validate word-to-page ratio
@@ -271,7 +272,7 @@ def validate_file(user, data):
 
         # STEP 8: Calculate cost estimate
         cost_estimate = calculate_cost(page_count)
-        print(f"💰 [VALIDATE] Cost calculated: ${cost_estimate['total']} for {page_count} pages")
+        print(f"💰 [VALIDATE] Cost calculated: {cost_estimate['total_credits']} credits for {page_count} pages")
 
         # STEP 9: Update project with validation results
         from database import mongo
@@ -280,7 +281,7 @@ def validate_file(user, data):
             {'$set': {
                 'page_count': page_count,
                 'word_count': word_count,
-                'total_cost': cost_estimate['total'],
+                'total_credits': cost_estimate['total_credits'],
                 'validated': True,
                 'validated_at': datetime.utcnow(),
                 'status': 'validated'  # Transition from 'uploaded' to 'validated'
@@ -304,20 +305,20 @@ def validate_file(user, data):
                 'filename': project['upload_filename']
             },
             'cost_estimate': cost_estimate,
-            'can_use_free': not User.has_used_free_upload(user_email)
+            'can_use_free': not User.has_claimed_free_project(user_email)
         }), 200
 
     except Exception as e:
-        print(f"❌ [VALIDATE] Unexpected error: {str(e)}")
+        print(f"❌ [VALIDATE] Unexpected error: {e}")
         # Clean up project and files on unexpected error
         try:
             if 'project_id' in locals() and project_id and 'user_email' in locals():
                 Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
         except Exception as cleanup_error:
-            print(f"⚠️  [VALIDATE] Cleanup error: {str(cleanup_error)}")
+            print(f"⚠️  [VALIDATE] Cleanup error: {cleanup_error}")
 
         return jsonify({
-            'error': f'Validation failed: {str(e)}'
+            'error': 'Validation failed. Please try again.'
         }), 500
 
 @api_project.route('/cost-estimate', methods=['GET'])
@@ -346,7 +347,7 @@ def get_cost_estimate(user):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify project belongs to user
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Get page count from project metadata
@@ -371,8 +372,7 @@ def claim_free_upload(user, data):
     Atomically claim the free upload for a project.
 
     Requires card verification via Stripe setup mode before calling.
-    The fingerprint must be stored on the project (by webhook) and must
-    not be associated with any other user who has claimed a free upload.
+    User's card fingerprints are checked against other users to prevent abuse.
 
     Request body:
         {
@@ -383,9 +383,9 @@ def claim_free_upload(user, data):
         Success message with project details
 
     Validation:
-        1. Project must have card_fingerprint (set by setup webhook)
-        2. Fingerprint must be in user's card_fingerprints array
-        3. Fingerprint must not be used by another user for a free upload
+        1. Project must have card_verified_at (set by setup webhook)
+        2. User must have at least one card fingerprint
+        3. None of user's fingerprints can be used by another user for free upload
         4. Atomic claim to prevent race conditions
     """
     project_id = data.get('project_id')
@@ -400,7 +400,7 @@ def claim_free_upload(user, data):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if not project.get('validated', False):
@@ -420,79 +420,63 @@ def claim_free_upload(user, data):
             'error': 'Project is already paid for'
         }), 400
 
-    fingerprint = project.get('card_fingerprint')
-    if not fingerprint:
+    if not project.get('card_verified_at'):
         return jsonify({
             'error': 'Card verification required. Please complete Stripe checkout first.',
             'requires_card_verification': True
         }), 400
 
-    if not User.has_card_fingerprint(user['email'], fingerprint):
+    user_data = User.find_by_email(user['email'])
+    user_fingerprints = user_data.get('card_fingerprints', []) if user_data else []
+
+    if not user_fingerprints:
         return jsonify({
-            'error': 'Card fingerprint mismatch. Please complete Stripe checkout again.',
+            'error': 'No card on file. Please complete Stripe checkout first.',
             'requires_card_verification': True
         }), 400
 
-    abuse_user = User.find_user_by_fingerprint_with_free_project(fingerprint, exclude_email=user['email'])
+    abuse_user = User.find_user_with_fingerprint_and_free_claim(user_fingerprints, exclude_email=user['email'])
     if abuse_user:
-        print(f"⚠️ [CLAIM-FREE] Abuse detected: fingerprint {fingerprint[:8]}... already used by {abuse_user['email']}")
+        print(f"⚠️ [CLAIM-FREE] Abuse detected: card already used by another account")
+        # Mark this user's free upload as forfeited due to abuse
+        User.set_free_project(user['email'], 'ABUSE_BLOCKED')
+        print(f"⚠️ [CLAIM-FREE] Free upload forfeited due to card reuse")
         return jsonify({
             'error': 'This card has already been used for a free upload on another account'
         }), 409
 
-    from database import mongo
+    success = User.set_free_project(user['email'], project_id)
 
-    result = mongo.db.users.update_one(
-        {
-            'email': user['email'],
-            'free_upload_used': False
-        },
-        {
-            '$set': {
-                'free_upload_used': True,
-                'free_upload_used_at': datetime.utcnow()
-            }
-        }
-    )
-
-    if result.modified_count == 0:
-        has_used_free = User.has_used_free_upload(user['email'])
-        if has_used_free:
+    if not success:
+        if User.has_claimed_free_project(user['email']):
             return jsonify({
-                'error': 'You have already used your free upload',
-                'race_condition_detected': False
+                'error': 'You have already used your free upload'
             }), 409
         else:
             return jsonify({
-                'error': 'Free upload was just claimed by another request',
-                'race_condition_detected': True
-            }), 409
+                'error': 'Failed to claim free upload'
+            }), 500
 
-    print(f"✅ [CLAIM-FREE] User {user['email']} claimed free upload for project {project_id}")
+    print(f"✅ [CLAIM-FREE] Free upload claimed for project {project_id}")
 
-    success = Project.mark_as_paid(
-        project_id=project_id,
-        is_free=True,
-        total_cost=0.0,
-        card_fingerprint=fingerprint
-    )
+    mark_success = Project.mark_as_paid(project_id=project_id, total_cost=0.0)
 
-    if not success:
+    if not mark_success:
+        from database import mongo
         mongo.db.users.update_one(
             {'email': user['email']},
-            {'$set': {'free_upload_used': False}}
+            {'$set': {'free_project_id': None, 'free_project_claimed_at': None}}
         )
         return jsonify({
             'error': 'Failed to mark project as paid'
         }), 500
 
-    print(f"✅ [CLAIM-FREE] Project {project_id} marked as free and paid")
+    print(f"✅ [CLAIM-FREE] Project {project_id} marked as paid (free)")
 
     return jsonify({
         'message': 'Free upload claimed successfully',
         'project_id': project_id,
         'paid': True,
-        'is_free_project': True,
         'total_cost': 0.0
     }), 200
 
@@ -500,7 +484,7 @@ def claim_free_upload(user, data):
 @requires_auth
 def get_projects(user):
     """Get all projects for the authenticated user"""
-    projects = Project.find_by_user(user['email'])
+    projects = Project.find_by_user(str(user['_id']))
 
     # Format projects for frontend
     formatted_projects = []
@@ -548,24 +532,32 @@ def get_projects(user):
 @api_project.route('/project/<project_id>', methods=['DELETE'])
 @requires_auth
 def delete_project(user, project_id):
-    """Delete a project and its associated files"""
+    """Delete a project: orphan DB record, delete local files, notify latextai server"""
+    from api_latext import delete_project_on_latextai
+
     user_email = user['email']
 
-    # Verify project belongs to user
     project = Project.find_by_id(project_id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user_email:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Delete project and files using comprehensive database function
+    # Delete local files and orphan database record
     success, message = Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
 
-    if success:
-        return jsonify({'message': message}), 200
-    else:
+    if not success:
         return jsonify({'error': message}), 500
+
+    # Notify latextai server to delete its copy of the files
+    latextai_success, latextai_message = delete_project_on_latextai(user_email, project_id)
+    if latextai_success:
+        print(f"✅ [DELETE] Latextai: {latextai_message}")
+    else:
+        print(f"⚠️  [DELETE] Latextai: {latextai_message}")
+
+    return jsonify({'message': message}), 200
 
 @api_project.route('/project/<project_id>', methods=['GET'])
 @requires_auth
@@ -576,7 +568,7 @@ def get_project(user, project_id):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     return jsonify({
@@ -585,6 +577,7 @@ def get_project(user, project_id):
         'status': project.get('status'),
         'paid': project.get('paid', False),
         'compilation_failed': project.get('compilation_failed', False),
+        'feedback': project.get('feedback'),
     }), 200
 
 @api_project.route('/project/<project_id>/payment-details', methods=['GET'])
@@ -599,7 +592,7 @@ def get_payment_details(user, project_id):
         return jsonify({'error': 'Project not found'}), 404
 
     # Verify ownership
-    if project.get('user_id') != user_email:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Check if project is validated
@@ -615,16 +608,21 @@ def get_payment_details(user, project_id):
     word_count = project.get('word_count')
     filesize = project.get('filesize')
     filename = project.get('upload_filename', 'document.docx')
-    total_cost = project.get('total_cost')
+    template_id = project.get('template', '')
+    template_config = get_template_by_id(template_id)
+    template_name = template_config['name'] if template_config else 'Unknown Template'
 
-    if page_count is None or total_cost is None:
+    if page_count is None:
         return jsonify({'error': 'Project cost not calculated'}), 400
 
     # Calculate cost estimate (same as validation)
     cost_estimate = calculate_cost(page_count)
 
     # Check if user can use free upload
-    can_use_free = not User.has_used_free_upload(user_email)
+    can_use_free = not User.has_claimed_free_project(user_email)
+
+    # Get user's credit balance
+    credit_balance = User.get_credit_balance(user_email)
 
     return jsonify({
         'project_id': project_id,
@@ -632,196 +630,36 @@ def get_payment_details(user, project_id):
             'filename': filename,
             'page_count': page_count,
             'word_count': word_count,
-            'filesize': filesize
+            'filesize': filesize,
+            'template': template_name
         },
         'cost_estimate': cost_estimate,
-        'can_use_free': can_use_free
+        'can_use_free': can_use_free,
+        'credit_balance': credit_balance,
+        'has_sufficient_credits': credit_balance >= cost_estimate['total_credits']
     }), 200
 
-# Support Ticket Endpoints
-
-@api_project.route('/project/<project_id>/support', methods=['POST'])
+@api_project.route('/project/<project_id>/feedback', methods=['POST'])
 @requires_auth
-def create_support_ticket(user, data, project_id):
-    """Create a new support ticket for a project"""
-    # Check user verification status
-    if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to submit support tickets'}), 401
-
-    # Get request data
-    request_data = request.get_json()
-    subject = request_data.get('subject', '').strip()
-    message = request_data.get('message', '').strip()
-
-    # Validate subject length (5-30 characters)
-    if len(subject) < 5 or len(subject) > 30:
-        return jsonify({'error': 'Subject must be between 5 and 30 characters'}), 400
-
-    # Validate message length (10-2000 characters)
-    if len(message) < 10 or len(message) > 2000:
-        return jsonify({'error': 'Message must be between 10 and 2000 characters'}), 400
-
-    # Check if project exists and belongs to user
+def submit_feedback(user, data, project_id):
+    """Submit user feedback for a completed project"""
     project = Project.find_by_id(project_id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    if project.get('user_id') != user['email']:
+    if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Check for existing open ticket for this project
-    existing_open_ticket = Ticket.find_open_ticket_by_project(project_id)
-    if existing_open_ticket:
-        return jsonify({
-            'error': 'An open ticket already exists for this project. Please close it before creating a new one.'
-        }), 400
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Can only submit feedback for completed projects'}), 400
 
-    # Create new ticket
-    ticket = Ticket(
-        project_id=project_id,
-        user_id=user['email'],
-        subject=subject
-    )
-
-    # Add initial message
-    ticket.data['messages'] = [{
-        'message_id': 0,
-        'content': message,
-        'sender': 'user',
-        'sender_id': user['email'],
-        'timestamp': datetime.utcnow()
-    }]
-
-    # Save ticket to database
-    ticket.insert()
-
-    return jsonify({
-        'success': True,
-        'ticket_id': ticket.data['ticket_id']
-    }), 201
-
-@api_project.route('/project/<project_id>/tickets', methods=['GET'])
-@requires_auth
-def get_project_tickets(user, project_id):
-    """Get all tickets for a project"""
-    # Check if project exists and belongs to user
-    project = Project.find_by_id(project_id)
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
-
-    if project.get('user_id') != user['email']:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    # Get all tickets for this project
-    tickets = Ticket.find_by_project(project_id)
-
-    # Format tickets for response (exclude full messages, just include count)
-    formatted_tickets = []
-    for ticket in tickets:
-        formatted_tickets.append({
-            'ticket_id': ticket.get('ticket_id'),
-            'subject': ticket.get('subject'),
-            'status': ticket.get('status'),
-            'created_at': ticket.get('created_at').isoformat() if ticket.get('created_at') else None,
-            'message_count': len(ticket.get('messages', []))
-        })
-
-    # Sort by created_at descending (newest first)
-    formatted_tickets.sort(key=lambda x: x['created_at'] if x['created_at'] else '', reverse=True)
-
-    return jsonify({'tickets': formatted_tickets}), 200
-
-@api_project.route('/ticket/<ticket_id>', methods=['GET'])
-@requires_auth
-def get_ticket_details(user, ticket_id):
-    """Get full ticket details with all messages"""
-    # Validate ticket_id length (UUID format, max 36 chars)
-    if len(ticket_id) > 36:
-        return jsonify({'error': 'Invalid ticket_id format'}), 400
-
-    # Find the ticket
-    ticket_data = Ticket.find_by_id(ticket_id)
-    if not ticket_data:
-        return jsonify({'error': 'Ticket not found'}), 404
-
-    # Verify ticket belongs to user's project
-    project = Project.find_by_id(ticket_data.get('project_id'))
-    if not project or project.get('user_id') != user['email']:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    # Format messages for response
-    formatted_messages = []
-    for msg in ticket_data.get('messages', []):
-        formatted_messages.append({
-            'message_id': msg.get('message_id'),
-            'content': msg.get('content'),
-            'sender': msg.get('sender'),
-            'sender_id': msg.get('sender_id'),
-            'timestamp': msg.get('timestamp').isoformat() if msg.get('timestamp') else None
-        })
-
-    return jsonify({
-        'ticket_id': ticket_data.get('ticket_id'),
-        'project_id': ticket_data.get('project_id'),
-        'subject': ticket_data.get('subject'),
-        'status': ticket_data.get('status'),
-        'created_at': ticket_data.get('created_at').isoformat() if ticket_data.get('created_at') else None,
-        'messages': formatted_messages
-    }), 200
-
-@api_project.route('/ticket/<ticket_id>/message', methods=['POST'])
-@requires_auth(require_verified=True)
-def add_ticket_message(user, data, ticket_id):
-    """Add a message to an existing ticket"""
-    # Validate ticket_id length (UUID format, max 36 chars)
-    if len(ticket_id) > 36:
-        return jsonify({'error': 'Invalid ticket_id format'}), 400
-
-    # Check user verification status
-    if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to send messages'}), 401
-
-    # Get request data
     request_data = request.get_json()
-    message = request_data.get('message', '').strip()
+    feedback = request_data.get('feedback')
 
-    # Validate message length (10-2000 characters)
-    if len(message) < 10 or len(message) > 2000:
-        return jsonify({'error': 'Message must be between 10 and 2000 characters'}), 400
+    valid_values = ['positive', 'negative', None]
+    if feedback not in valid_values:
+        return jsonify({'error': 'Invalid feedback value'}), 400
 
-    # Find the ticket
-    ticket = Ticket()
-    ticket_data = ticket.find({'ticket_id': ticket_id})
-    if not ticket_data:
-        return jsonify({'error': 'Ticket not found'}), 404
+    Project.set_feedback(project_id, feedback)
 
-    # Verify ticket belongs to user's project
-    project = Project.find_by_id(ticket.data.get('project_id'))
-    if not project or project.get('user_id') != user['email']:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    # Check ticket status (can't message closed tickets)
-    if ticket.data.get('status') not in ['open', 'in_progress']:
-        return jsonify({'error': 'Cannot add messages to closed or resolved tickets'}), 400
-
-    # Check rate limiting (max 5 messages per hour from user)
-    message_count = ticket.count_user_messages_in_last_hour()
-    if message_count >= 5:
-        return jsonify({
-            'error': 'Rate limit exceeded. You can only send 5 messages per hour per ticket.'
-        }), 429
-
-    # Add the message
-    success = ticket.add_message(
-        content=message,
-        sender='user',
-        sender_id=user['email']
-    )
-
-    if success:
-        return jsonify({
-            'success': True,
-            'message': 'Message added successfully'
-        }), 200
-    else:
-        return jsonify({'error': 'Failed to add message'}), 500
+    return jsonify({'success': True, 'feedback': feedback}), 200
