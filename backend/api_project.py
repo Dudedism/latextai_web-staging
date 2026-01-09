@@ -82,7 +82,7 @@ def get_templates():
     return jsonify({'templates': formatted_templates}), 200
 
 @api_project.route('/upload', methods=['POST'])
-@requires_auth(require_verified=True, use_form=True)
+@requires_auth(use_form=True)
 def upload_file(user, data):
     """
     Handle file upload - FAST, just save file.
@@ -193,7 +193,7 @@ def upload_file(user, data):
         }), 500
 
 @api_project.route('/validate', methods=['POST'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def validate_file(user, data):
     """
     Validate an uploaded file - SLOW (5-10 seconds).
@@ -322,7 +322,7 @@ def validate_file(user, data):
         }), 500
 
 @api_project.route('/cost-estimate', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_cost_estimate(user):
     """
     Get cost estimate for an existing project.
@@ -366,7 +366,7 @@ def get_cost_estimate(user):
     }), 200
 
 @api_project.route('/claim-free', methods=['POST'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def claim_free_upload(user, data):
     """
     Atomically claim the free upload for a project.

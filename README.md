@@ -1,8 +1,8 @@
-# LaTeX.ai - Document Conversion Platform
+# LaTeX.ai
 
-A full-stack web application that converts Microsoft Word documents (.docx) to LaTeX format using AI-powered processing, with support for multiple academic journal templates.
+A full-stack web application that converts Microsoft Word documents (.docx) to LaTeX format using AI, with support for multiple academic journal templates.
 
-## 🏗️ Architecture Overview
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -14,19 +14,20 @@ A full-stack web application that converts Microsoft Word documents (.docx) to L
 ┌─────────────────────────────────────────────────────────────────┐
 │                   latext-site Backend                            │
 │                  (Flask API - Port 8000)                         │
-│  • User authentication & authorization                           │
-│  • File upload & validation                                      │
-│  • Payment processing (Stripe)                                   │
-│  • Project metadata management                                   │
+│  - User authentication & authorization                           │
+│  - File upload & validation                                      │
+│  - Payment processing (Stripe)                                   │
+│  - Credit system management                                      │
+│  - Project metadata management                                   │
 └────────────────────────┬────────────────────────────────────────┘
                          │ API Key Authentication
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                   latextai Service                               │
 │                  (Flask API - Port 8001)                         │
-│  • DOCX → LaTeX conversion (GPT-4 powered)                       │
-│  • Layout correction & PDF compilation                           │
-│  • Background job processing                                     │
+│  - DOCX to LaTeX conversion (GPT-4 powered)                      │
+│  - Layout correction & PDF compilation                           │
+│  - Background job processing                                     │
 └────────────────────────┬────────────────────────────────────────┘
                          │
                          ▼
@@ -36,25 +37,28 @@ A full-stack web application that converts Microsoft Word documents (.docx) to L
                 └──────────────────┘
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 latext-site/
 ├── backend/                      # Flask API server (Port 8000)
 │   ├── app.py                   # Main Flask application
 │   ├── config.py                # Environment configuration
-│   ├── database.py              # MongoDB models (User, Project, Ticket)
+│   ├── database.py              # MongoDB models
 │   ├── api_auth.py              # Authentication endpoints
 │   ├── api_user.py              # User profile operations
 │   ├── api_admin.py             # Admin operations
 │   ├── api_public.py            # Public endpoints (health check)
 │   ├── api_project.py           # Project CRUD, upload, validation
 │   ├── api_latext.py            # LaTeX processing (proxy to latextai)
+│   ├── api_stripe.py            # Stripe payment integration
+│   ├── api_credits.py           # Credit balance and transactions
 │   ├── email_service.py         # Email sending (Brevo)
 │   ├── templates.json           # Available LaTeX templates
 │   ├── utils/
 │   │   ├── document_utils.py    # DOCX metadata extraction
 │   │   └── pricing.py           # Cost calculation
+│   ├── tests/                   # Integration tests (pytest)
 │   ├── user_projects/           # Uploaded files storage
 │   └── requirements.txt         # Python dependencies
 │
@@ -71,13 +75,12 @@ latext-site/
     │   │   └── AuthContext.tsx  # Authentication state
     │   └── utils/
     │       ├── api.ts           # API client wrapper
-    │       └── auth.ts          # Token management
+    │       ├── auth.ts          # Token management
+    │       └── fetchInterceptor.ts  # Auto 401 handling
     └── package.json             # Node dependencies
 ```
 
-## 🔄 Project Status Flow
-
-### Status Values
+## Project Status Flow
 
 | Status | Description |
 |--------|-------------|
@@ -87,174 +90,131 @@ latext-site/
 | `converted` | Successfully completed, PDF/TEX available |
 | `failed` | Processing error occurred |
 
-### Complete Lifecycle
+### Lifecycle
 
 ```
 1. UPLOAD
    POST /api/latex/upload
-   ├─ Status: 'uploaded'
-   ├─ validated: false
-   └─ paid: false
+   Status: 'uploaded', validated: false, paid: false
 
 2. VALIDATION
    POST /api/latex/validate
-   ├─ Converts DOCX → PDF (LibreOffice) for page counting
-   ├─ Calculates cost: $4.99 + ($0.50 × pages beyond 15)
-   ├─ Status: 'validated' ✓
-   ├─ validated: true
-   └─ paid: false
+   Converts DOCX to PDF (LibreOffice) for page counting
+   Calculates cost: 500 credits base + 50 credits per page beyond 15
+   Status: 'validated', validated: true, paid: false
 
 3. PAYMENT
-   Option A: POST /api/latex/claim-free (first upload)
-   Option B: Stripe payment (coming soon)
-   ├─ REQUIRES: status='validated' AND validated=true ✓
-   ├─ Status: 'validated' (unchanged)
-   ├─ validated: true
-   └─ paid: true ✓
+   Option A: POST /api/latex/claim-free (first upload, requires card verification)
+   Option B: Stripe Checkout Session
+   Option C: Pay with credits (POST /api/latex/pay-with-credits)
+   Status: 'validated', validated: true, paid: true
 
 4. PROCESSING
    POST /api/latex/process
-   ├─ Requires: status='validated' AND paid=true
-   ├─ Forwards to latextai service
-   ├─ Status: 'processing' ✓
-   └─ Background worker starts
+   Forwards to latextai service
+   Status: 'processing'
 
 5. COMPLETION
-   (Automatic - latextai worker)
-   ├─ Status: 'converted' ✓
-   ├─ pdf_filename: set
-   └─ tex_filename: set
+   (Automatic via latextai worker)
+   Status: 'converted', pdf_filename and tex_filename set
 
-6. ERROR (if processing fails)
-   (Automatic - latextai worker)
-   └─ Status: 'failed' ✓
+6. ERROR
+   Status: 'failed'
 ```
 
-### Critical Status Checks
-
-**Before payment** (`api_project.py:390-402`, `api_latext.py:97-109`):
-```python
-if not project.get('validated', False):
-    return error  # Must validate first
-if project.get('status') != 'validated':
-    return error  # Cannot pay for unvalidated project
-```
-
-**Before processing** (`api_latext.py:159-163`):
-```python
-if project.get('status') != 'validated':
-    return error  # Cannot process
-if not project.get('paid', False):
-    return error  # Must be paid
-```
-
-**Before download** (`api_latext.py:271-272, 325-326`):
-```python
-if project.get('status') != 'converted':
-    return error  # PDF/TEX not ready
-```
-
-## 🚀 Setup Instructions
+## Setup
 
 ### Prerequisites
 
 - Python 3.12+
 - Node.js 18+
-- MongoDB 8.0+ (running on host or remote)
+- MongoDB 8.0+ (see MONGO.md for setup)
 - Docker & Docker Compose (for latextai service)
+- LibreOffice (for DOCX to PDF conversion during validation)
 
 ### Backend Setup
 
-1. **Navigate to backend directory:**
-   ```bash
-   cd backend
-   ```
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-2. **Create virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+Create `.env.development`:
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```env
+FLASK_ENV=development
+BACKEND_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
 
-4. **Configure environment variables:**
-   Create `.env.development` file:
-   ```env
-   FLASK_ENV=development
-   BACKEND_URL=http://localhost:8000
+# MongoDB
+MONGO_URI=mongodb://username:password@localhost:27017/latext_db?tls=true&tlsAllowInvalidCertificates=true
 
-   # MongoDB
-   MONGO_URI=mongodb://username:password@localhost:27017/latext_db?tls=true&tlsAllowInvalidCertificates=true
+# JWT (access: 1 day, refresh: 7 days)
+SECRET_KEY=your-secret-key-here
+JWT_SECRET_KEY=your-jwt-secret-key
+JWT_ACCESS_TOKEN_EXPIRES=86400
+JWT_REFRESH_TOKEN_EXPIRES=604800
 
-   # JWT
-   SECRET_KEY=your-secret-key-here
-   JWT_SECRET_KEY=your-jwt-secret-key
+# External Services
+LATEXTAI_SERVICE_URL=http://localhost:8001
+LATEXTAI_API_KEY=your-api-key-here
 
-   # External Services
-   LATEXTAI_SERVICE_URL=http://localhost:8001
-   LATEXTAI_API_KEY=your-api-key-here
+# Email (Brevo)
+BREVO_API_KEY=your-brevo-api-key
+BREVO_SENDER_EMAIL=noreply@latext.ai
+BREVO_SENDER_NAME=LaTeX.ai Team
 
-   # Email (Brevo)
-   BREVO_API_KEY=your-brevo-api-key
+# Stripe
+STRIPE_SECRET_KEY=sk_test_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
-   # Google OAuth (optional)
-   GOOGLE_CLIENT_ID=your-google-client-id
-   ```
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=your-google-client-id
+```
 
-5. **Run the Flask server:**
-   ```bash
-   python app.py
-   ```
-   Server runs on `http://localhost:8000`
+Run the server:
+
+```bash
+python app.py
+```
+
+Server runs on `http://localhost:8000`
 
 ### Frontend Setup
 
-1. **Navigate to frontend directory:**
-   ```bash
-   cd frontend
-   ```
+```bash
+cd frontend
+npm install
+```
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+Create `.env`:
 
-3. **Configure environment variables:**
-   Create `.env` file:
-   ```env
-   VITE_BACKEND_URL=http://localhost:8000
-   ```
+```env
+VITE_BACKEND_URL=http://localhost:8000
+```
 
-4. **Run development server:**
-   ```bash
-   npm run dev
-   ```
-   Development server runs on `http://localhost:5173`
+Run development server:
 
-## 🔐 Authentication & Authorization
+```bash
+npm run dev
+```
 
-### User Roles
+Development server runs on `http://localhost:5173`
 
-- **Regular User**: Can upload documents, claim free upload, view own projects
-- **Admin User**: All user permissions + admin debugging controls
+## Authentication
 
 ### JWT Token Flow
 
-```
-1. User logs in → Backend issues access_token (15 min) + refresh_token (7 days)
+1. User logs in, backend issues access_token (1 day) + refresh_token (7 days)
 2. Frontend stores tokens in localStorage
-3. All API requests include: Authorization: Bearer {access_token}
-4. Frontend auto-refreshes token every 10 minutes
-5. Logout → Backend invalidates refresh_token
-```
+3. All API requests include `Authorization: Bearer {access_token}`
+4. Global fetch interceptor catches 401 responses and auto-refreshes tokens
+5. On refresh failure, user is redirected to /signin
+6. Logout invalidates refresh_token in database
 
 ### Admin Access
-
-To make a user an admin:
 
 ```javascript
 // In MongoDB shell (mongosh)
@@ -264,23 +224,24 @@ db.users.updateOne(
 )
 ```
 
-**Note:** User must log out and log back in for admin flag to take effect.
+User must log out and log back in for admin flag to take effect.
 
-## 📊 Database Schema
+## Database Schema
 
 ### Users Collection
 
 ```javascript
 {
   _id: ObjectId,
-  name: String,
   email: String,
-  password: String,          // Scrypt hashed
+  password: String,              // Scrypt hashed
   is_verified: Boolean,
   admin: Boolean,
   data_consent: Boolean,
-  free_upload_used: Boolean,
+  free_project_id: String,       // UUID of free project (null if not claimed)
   is_deleted: Boolean,
+  card_fingerprints: [String],   // Stripe card fingerprints for abuse detection
+  credit_balance: Number,        // Credits (1 credit = $0.01)
   created_at: Date,
   refresh_token_jti: String,
   token_updated_at: Date
@@ -292,26 +253,60 @@ db.users.updateOne(
 ```javascript
 {
   _id: ObjectId,
-  project_id: String,        // UUID
-  user_id: String,           // User email
-  template: String,          // Template ID (e.g., 'MQ', 'IEEE')
-  status: String,            // 'uploaded' | 'validated' | 'processing' | 'converted' | 'failed'
+  project_id: String,            // UUID
+  user_id: ObjectId,             // Reference to user._id
+  user_email: String,
+  template: String,              // Template ID
+  status: String,                // 'uploaded' | 'validated' | 'processing' | 'converted' | 'failed'
   upload_filename: String,
   pdf_filename: String,
   tex_filename: String,
   page_count: Number,
   word_count: Number,
-  total_cost: Number,
+  total_credits: Number,
   paid: Boolean,
   is_free_project: Boolean,
   validated: Boolean,
   validated_at: Date,
   paid_at: Date,
+  created_at: Date,
+  is_orphaned: Boolean,          // Set when project is deleted (keeps user_id for stats)
+  orphaned_at: Date,
+  feedback: String               // 'positive' | 'negative' | null
+}
+```
+
+### Credit Transactions Collection
+
+```javascript
+{
+  _id: ObjectId,
+  transaction_id: String,        // UUID
+  user_id: ObjectId,
+  user_email: String,
+  transaction_type: String,      // 'topup' | 'deduction' | 'refund'
+  amount: Number,                // Positive for credits added, negative for deducted
+  balance_after: Number,
+  description: String,
+  project_id: String,            // Associated project (if applicable)
+  stripe_session_id: String,     // Stripe session (for topups)
   created_at: Date
 }
 ```
 
-## 🛠️ API Endpoints
+### Used Tokens Collection
+
+```javascript
+{
+  _id: ObjectId,
+  token_hash: String,            // Hash of the token
+  token_type: String,            // 'email_verification' | 'password_reset'
+  email: String,
+  used_at: Date
+}
+```
+
+## API Endpoints
 
 ### Authentication
 
@@ -327,172 +322,97 @@ db.users.updateOne(
 
 - `POST /api/latex/upload` - Upload DOCX file
 - `POST /api/latex/validate` - Validate document and calculate cost
-- `POST /api/latex/claim-free` - Claim free upload (atomic operation)
+- `POST /api/latex/claim-free` - Claim free upload (atomic, requires card verification)
 - `POST /api/latex/process` - Start LaTeX conversion
 - `GET /api/latex/projects` - List user's projects
 - `GET /api/latex/project/:id` - Get project details
-- `GET /api/latex/project/:id/payment-details` - Get payment info
 - `DELETE /api/latex/project/:id` - Delete project
+- `GET /api/latex/templates` - Get available templates
 
 ### Downloads
 
 - `GET /api/latex/project/:id/pdf` - Download PDF
 - `GET /api/latex/project/:id/tex` - Download LaTeX source (verified users only)
 
-### Admin Endpoints
+### Credits
 
-- `POST /api/latex/admin/mark-paid` - Mark project as paid (bypass payment)
+- `GET /api/credits/balance` - Get user's credit balance
+- `GET /api/credits/history` - Get transaction history
+- `POST /api/credits/topup` - Create Stripe session for credit purchase
+
+### Stripe
+
+- `POST /api/stripe/create-setup-session` - Setup payment method (for free upload verification)
+- `POST /api/stripe/webhook` - Stripe webhook handler
+
+### User Profile
+
+- `GET /api/user/profile` - Get user info
+- `PUT /api/user/profile` - Update profile
+- `GET /api/user/data-consent` - Get consent status
+- `POST /api/user/data-consent` - Update consent
+- `GET /api/user/verification-status` - Check email verification
+- `POST /api/user/send-verification-email` - Resend verification
+
+### Admin
+
+- `POST /api/latex/admin/mark-paid` - Mark project paid (bypass payment)
 - `GET /api/admin/users` - List all users
-- `GET /api/admin/tickets` - Manage support tickets
 
-## 🧪 Admin Debugging Features
+### Public
 
-Admin users see a **"⚡ Quick Process (Admin)"** button on the payment page that:
+- `GET /api/health` - Health check
 
-1. Marks the project as `paid=true` (bypasses Stripe)
-2. Sets `status='validated'`
-3. Triggers processing immediately
-4. Redirects to preview page
+## Available Templates
 
-**Backend endpoint:** `POST /api/latex/admin/mark-paid`
+Defined in `backend/templates.json`:
 
-## 🏷️ Available LaTeX Templates
-
-Templates are defined in `backend/templates.json`:
-
+- IEEE Transactions
 - IEEE Conference
-- Mankind Quarterly (MQ)
-- Nature
-- The Lancet
+- Nature Report
+- NeurIPS
 - Springer Computer Science
-- Elsevier
-- APS (American Physical Society)
-- TU Darmstadt
-- And more...
+- The Lancet
+- Default Document
 
-Each template has:
-- Display name and description
-- LaTeX template files (in latextai service)
-- Enabled/disabled status
+## Pricing
 
-## 💳 Pricing Model
+Credit-based model (1 credit = $0.01):
 
-**Free Tier:**
-- First upload: FREE
+| Component | Credits | USD |
+|-----------|---------|-----|
+| Base (up to 15 pages) | 500 | $5.00 |
+| Additional pages | 50/page | $0.50/page |
+| Minimum | 500 | $5.00 |
+| Maximum | 10,000 | $100.00 |
 
-**Paid Tier:**
-- Base cost: $4.99 (up to 15 pages)
-- Additional pages: $0.50/page
+First upload is free (requires card verification to prevent abuse).
 
-**Validation:**
-- Documents with word/page ratio < 50 are rejected (prevents PDF-as-DOCX uploads)
+## Stripe Integration
 
-## 📧 Email Integration
+### Local Development Setup
 
-**Service:** Brevo (formerly Sendinblue)
-
-**Email Types:**
-- Email verification
-- Password reset
-
-**Configuration:** `backend/email_service.py`
-
-## 🔗 Integration with latextai Service
-
-The main website proxies requests to the latextai microservice:
-
-```python
-# Example: Processing request
-response = requests.post(
-    f"{LATEXTAI_SERVICE_URL}/api/upload",
-    files={'file': file_data},
-    data={
-        'user_email': user['email'],
-        'project_id': project_id,
-        'template': template_name
-    },
-    headers={'X-API-Key': LATEXTAI_API_KEY}
-)
-```
-
-See [latextai repository](../latextai/README.md) for conversion engine details.
-
-## 💳 Stripe Testing (Local Development)
-
-### Setup Stripe CLI
-
-1. **Install Stripe CLI** (if not already installed):
+1. Install Stripe CLI:
    ```bash
    brew install stripe/stripe-cli/stripe
    ```
 
-2. **Login to Stripe:**
+2. Login and start webhook forwarding:
    ```bash
    stripe login
-   ```
-
-3. **Start webhook forwarding:**
-   ```bash
    stripe listen --forward-to localhost:8000/api/stripe/webhook
    ```
 
-4. **Copy the webhook secret** from the output (looks like `whsec_...`) and update `.env.development`:
-   ```env
-   STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
-   ```
+3. Copy the webhook secret (`whsec_...`) to `.env.development`
 
-5. **Restart backend** to pick up the new webhook secret.
-
-### Testing Stripe Payments
-
-**Terminal 1** - Run backend:
-```bash
-cd backend
-source venv/bin/activate
-python app.py
-```
-
-**Terminal 2** - Run frontend:
-```bash
-cd frontend
-npm run dev
-```
-
-**Terminal 3** - Run Stripe webhook listener:
-```bash
-stripe listen --forward-to localhost:8000/api/stripe/webhook
-```
+4. Restart backend
 
 ### Test Payment Flow
 
 1. Upload and validate a document
-2. On payment page, click "Pay $X.XX" button
-3. Redirects to Stripe Checkout (test mode)
-4. Use test card: `4242 4242 4242 4242`, any future expiry, any CVC
-5. Complete checkout
-6. Webhook fires automatically, marks project as paid, triggers processing
-7. Redirects back to `/papers/{project_id}/view?payment_success=true`
-
-### Trigger Test Webhooks Manually
-
-Simulate successful payment without UI:
-```bash
-stripe trigger checkout.session.completed
-```
-
-Send test webhook to your endpoint:
-```bash
-stripe trigger checkout.session.completed --add checkout_session:metadata[project_id]=YOUR_PROJECT_ID
-```
-
-### Verify Webhook Signature
-
-Check backend logs for:
-```
-✅ [STRIPE] Webhook verified: checkout.session.completed
-💳 [STRIPE] Payment completed for project {project_id}
-✅ [STRIPE] Project {project_id} marked as paid ($X.XX)
-```
+2. Click "Pay" button, redirects to Stripe Checkout
+3. Use test card: `4242 4242 4242 4242`, any future expiry, any CVC
+4. Webhook fires, marks project as paid, triggers processing
 
 ### Test Card Numbers
 
@@ -501,43 +421,105 @@ Check backend logs for:
 | `4242 4242 4242 4242` | Success |
 | `4000 0000 0000 9995` | Declined (insufficient funds) |
 | `4000 0000 0000 0002` | Declined (card declined) |
-| `4000 0025 0000 3155` | Requires authentication (3D Secure) |
+| `4000 0025 0000 3155` | Requires 3D Secure |
 
-### Stripe Dashboard
+## Testing
 
-View test payments: https://dashboard.stripe.com/test/payments
+Tests are integration tests that hit the actual API via HTTP requests.
 
-## 🐛 Troubleshooting
+### Requirements
+
+- Flask backend running on port 8000
+- MongoDB accessible
+- `BACKEND_URL` environment variable set
+
+### Running Tests
+
+```bash
+cd backend
+
+# Run all tests
+BACKEND_URL=http://localhost:8000 pytest tests/ -v -s
+
+# Run specific test file
+BACKEND_URL=http://localhost:8000 pytest tests/test_user_creation.py -v -s
+
+# Run specific test
+BACKEND_URL=http://localhost:8000 pytest tests/test_refresh_tokens.py::test_token_reuse_no_rotation -v -s
+```
+
+### Test Files
+
+- `conftest.py` - Shared fixtures (test user creation, login)
+- `test_user_creation.py` - User signup and verification
+- `test_input_validation.py` - Input validation
+- `test_upload_validation.py` - Document validation
+- `test_refresh_tokens.py` - JWT refresh token flow
+- `test_general_vulnerabilities.py` - Security tests
+- `test_upload_race_condition.py` - Race condition prevention
+
+### Test User Pattern
+
+Tests use module-scoped fixtures:
+
+```python
+@pytest.fixture(scope="module")
+def test_user():
+    with app.app_context():
+        user = create_test_user(is_verified=True, mongo_db=mongo.db, base_url=BASE_URL)
+        yield user
+        delete_test_user(user['email'], mongo.db)
+```
+
+### Cleanup Pattern
+
+Tests that create resources must use try/finally:
+
+```python
+def test_something(test_user):
+    project_id = None
+    try:
+        response = requests.post(f"{BASE_URL}/api/latex/upload", ...)
+        project_id = response.json()['project_id']
+        assert response.status_code == 200
+    finally:
+        if project_id:
+            with app.app_context():
+                mongo.db.projects.delete_one({'project_id': project_id})
+```
+
+### Security Features Tested
+
+**Token Rotation:**
+- Each refresh token use issues a new token
+- Old refresh token is invalidated
+
+**Reuse Detection:**
+- Already-used refresh tokens are detected
+- All tokens for that user are invalidated
+- Attacker is blocked with 401
+
+**Upload Race Condition:**
+- Parallel requests to `/api/latex/claim-free` are protected
+- Only one request succeeds, others get 409 (upload in progress) or 402 (already used)
+
+## Troubleshooting
 
 ### Status stuck at 'uploaded'
 
-**Cause:** Project wasn't validated before attempting to process.
-
-**Fix:** Ensure `/api/latex/validate` is called after upload and before `/api/latex/process`.
+Project wasn't validated. Call `/api/latex/validate` after upload and before `/api/latex/process`.
 
 ### Processing fails with "must be validated"
 
-**Cause:** `status != 'validated'` or `paid != true`
-
-**Fix:** Check that:
-1. Validation completed successfully
-2. Payment/free claim completed
-3. Status was set to 'validated' (fixed in latest version)
+Either `status != 'validated'` or `paid != true`. Verify validation and payment completed.
 
 ### Admin controls not showing
 
-**Cause:** User's `admin` field not set in database, or user didn't re-login after update.
-
-**Fix:**
-1. Update database: `db.users.updateOne({email: '...'}, {$set: {admin: true}})`
-2. Log out and log back in
+User's `admin` field not set, or user didn't re-login after database update.
 
 ### Webhook not receiving events
 
-**Cause:** Stripe CLI not running or wrong endpoint.
-
-**Fix:**
-1. Verify `stripe listen` is running in Terminal 3
-2. Check endpoint: `localhost:8000/api/stripe/webhook`
+1. Verify `stripe listen` is running
+2. Check endpoint is `localhost:8000/api/stripe/webhook`
 3. Verify `STRIPE_WEBHOOK_SECRET` matches CLI output
 4. Restart backend after updating secret

@@ -48,10 +48,10 @@ const PricingPage: React.FC = () => {
 
           <h3>How does the pricing work?</h3>
           <p>
-            We use a one-time payment model. The base price is $4.99 for documents up to 15 pages
-            (one-sided PDF) or 7 pages (two-sided PDF). Each additional page costs $0.50. This
-            page-based pricing ensures you only pay for what you need, accounting for the complexity
-            of tables, equations, and figures in your document.
+            We use a credit-based system where 1 credit = 1 cent. The base price is 499 credits
+            ($4.99) for documents up to 15 pages. Each
+            additional page costs 50 credits ($0.50). You can purchase credits in advance. This page-based pricing ensures you only pay for what you need, accounting
+            for the complexity of tables, equations, and figures in your document.
           </p>
 
           <h3>What's included in the download?</h3>
@@ -66,11 +66,6 @@ const PricingPage: React.FC = () => {
             You'll receive your converted LaTeX files quickly so you can get back to your research.
           </p>
 
-          <h3>What's your refund policy?</h3>
-          <p>
-            Refunds are available if a paid document fails to process or if the output is unusable
-            due to a system error. Contact our support team at contact@latext.ai with details about the issue.
-          </p>
         </section>
         </div>
       </section>

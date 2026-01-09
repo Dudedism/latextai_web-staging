@@ -5,14 +5,12 @@ interface VerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail: string;
-  showOnSignup?: boolean;
 }
 
 export const VerificationModal: React.FC<VerificationModalProps> = ({
   isOpen,
   onClose,
-  userEmail,
-  showOnSignup = false
+  userEmail
 }) => {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -55,10 +53,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
         <h2 className="modal-title" style={{ fontSize: '24px', marginBottom: '16px' }}>Verify Your Email</h2>
 
         <p className="text-muted mb-6" style={{ lineHeight: 1.6 }}>
-          {showOnSignup
-            ? `To access your free upload, please verify your email address ${userEmail}. Click the button below to receive a verification link.`
-            : `Your email ${userEmail} needs to be verified to access this feature. Click the button below to receive a verification link.`
-          }
+          Please verify your email address ({userEmail}). Click the button below to receive a verification link.
         </p>
 
         <button

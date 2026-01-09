@@ -3,15 +3,15 @@ Pricing calculation utilities for document conversion.
 
 Credit-based pricing model:
 - 1 credit = 1 cent ($0.01)
-- Base: 500 credits for up to 15 pages
+- Base: 499 credits for up to 15 pages
 - Additional pages: 50 credits per page
 """
 
 PRICING_CONFIG = {
-    'base_credits': 500,
+    'base_credits': 499,
     'base_pages': 15,
     'per_page_credits': 50,
-    'min_credits': 500,
+    'min_credits': 499,
     'max_credits': 10000,
 }
 
@@ -25,7 +25,7 @@ def calculate_cost(page_count):
 
     Returns:
         dict: Cost breakdown containing:
-            - base_credits (int): Base conversion fee (500)
+            - base_credits (int): Base conversion fee (499)
             - additional_pages (int): Pages beyond base amount
             - additional_credits (int): Credits for additional pages
             - total_credits (int): Total credits required

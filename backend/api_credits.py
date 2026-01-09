@@ -12,7 +12,7 @@ MIN_TOPUP_CREDITS = 500
 
 
 @api_credits.route('/balance', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_balance(user):
     """Get user's current credit balance"""
     balance = User.get_credit_balance(user['email'])
@@ -23,7 +23,7 @@ def get_balance(user):
 
 
 @api_credits.route('/history', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_history(user):
     """Get user's credit transaction history"""
     limit = request.args.get('limit', 50, type=int)
@@ -47,7 +47,7 @@ def get_history(user):
 
 
 @api_credits.route('/topup', methods=['POST'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def create_topup_session(user, data):
     """
     Create Stripe Checkout session for credit top-up.

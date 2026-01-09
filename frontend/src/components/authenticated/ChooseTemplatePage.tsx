@@ -103,7 +103,6 @@ const ChooseTemplatePage: React.FC<ChooseTemplatePageProps> = ({ onSelectTemplat
                   </div>
                   <div className="template-info">
                     <h3 className="template-name">{template.publisher}</h3>
-                    <span className="template-year">{template.year}</span>
                   </div>
                 </div>
               ))

@@ -64,8 +64,19 @@ const CreditTopUpPage: React.FC = () => {
     fetchData();
 
     if (searchParams.get('topup_success') === 'true') {
-      setSuccessCredits(searchParams.get('credits'));
+      const credits = searchParams.get('credits');
+      setSuccessCredits(credits);
       setShowSuccessModal(true);
+
+      // Track credit top-up conversion (production only)
+      if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function' && credits) {
+        const dollars = parseInt(credits, 10) / 100;
+        window.gtag('event', 'conversion', {
+          'send_to': 'AW-17841022197/pKmDCLvgsd8bEPXJobtC',
+          'value': dollars,
+          'currency': 'USD'
+        });
+      }
     } else if (searchParams.get('topup_cancelled') === 'true') {
       setError('Top-up was cancelled');
       setShowErrorModal(true);

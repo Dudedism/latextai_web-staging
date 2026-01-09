@@ -34,7 +34,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
 
             <div className="pc-includes">Includes</div>
             <ul className="pc-features">
-              <li>Up to 15 pages (one-sided) or 7 pages (two-sided)</li>
+              <li>Up to 15 pages</li>
               <li>+$0.50 per additional page</li>
               <li>Delivery in minutes, not days</li>
               <li>Submission-ready PDF + Complete LaTeX compilation package</li>
@@ -68,7 +68,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
                 <h3 className="pc-card-title">Competitor B</h3>
                 <div className="pc-price">
                   <span className="pc-price-currency">$</span>
-                  <span className="pc-price-value">2.99</span>
+                  <span className="pc-price-value">9.99</span>
                   <span className="pc-price-unit">/document</span>
                 </div>
                 <p className="pc-note">Limited features</p>
