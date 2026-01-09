@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
-import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '../../utils/api';
 import './YourPapersPage.css';
 
@@ -19,7 +18,6 @@ interface Paper {
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
