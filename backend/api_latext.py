@@ -135,7 +135,7 @@ def delete_project_on_latextai(user_email, project_id):
 
 
 @api_latext.route('/admin/mark-paid', methods=['POST'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def admin_mark_paid(user, data):
     """
     Admin-only endpoint to mark a project as paid (for debugging/testing).
@@ -196,7 +196,7 @@ def admin_mark_paid(user, data):
     }), 200
 
 @api_latext.route('/process', methods=['POST'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def process_project(user, data):
     """
     Initiate processing by forwarding to latextai service.
@@ -391,7 +391,7 @@ def process_project(user, data):
         }), 500
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_pdf(user, project_id):
     """Proxy PDF download request to latextai service"""
     project = Project.find_by_id(project_id)
@@ -439,13 +439,9 @@ def get_pdf(user, project_id):
         return jsonify({'error': 'Failed to download PDF'}), 500
 
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_tex(user, project_id):
-    """Proxy TEX download request to latextai service (only for verified users)"""
-    # Check user verification status first
-    if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to download LaTeX files'}), 403
-
+    """Proxy TEX download request to latextai service"""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -491,13 +487,9 @@ def get_tex(user, project_id):
         return jsonify({'error': 'Failed to download LaTeX file'}), 500
 
 @api_latext.route('/project/<project_id>/bib', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_bib(user, project_id):
-    """Proxy BibTeX download request to latextai service (only for verified users)"""
-    # Check user verification status first
-    if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to download BibTeX files'}), 403
-
+    """Proxy BibTeX download request to latextai service"""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -543,13 +535,9 @@ def get_bib(user, project_id):
         return jsonify({'error': 'Failed to download BibTeX file'}), 500
 
 @api_latext.route('/project/<project_id>/package', methods=['GET'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def get_package(user, project_id):
-    """Proxy package download request to latextai service (only for verified users)"""
-    # Check user verification status first
-    if not user.get('is_verified', False):
-        return jsonify({'error': 'Please sign up to download compilation package'}), 403
-
+    """Proxy package download request to latextai service"""
     project = Project.find_by_id(project_id)
 
     if not project:

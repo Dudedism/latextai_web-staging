@@ -11,7 +11,7 @@ api_stripe = Blueprint('api_stripe_blueprint', __name__, url_prefix='/api/stripe
 stripe.api_key = STRIPE_SECRET_KEY
 
 @api_stripe.route('/create-setup-session', methods=['POST'])
-@requires_auth(require_verified=True)
+@requires_auth()
 def create_setup_session(user, data):
     """
     Create Stripe Checkout session in setup mode for free upload card verification.

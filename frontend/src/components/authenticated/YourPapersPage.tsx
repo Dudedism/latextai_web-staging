@@ -4,7 +4,6 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
-import { VerificationModal } from '../common/VerificationModal';
 import { apiRequest } from '../../utils/api';
 import './YourPapersPage.css';
 
@@ -20,11 +19,10 @@ interface Paper {
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isVerified } = useAuth();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -69,11 +67,6 @@ const YourPapersPage: React.FC = () => {
   };
 
   const handleNewPaper = () => {
-    // Check email verification status before allowing upload
-    if (!isVerified) {
-      setShowVerificationModal(true);
-      return;
-    }
     navigate('/papers/new');
   };
 
@@ -189,12 +182,6 @@ const YourPapersPage: React.FC = () => {
       </section>
 
       <Footer />
-
-      <VerificationModal
-        isOpen={showVerificationModal}
-        onClose={() => setShowVerificationModal(false)}
-        userEmail={user?.email || ''}
-      />
     </div>
   );
 };

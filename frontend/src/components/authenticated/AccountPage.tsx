@@ -18,6 +18,12 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isVerified, logout } = useAuth();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin');
+    }
+  }, [isAuthenticated, navigate]);
   const [dataConsent, setDataConsent] = useState<boolean | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);

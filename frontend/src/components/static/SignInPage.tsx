@@ -3,7 +3,6 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { useAuth } from '../../contexts/AuthContext';
-import { VerificationModal } from '../common/VerificationModal';
 import { StatusModal } from '../common/StatusModal';
 
 type AuthMode = 'signin' | 'signup';
@@ -22,8 +21,6 @@ const SignInPage: React.FC = () => {
   const [error, setError] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [signupEmail, setSignupEmail] = useState('');
 
   useEffect(() => {
     // Set auth mode based on current path
@@ -48,12 +45,12 @@ const SignInPage: React.FC = () => {
   
   const { isAuthenticated, login: authLogin, setAuthData } = useAuth();
 
-  // Redirect if already authenticated (but not if showing verification modal)
+  // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated && !showVerificationModal) {
+    if (isAuthenticated) {
       navigate('/papers');
     }
-  }, [isAuthenticated, navigate, showVerificationModal]);
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +103,13 @@ const SignInPage: React.FC = () => {
           // Signup successful with auto-login - store auth data
           setError('');
 
+          // Track signup conversion (production only)
+          if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function') {
+            window.gtag('event', 'conversion', {
+              'send_to': 'AW-17841022197/AzBICImqtN8bEPXJobtC'
+            });
+          }
+
           if (data.access_token && data.refresh_token) {
             // Auto-login: Store tokens and user data using AuthContext
             setAuthData({
@@ -116,13 +120,8 @@ const SignInPage: React.FC = () => {
               is_verified: false  // New users are not verified by default
             });
 
-            // Store email for verification modal
-            setSignupEmail(data.email);
-
-            // Show verification modal (user must close it to continue)
-            setShowVerificationModal(true);
-
-            // Don't navigate automatically - let user close modal first
+            // Navigate to papers page after successful signup
+            navigate('/papers');
           } else {
             // Fallback: Old behavior (shouldn't happen with updated backend)
             alert(data.message || 'Registration successful! You can now sign in.');
@@ -260,16 +259,6 @@ const SignInPage: React.FC = () => {
       </section>
 
       <Footer />
-
-      <VerificationModal
-        isOpen={showVerificationModal}
-        onClose={() => {
-          setShowVerificationModal(false);
-          navigate('/papers');
-        }}
-        userEmail={signupEmail}
-        showOnSignup={true}
-      />
 
       <StatusModal
         isOpen={showErrorModal}

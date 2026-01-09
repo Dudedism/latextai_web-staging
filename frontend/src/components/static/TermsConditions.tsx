@@ -67,7 +67,7 @@ const TermsConditions: React.FC = () => {
         </section>
 
         <section className="static-section">
-          <h2>4. Payments, Refunds, and Credits</h2>
+          <h2>4. Payments and Credits</h2>
           <p>
             <strong>4.1 Payments:</strong> The Service operates on a pay-per-document basis. Payment is required before
             processing, except for the first free document.
@@ -77,11 +77,7 @@ const TermsConditions: React.FC = () => {
             By making a payment, you also agree to Stripe's own terms of service and privacy policy.
           </p>
           <p>
-            <strong>4.3 Refunds:</strong> Refunds are available only in cases where (a) a paid document fails to process,
-            or (b) the output file is materially unusable due to a system error attributable to OpenTypesetter.
-          </p>
-          <p>
-            <strong>4.4 Credits for Feedback:</strong> We may, at our discretion, issue credits to users who provide
+            <strong>4.3 Credits for Feedback:</strong> We may, at our discretion, issue credits to users who provide
             feedback about the Service. These credits have no monetary value and may be used only for additional document
             submissions. The availability of such credits is not a guaranteed right.
           </p>

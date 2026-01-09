@@ -19,7 +19,6 @@ def get_app_info():
         'endpoints': {
             'auth': '/api/auth/*',
             'user': '/api/user/*',
-            'admin': '/api/admin/*',
             'public': '/api/*'
         }
     }), 200

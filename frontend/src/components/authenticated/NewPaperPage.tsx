@@ -5,14 +5,22 @@ import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
 import { ConsentModal } from '../common/ConsentModal';
 import { apiRequest } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 type UploadState = 'upload' | 'preview' | 'template';
 
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin');
+    }
+  }, [isAuthenticated, navigate]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
