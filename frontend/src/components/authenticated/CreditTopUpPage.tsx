@@ -6,6 +6,7 @@ import LoadingScreen from '../common/LoadingScreen';
 import { ErrorModal } from '../common/ErrorModal';
 import { StatusModal } from '../common/StatusModal';
 import { apiRequest } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface BalanceResponse {
   balance: number;
@@ -31,6 +32,7 @@ const MIN_CREDITS = 500;
 
 const CreditTopUpPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [balance, setBalance] = useState<number>(0);
   const [creditAmount, setCreditAmount] = useState<string>('500');
   const [transactions, setTransactions] = useState<TransactionResponse['transactions']>([]);
@@ -71,6 +73,9 @@ const CreditTopUpPage: React.FC = () => {
       // Track credit top-up conversion (production only)
       if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function' && credits) {
         const dollars = parseInt(credits, 10) / 100;
+        if (user?.email) {
+          window.gtag('set', 'user_data', { 'email': user.email });
+        }
         window.gtag('event', 'conversion', {
           'send_to': 'AW-17841022197/pKmDCLvgsd8bEPXJobtC',
           'value': dollars,

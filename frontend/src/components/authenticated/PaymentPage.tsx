@@ -37,7 +37,7 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
 
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -69,6 +69,16 @@ const PaymentPage: React.FC = () => {
       });
 
       console.log('✅ [PAYMENT] Free upload claimed successfully');
+
+      // Track free upload conversion (production only)
+      if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function') {
+        if (user?.email) {
+          window.gtag('set', 'user_data', { 'email': user.email });
+        }
+        window.gtag('event', 'conversion', {
+          'send_to': 'AW-17841022197/RDtCCOWwtd8bEPXJobtC'
+        });
+      }
 
       await apiRequest('/api/latex/process', {
         method: 'POST',

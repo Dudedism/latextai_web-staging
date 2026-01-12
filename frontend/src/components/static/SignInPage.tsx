@@ -105,6 +105,7 @@ const SignInPage: React.FC = () => {
 
           // Track signup conversion (production only)
           if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function') {
+            window.gtag('set', 'user_data', { 'email': email });
             window.gtag('event', 'conversion', {
               'send_to': 'AW-17841022197/AzBICImqtN8bEPXJobtC'
             });

@@ -31,6 +31,10 @@ docker rm latext-backend 2>/dev/null || true
 echo "🗑️  Removing old backend image..."
 docker rmi backend-backend 2>/dev/null || true
 
+# Clean up all unused images and build cache (but not volumes)
+echo "🧹 Cleaning up Docker cache..."
+docker system prune -af
+
 # Create network if it doesn't exist
 echo "🌐 Ensuring Docker network exists..."
 docker network create latext-network 2>/dev/null || echo "Network already exists"
