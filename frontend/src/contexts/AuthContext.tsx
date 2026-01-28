@@ -64,16 +64,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Initialize auth state from localStorage
+  // Initialize auth state from localStorage or URL fragment (for Google OAuth)
   useEffect(() => {
     const initAuth = () => {
+      // Check for OAuth tokens in URL fragment (from Google login redirect)
+      const hash = window.location.hash.substring(1);
+      if (hash) {
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const urlEmail = params.get('email');
+        const admin = params.get('admin') === 'true';
+
+        if (accessToken && refreshToken && urlEmail) {
+          // Store auth data from OAuth callback
+          localStorage.setItem('token', accessToken);
+          localStorage.setItem('refreshToken', refreshToken);
+          localStorage.setItem('userEmail', urlEmail);
+          localStorage.setItem('isAdmin', admin.toString());
+          localStorage.setItem('isVerified', 'true'); // Google users are auto-verified
+
+          setUser({
+            email: urlEmail,
+            isAdmin: admin,
+            isVerified: true
+          });
+
+          // Clean up URL (remove hash fragment)
+          window.history.replaceState(null, '', window.location.pathname);
+          return;
+        }
+      }
+
+      // Fall back to localStorage
       const token = localStorage.getItem('token');
       const email = localStorage.getItem('userEmail');
       const isAdmin = localStorage.getItem('isAdmin') === 'true';
       const cachedVerified = localStorage.getItem('isVerified');
 
       if (token && email) {
-
         setUser({
           email,
           isAdmin,
