@@ -83,6 +83,11 @@ const SignInPage: React.FC = () => {
     const initializeGoogleButton = async () => {
       await loadGoogleScript();
       
+      // Determine the API URL based on current environment
+      const apiBaseUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:8000'
+        : `https://${window.location.hostname}`;
+      
       // Small delay to ensure the container is rendered
       setTimeout(() => {
         const container = document.getElementById('google-signin-container');
@@ -93,7 +98,7 @@ const SignInPage: React.FC = () => {
           window.google.accounts.id.initialize({
             client_id: '720160772474-jrdbco5ieojmvg83sr1juo3kineasj20.apps.googleusercontent.com',
             ux_mode: 'redirect',
-            login_uri: 'http://localhost:8000/api/auth/google',
+            login_uri: `${apiBaseUrl}/api/auth/google`,
           });
           
           window.google.accounts.id.renderButton(container, {
