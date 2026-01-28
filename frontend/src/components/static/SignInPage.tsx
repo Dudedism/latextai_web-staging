@@ -52,6 +52,67 @@ const SignInPage: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
+  // Initialize Google Sign-In button dynamically
+  useEffect(() => {
+    if (authMode !== 'signin') return;
+
+    // Load Google Identity Services script if not already loaded
+    const loadGoogleScript = () => {
+      return new Promise<void>((resolve) => {
+        if (window.google?.accounts) {
+          resolve();
+          return;
+        }
+        
+        const existingScript = document.getElementById('google-gsi-script');
+        if (existingScript) {
+          existingScript.addEventListener('load', () => resolve());
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.id = 'google-gsi-script';
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => resolve();
+        document.head.appendChild(script);
+      });
+    };
+
+    const initializeGoogleButton = async () => {
+      await loadGoogleScript();
+      
+      // Small delay to ensure the container is rendered
+      setTimeout(() => {
+        const container = document.getElementById('google-signin-container');
+        if (container && window.google?.accounts) {
+          // Clear any previous button
+          container.innerHTML = '';
+          
+          window.google.accounts.id.initialize({
+            client_id: '720160772474-jrdbco5ieojmvg83sr1juo3kineasj20.apps.googleusercontent.com',
+            ux_mode: 'redirect',
+            login_uri: 'http://localhost:8000/api/auth/google',
+          });
+          
+          window.google.accounts.id.renderButton(container, {
+            type: 'standard',
+            size: 'large',
+            theme: 'outline',
+            text: 'continue_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+            locale: 'en',
+            width: 360,
+          });
+        }
+      }, 100);
+    };
+
+    initializeGoogleButton();
+  }, [authMode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -154,6 +215,14 @@ const SignInPage: React.FC = () => {
 
       <section className="main-section main-section--centered">
         <div className="container container--sm" style={{ maxWidth: '400px' }}>
+
+          {/* Google Sign-In Button - only on Sign In page */}
+          {authMode === 'signin' && (
+            <div style={{ marginBottom: '32px', marginTop: '8px', width: '100%' }}>
+              <div id="google-signin-container"></div>
+            </div>
+          )}
+
           <h1 className="section-title text-center">
             {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
           </h1>
