@@ -11,6 +11,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   isAdmin: boolean;
   isVerified: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -36,6 +37,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Function to refresh verification status from the backend
   const refreshVerificationStatus = async () => {
@@ -92,6 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           // Clean up URL (remove hash fragment)
           window.history.replaceState(null, '', window.location.pathname);
+          setIsLoading(false);
           return;
         }
       }
@@ -116,6 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setUser(null);
       }
+      setIsLoading(false);
     };
 
     initAuth();
@@ -217,6 +221,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     isAuthenticated,
+    isLoading,
     isAdmin,
     isVerified,
     login,

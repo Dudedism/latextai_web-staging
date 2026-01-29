@@ -12,15 +12,16 @@ type UploadState = 'upload' | 'preview' | 'template';
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Wait for auth to finish loading before checking authentication
+    if (!isLoading && !isAuthenticated) {
       navigate('/signin');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);

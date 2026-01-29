@@ -16,14 +16,15 @@ interface AccountPageProps {
 
 const AccountPage: React.FC<AccountPageProps> = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isVerified, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, isVerified, logout } = useAuth();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Wait for auth to finish loading before checking authentication
+    if (!isLoading && !isAuthenticated) {
       navigate('/signin');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
   const [dataConsent, setDataConsent] = useState<boolean | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
