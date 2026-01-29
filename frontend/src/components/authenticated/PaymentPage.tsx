@@ -153,25 +153,25 @@ const PaymentPage: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('🔐 [STRIPE] Creating setup session for card verification...');
+      console.log('🎁 [FREE] Using free upload to start processing...');
 
-      const response = await apiRequest<{ checkout_url: string }>('/api/stripe/create-setup-session', {
+      await apiRequest('/api/latex/process', {
         method: 'POST',
-        body: JSON.stringify({ project_id: projectId })
+        body: JSON.stringify({ project_id: projectId, use_free_upload: true })
       });
 
-      console.log('✅ [STRIPE] Setup session created, redirecting to card verification...');
-      window.location.href = response.checkout_url;
+      console.log('✅ [FREE] Processing started successfully');
+      navigate(`/papers/${projectId}/view`);
 
     } catch (error: any) {
-      console.error('❌ [STRIPE] Error creating setup session:', error);
+      console.error('❌ [FREE] Error starting processing:', error);
 
       if (error.status === 409) {
         setErrorMessage(error.message || 'Your free upload has already been used. Please use credits.');
         setErrorStatusCode(409);
       } else {
         setErrorStatusCode(error.status);
-        setErrorMessage(error.message || 'Failed to start card verification');
+        setErrorMessage(error.message || 'Failed to start processing');
       }
 
       setShowErrorModal(true);

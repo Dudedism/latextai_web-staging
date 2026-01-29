@@ -250,62 +250,99 @@ def process_project(user, data):
             'error': 'Project has not been validated. Please validate before processing.'
         }), 400
 
-    # STEP 4: Handle payment - either already paid or deduct credits
+    # STEP 4: Handle payment - either already paid, free upload, or deduct credits
+    use_free_upload = data.get('use_free_upload', False)
+    
     if not project.get('paid', False):
-        page_count = project.get('page_count', 0)
-        cost_info = calculate_cost(page_count)
-        credits_required = cost_info['total_credits']
-
-        current_balance = User.get_credit_balance(user['email'])
-        if current_balance < credits_required:
-            return jsonify({
-                'error': 'Insufficient credits',
-                'credits_required': credits_required,
-                'credits_available': current_balance,
-                'requires_topup': True
-            }), 402
-
-        # ATOMIC: Mark project as paid FIRST to prevent double-charge race condition
-        # Only one concurrent request can succeed with this update
-        mark_result = mongo.db.projects.update_one(
-            {'project_id': project_id, 'paid': False},
-            {'$set': {
-                'paid': True,
-                'paid_with_credits': True,
-                'credits_charged': credits_required,
-                'paid_at': datetime.utcnow()
-            }}
-        )
-
-        if mark_result.modified_count == 0:
-            # Another request already marked this project as paid
-            print(f"⚠️  [CREDITS] Project {project_id} already paid (race condition prevented)")
-            return jsonify({'message': 'Project already paid'}), 200
-
-        # Now deduct credits (we own the project payment)
-        new_balance = User.deduct_credits(user['email'], credits_required)
-        if new_balance is None:
-            # Rollback: Clear paid status since we couldn't charge
+        # Check if user wants to use free upload
+        if use_free_upload:
+            # Check if user has free upload available
+            user_data = User.find_by_email(user['email'])
+            if user_data.get('free_upload_used', False):
+                return jsonify({
+                    'error': 'Your free upload has already been used. Please use credits.',
+                    'free_upload_exhausted': True
+                }), 409
+            
+            # Atomically mark user's free upload as used AND project as paid
+            user_update = mongo.db.users.update_one(
+                {'email': user['email'], 'free_upload_used': {'$ne': True}},
+                {'$set': {'free_upload_used': True, 'free_upload_used_at': datetime.utcnow()}}
+            )
+            
+            if user_update.modified_count == 0:
+                return jsonify({
+                    'error': 'Your free upload has already been used. Please use credits.',
+                    'free_upload_exhausted': True
+                }), 409
+            
+            # Mark project as paid with free upload
             mongo.db.projects.update_one(
                 {'project_id': project_id},
-                {'$set': {'paid': False, 'paid_with_credits': False, 'credits_charged': None, 'paid_at': None}}
+                {'$set': {
+                    'paid': True,
+                    'paid_with_free_upload': True,
+                    'paid_at': datetime.utcnow()
+                }}
             )
-            return jsonify({
-                'error': 'Failed to deduct credits. Please try again.',
-                'requires_topup': True
-            }), 402
+            
+            print(f"🎁 [FREE] Free upload used for project {project_id}")
+        else:
+            # Regular credit payment
+            page_count = project.get('page_count', 0)
+            cost_info = calculate_cost(page_count)
+            credits_required = cost_info['total_credits']
 
-        CreditTransaction.create(
-            user_email=user['email'],
-            user_id=str(user['_id']),
-            transaction_type='deduct',
-            amount=-credits_required,
-            balance_after=new_balance,
-            description=f"Conversion: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
-            project_id=project_id
-        )
+            current_balance = User.get_credit_balance(user['email'])
+            if current_balance < credits_required:
+                return jsonify({
+                    'error': 'Insufficient credits',
+                    'credits_required': credits_required,
+                    'credits_available': current_balance,
+                    'requires_topup': True
+                }), 402
 
-        print(f"💳 [CREDITS] Charged {credits_required} credits for project {project_id}")
+            # ATOMIC: Mark project as paid FIRST to prevent double-charge race condition
+            # Only one concurrent request can succeed with this update
+            mark_result = mongo.db.projects.update_one(
+                {'project_id': project_id, 'paid': False},
+                {'$set': {
+                    'paid': True,
+                    'paid_with_credits': True,
+                    'credits_charged': credits_required,
+                    'paid_at': datetime.utcnow()
+                }}
+            )
+
+            if mark_result.modified_count == 0:
+                # Another request already marked this project as paid
+                print(f"⚠️  [CREDITS] Project {project_id} already paid (race condition prevented)")
+                return jsonify({'message': 'Project already paid'}), 200
+
+            # Now deduct credits (we own the project payment)
+            new_balance = User.deduct_credits(user['email'], credits_required)
+            if new_balance is None:
+                # Rollback: Clear paid status since we couldn't charge
+                mongo.db.projects.update_one(
+                    {'project_id': project_id},
+                    {'$set': {'paid': False, 'paid_with_credits': False, 'credits_charged': None, 'paid_at': None}}
+                )
+                return jsonify({
+                    'error': 'Failed to deduct credits. Please try again.',
+                    'requires_topup': True
+                }), 402
+
+            CreditTransaction.create(
+                user_email=user['email'],
+                user_id=str(user['_id']),
+                transaction_type='deduct',
+                amount=-credits_required,
+                balance_after=new_balance,
+                description=f"Conversion: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
+                project_id=project_id
+            )
+
+            print(f"💳 [CREDITS] Charged {credits_required} credits for project {project_id}")
 
     # STEP 5: Get template configuration
     template_id = project.get('template')

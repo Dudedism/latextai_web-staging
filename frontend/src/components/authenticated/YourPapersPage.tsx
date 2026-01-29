@@ -4,6 +4,7 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
 import { apiRequest } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 import './YourPapersPage.css';
 
 interface Paper {
@@ -18,13 +19,24 @@ interface Paper {
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Wait for auth to finish loading before checking authentication
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (!isLoading && !isAuthenticated) {
+      navigate('/signin');
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
+  // Only fetch projects after auth is loaded and user is authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      fetchProjects();
+    }
+  }, [isLoading, isAuthenticated]);
 
   const fetchProjects = async () => {
     try {
