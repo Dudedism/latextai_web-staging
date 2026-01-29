@@ -361,25 +361,31 @@ const PaymentPage: React.FC = () => {
             </div>
 
             {/* Free Upload Notice */}
-            {canUseFree && (
-              <div className="notice notice--info" style={{ flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', width: '100%' }}>
-                  <div className="notice-icon">🎁</div>
-                  <div className="notice-content">
-                    <strong>You have 1 free upload available!</strong>
-                    <p>Card verification required to prevent abuse. You will not be charged.</p>
-                  </div>
+            <div 
+              className={`notice ${canUseFree ? 'notice--info' : 'notice--disabled'}`} 
+              style={{ flexDirection: 'column', alignItems: 'center', opacity: canUseFree ? 1 : 0.6 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', width: '100%' }}>
+                <div className="notice-icon" style={{ opacity: canUseFree ? 1 : 0.5 }}>🎁</div>
+                <div className="notice-content">
+                  <strong>{canUseFree ? 'You have 1 free upload available!' : '0 free conversions available'}</strong>
+                  {canUseFree && <p>Card verification required to prevent abuse. You will not be charged.</p>}
+                  {!canUseFree && <p>You have already used your free conversion.</p>}
                 </div>
-                <button
-                  className="btn btn--primary btn--lg"
-                  onClick={handleUseFreeUpload}
-                  disabled={loading}
-                  style={{ marginTop: '12px' }}
-                >
-                  {loading ? 'Verifying...' : 'Use Free Upload'}
-                </button>
               </div>
-            )}
+              <button
+                className="btn btn--primary btn--lg"
+                onClick={handleUseFreeUpload}
+                disabled={loading || !canUseFree}
+                style={{ 
+                  marginTop: '12px',
+                  opacity: canUseFree ? 1 : 0.5,
+                  cursor: canUseFree ? 'pointer' : 'not-allowed'
+                }}
+              >
+                {loading ? 'Processing...' : 'Use Free Upload'}
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-4 justify-center mt-8">

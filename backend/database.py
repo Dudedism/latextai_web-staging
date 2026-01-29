@@ -184,9 +184,12 @@ class User(BaseModel):
 
     @classmethod
     def has_claimed_free_project(cls, email):
-        """Check if user has already claimed their free project (single-field query)"""
+        """Check if user has already claimed their free project (checks both old and new fields)"""
         return mongo.db[cls.collection_name].count_documents(
-            {'email': email, 'free_project_id': {'$ne': None}},
+            {'email': email, '$or': [
+                {'free_project_id': {'$ne': None}},
+                {'free_upload_used': True}
+            ]},
             limit=1
         ) > 0
 
