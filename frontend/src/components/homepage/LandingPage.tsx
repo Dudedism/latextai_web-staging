@@ -1,7 +1,8 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Banner from '../Banner';
-import { HeroSection, HowItWorks, ValueProp, PricingCompare } from '.'; // barrel import
+import { HeroSection, PricingCompare } from '.'; // barrel import
+import { HowItWorksTitle, HowItWorksSteps } from './HowItWorks';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
@@ -34,18 +35,58 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Section 3: Action Buttons */}
-      <section className="section">
+      <section className="section" style={{ marginBottom: '40px' }}>
         <div className="action-buttons">
           <button className="btn-outline" onClick={handleTryFree}>Try It Free Now ↗</button>
           <button className="btn-outline" onClick={handleBrowseJournals}>Browse our supported journals ↗</button>
         </div>
       </section>
 
-      {/* Section 4: How it works */}
-      <HowItWorks />
-      <ValueProp
-        cta={{ label: 'Try it free now', onClick: handleTryFree }}
-      />
+      {/* Section 4: How it works - Title */}
+      <HowItWorksTitle />
+
+      {/* Demo Video */}
+      <section className="section" style={{ paddingTop: 0, paddingBottom: 0 }}>
+        <div style={{
+          maxWidth: '1124px',
+          margin: '0 auto',
+          padding: '0 24px',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.10)'
+        }}>
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+              width: '100%',
+              display: 'block',
+              borderRadius: '12px'
+            }}
+          >
+            <source src="/LaTeXtAI-Demo-HQ.mp4" type="video/mp4" />
+          </video>
+        </div>
+      </section>
+
+      {/* Section 4: How it works - Steps */}
+      <HowItWorksSteps />
+
+      {/* Blog Callout – replaces ValueProp */}
+      <section className="section blog-callout">
+        <div className="blog-callout-wrap">
+          <div className="blog-callout-bubble" aria-hidden="true" />
+          <div className="blog-callout-content">
+            <div className="blog-callout-icon" aria-hidden="true">📣</div>
+            <h2 className="blog-callout-title">Be updated, or update us!</h2>
+            <p className="blog-callout-sub">Read the latest news, feature updates and insights — or share your own feedback with us.</p>
+            <Link to="/blog" className="btn-outline blog-callout-cta">Visit our Blog →</Link>
+          </div>
+        </div>
+      </section>
+
       <PricingCompare onTryFree={handleTryFree} />
     </div>
   );

@@ -56,6 +56,9 @@ const Banner: React.FC = () => {
         <Link to="/journals" className={location.pathname === '/journals' ? 'active' : ''}>
           Journals
         </Link>
+        <Link to="/blog" className={location.pathname === '/blog' ? 'active' : ''}>
+          Blog
+        </Link>
       </nav>
       <div className="nav-right">
         <div className="hamburger-menu" ref={dropdownRef}>
@@ -110,6 +113,9 @@ const Banner: React.FC = () => {
                 </Link>
                 <Link to="/journals" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                   Journals
+                </Link>
+                <Link to="/blog" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                  Blog
                 </Link>
               </div>
               {isAuthenticated ? (

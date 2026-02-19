@@ -54,8 +54,6 @@ const SignInPage: React.FC = () => {
 
   // Initialize Google Sign-In button dynamically
   useEffect(() => {
-    if (authMode !== 'signin') return;
-
     // Load Google Identity Services script if not already loaded
     const loadGoogleScript = () => {
       return new Promise<void>((resolve) => {
@@ -221,12 +219,17 @@ const SignInPage: React.FC = () => {
       <section className="main-section main-section--centered">
         <div className="container container--sm" style={{ maxWidth: '400px' }}>
 
-          {/* Google Sign-In Button - only on Sign In page */}
-          {authMode === 'signin' && (
-            <div style={{ marginBottom: '32px', marginTop: '8px', width: '100%' }}>
-              <div id="google-signin-container"></div>
-            </div>
-          )}
+          {/* Google Sign-In Button - on both Sign In and Sign Up pages */}
+          <div style={{ marginBottom: '32px', marginTop: '10px', width: '100%' }}>
+            <div 
+              key={authMode}
+              id="google-signin-container"
+              style={{
+                transform: 'scale(1.05, 1.2)',
+                transformOrigin: 'top center'
+              }}
+            ></div>
+          </div>
 
           <h1 className="section-title text-center">
             {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
@@ -273,19 +276,20 @@ const SignInPage: React.FC = () => {
 
             {authMode === 'signup' && (
               <div style={{ marginTop: '8px' }}>
-                <label className="auth-checkbox">
+                <label className="auth-checkbox" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                   <input
                     type="checkbox"
                     checked={agreeToTerms}
                     onChange={(e) => setAgreeToTerms(e.target.checked)}
                     required
+                    style={{ marginTop: '4px', flexShrink: 0 }}
                   />
-                  I agree with the <Link to="/terms">terms and conditions</Link> of using this tool.
+                  <span>I agree with the <Link to="/terms">terms and conditions</Link> of using this tool.</span>
                 </label>
               </div>
             )}
 
-            <button type="submit" className="btn btn--primary btn--pill btn--full" style={{ marginTop: '16px' }} disabled={loading}>
+            <button type="submit" className="btn btn--primary btn--pill" style={{ marginTop: '16px', width: '360px' }} disabled={loading}>
               {loading ? 'Loading...' : `${authMode === 'signin' ? 'Sign In' : 'Get Started'} →`}
             </button>
 
