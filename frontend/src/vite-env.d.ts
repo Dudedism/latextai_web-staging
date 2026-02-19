@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_BACKEND_URL: string;
+  readonly VITE_RECAPTCHA_SITE_KEY: string;
+}
+
 declare global {
   interface Window {
     gtag: (command: string, action: string, params?: Record<string, unknown>) => void;
@@ -28,6 +33,11 @@ declare global {
           prompt: () => void;
         };
       };
+    };
+    grecaptcha?: {
+      ready: (callback: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+      render: (container: string | HTMLElement, options: Record<string, unknown>) => number;
     };
   }
 }

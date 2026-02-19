@@ -41,6 +41,9 @@ LATEXTAI_API_KEY = os.getenv('LATEXTAI_API_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 
+# reCAPTCHA Configuration
+RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY')
+
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["10000 per day", "1000 per hour"]

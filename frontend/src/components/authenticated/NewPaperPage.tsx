@@ -12,12 +12,13 @@ type UploadState = 'upload' | 'preview' | 'template';
 const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAnonymous } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>('upload');
 
   useEffect(() => {
     // Wait for auth to finish loading before checking authentication
+    // Allow both real and anonymous users through
     if (!isLoading && !isAuthenticated) {
       navigate('/signin');
     }
@@ -86,6 +87,18 @@ const NewPaperPage: React.FC = () => {
 
   const handleTemplateSelect = async (templateId: string, templateName?: string) => {
     if (!uploadedFile) return;
+
+    // Anonymous users skip consent — they'll be prompted on signup
+    if (isAnonymous) {
+      navigate('/papers/upload-confirm', {
+        state: {
+          file: uploadedFile,
+          templateId: templateId,
+          templateName: templateName || templateId
+        }
+      });
+      return;
+    }
 
     // Check consent status before proceeding
     try {

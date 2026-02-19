@@ -16,7 +16,7 @@ interface AccountPageProps {
 
 const AccountPage: React.FC<AccountPageProps> = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, isVerified, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, isVerified, isAnonymous, logout } = useAuth();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   useEffect(() => {
@@ -148,6 +148,31 @@ const AccountPage: React.FC<AccountPageProps> = () => {
 
   if (loading) {
     return <LoadingScreen />;
+  }
+
+  if (isAnonymous) {
+    return (
+      <div className="page">
+        <Banner />
+        <section className="main-section main-section--centered">
+          <div className="container container--sm">
+            <h1 className="section-title">Guest Session</h1>
+            <p style={{ marginBottom: '24px', color: '#666' }}>
+              You are browsing as a guest. Sign up to access your full account, save your projects, and unlock all features.
+            </p>
+            <div className="flex flex-col gap-4" style={{ alignItems: 'center' }}>
+              <button className="btn btn--primary btn--lg btn--pill" onClick={() => navigate('/signup')}>
+                Sign Up
+              </button>
+              <button className="btn btn--ghost" onClick={handleSignOut}>
+                Clear Session
+              </button>
+            </div>
+          </div>
+        </section>
+        <Footer />
+      </div>
+    );
   }
 
   return (

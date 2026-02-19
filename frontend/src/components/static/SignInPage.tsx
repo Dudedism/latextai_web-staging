@@ -43,14 +43,14 @@ const SignInPage: React.FC = () => {
     }
   }, [location.pathname]);
   
-  const { isAuthenticated, login: authLogin, setAuthData } = useAuth();
+  const { isAuthenticated, isAnonymous, login: authLogin, setAuthData, user } = useAuth();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated (but not if anonymous — anon users should be able to sign up)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isAnonymous) {
       navigate('/papers');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isAnonymous, navigate]);
 
   // Initialize Google Sign-In button dynamically
   useEffect(() => {
@@ -93,6 +93,12 @@ const SignInPage: React.FC = () => {
           // Clear any previous button
           container.innerHTML = '';
           
+          // Set anon_email cookie before OAuth redirect so backend can merge/tuck-away
+          const anonEmail = localStorage.getItem('isAnonymous') === 'true' ? localStorage.getItem('userEmail') : null;
+          if (anonEmail) {
+            document.cookie = `anon_email=${encodeURIComponent(anonEmail)}; path=/; max-age=300; SameSite=Lax`;
+          }
+
           window.google.accounts.id.initialize({
             client_id: '720160772474-jrdbco5ieojmvg83sr1juo3kineasj20.apps.googleusercontent.com',
             ux_mode: 'redirect',
@@ -140,7 +146,8 @@ const SignInPage: React.FC = () => {
     try {
       if (authMode === 'signin') {
         // Use AuthContext login for signin
-        const result = await authLogin(email, password);
+        const anonEmail = isAnonymous && user?.email ? user.email : undefined;
+        const result = await authLogin(email, password, anonEmail);
 
         if (result.success) {
           // Navigate to papers page
@@ -151,7 +158,12 @@ const SignInPage: React.FC = () => {
         }
       } else {
         // Handle signup with direct fetch (now with auto-login)
-        const body = { email, password };
+        const body: Record<string, string> = { email, password };
+
+        // If user was anonymous, pass the anon email for merge
+        if (isAnonymous && user?.email) {
+          body.anon_email = user.email;
+        }
 
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/signup`, {
           method: 'POST',

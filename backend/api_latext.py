@@ -196,7 +196,7 @@ def admin_mark_paid(user, data):
     }), 200
 
 @api_latext.route('/process', methods=['POST'])
-@requires_auth()
+@requires_auth(allow_anonymous=True)
 def process_project(user, data):
     """
     Initiate processing by forwarding to latextai service.
@@ -251,9 +251,18 @@ def process_project(user, data):
         }), 400
 
     # STEP 4: Handle payment - either already paid, free upload, or deduct credits
+    is_anonymous = user.get('is_anonymous', False)
     use_free_upload = data.get('use_free_upload', False)
-    
-    if not project.get('paid', False):
+
+    # Anonymous users skip payment — their projects are previews
+    if is_anonymous:
+        # Mark as preview and proceed without payment
+        mongo.db.projects.update_one(
+            {'project_id': project_id},
+            {'$set': {'is_preview': True}}
+        )
+        print(f"👁️  [PREVIEW] Anonymous preview processing for project {project_id}")
+    elif not project.get('paid', False):
         # Check if user wants to use free upload
         if use_free_upload:
             # Check if user has free upload available
@@ -428,9 +437,9 @@ def process_project(user, data):
         }), 500
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
-@requires_auth()
+@requires_auth(allow_anonymous=True)
 def get_pdf(user, project_id):
-    """Proxy PDF download request to latextai service"""
+    """Proxy PDF download request to latextai service. Preview projects get 3-page PDF."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -443,6 +452,10 @@ def get_pdf(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Determine which PDF to serve: preview (3-page) or full
+    is_preview = project.get('is_preview', False) and not project.get('paid', False)
+    download_endpoint = '/api/download/pdf-preview' if is_preview else '/api/download/pdf'
 
     try:
         # Proxy request to latextai service
@@ -455,7 +468,7 @@ def get_pdf(user, project_id):
         }
 
         response = requests.get(
-            f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
+            f"{LATEXTAI_SERVICE_URL}{download_endpoint}",
             params=params,
             headers=headers,
             stream=True,
@@ -468,6 +481,21 @@ def get_pdf(user, project_id):
                 response.iter_content(chunk_size=8192),
                 content_type='application/pdf'
             )
+        elif is_preview and response.status_code == 404:
+            # Preview endpoint might not exist yet — fallback to full PDF
+            response = requests.get(
+                f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
+                params=params,
+                headers=headers,
+                stream=True,
+                timeout=30
+            )
+            if response.status_code == 200:
+                return Response(
+                    response.iter_content(chunk_size=8192),
+                    content_type='application/pdf'
+                )
+            return jsonify({'error': 'PDF not found'}), response.status_code
         else:
             return jsonify({'error': 'PDF not found'}), response.status_code
 
@@ -478,7 +506,7 @@ def get_pdf(user, project_id):
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
 @requires_auth()
 def get_tex(user, project_id):
-    """Proxy TEX download request to latextai service"""
+    """Proxy TEX download request to latextai service. Requires payment."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -491,6 +519,10 @@ def get_tex(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Gate: require payment for .tex download
+    if not project.get('paid', False):
+        return jsonify({'error': 'Payment required to download LaTeX source files', 'upgrade_required': True}), 403
 
     try:
         # Proxy request to latextai service
@@ -526,7 +558,7 @@ def get_tex(user, project_id):
 @api_latext.route('/project/<project_id>/bib', methods=['GET'])
 @requires_auth()
 def get_bib(user, project_id):
-    """Proxy BibTeX download request to latextai service"""
+    """Proxy BibTeX download request to latextai service. Requires payment."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -539,6 +571,10 @@ def get_bib(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Gate: require payment for .bib download
+    if not project.get('paid', False):
+        return jsonify({'error': 'Payment required to download BibTeX files', 'upgrade_required': True}), 403
 
     try:
         # Proxy request to latextai service
@@ -574,7 +610,7 @@ def get_bib(user, project_id):
 @api_latext.route('/project/<project_id>/package', methods=['GET'])
 @requires_auth()
 def get_package(user, project_id):
-    """Proxy package download request to latextai service"""
+    """Proxy package download request to latextai service. Requires payment."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -587,6 +623,10 @@ def get_package(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Gate: require payment for package download
+    if not project.get('paid', False):
+        return jsonify({'error': 'Payment required to download compilation package', 'upgrade_required': True}), 403
 
     try:
         # Proxy request to latextai service

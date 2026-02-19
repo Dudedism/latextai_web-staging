@@ -16,8 +16,19 @@ const PAYMENT_TIMEOUT = 30000;
 interface ProjectResponse {
   status: string;
   paid?: boolean;
+  is_preview?: boolean;
   compilation_failed?: boolean;
   feedback?: 'positive' | 'negative' | null;
+}
+
+interface PaymentDetails {
+  cost_estimate: {
+    total_credits: number;
+    total_dollars: number;
+  };
+  can_use_free: boolean;
+  credit_balance: number;
+  has_sufficient_credits: boolean;
 }
 
 const PreviewPage: React.FC = () => {
@@ -30,15 +41,54 @@ const PreviewPage: React.FC = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(null);
+  const [projectPaid, setProjectPaid] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const { id: paperId } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isAnonymous, user } = useAuth();
 
   const isPaymentFlow = searchParams.get('payment_success') === 'true';
+  const isSetupSuccess = searchParams.get('setup_success') === 'true';
   const paymentStartTime = useRef<number | null>(null);
   const hasCalledProcess = useRef(false);
+  const claimingRef = useRef(false);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Handle Stripe setup return (free upload claim)
+  useEffect(() => {
+    if (isSetupSuccess && paperId && !claimingRef.current) {
+      claimingRef.current = true;
+      setSearchParams({});
+      claimFreeAfterSetup();
+    }
+  }, [isSetupSuccess, paperId]);
+
+  const claimFreeAfterSetup = async () => {
+    if (!paperId) return;
+    setPaymentLoading(true);
+    try {
+      await apiRequest('/api/latex/claim-free', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: paperId })
+      });
+      await apiRequest('/api/latex/process', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: paperId })
+      });
+      setProjectPaid(true);
+      setIsPreview(false);
+      setStatus('processing');
+      pollTimeoutRef.current = setTimeout(checkStatus, SLOW_POLL_INTERVAL);
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to claim free upload');
+      setShowErrorModal(true);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (paperId) {
@@ -47,7 +97,9 @@ const PreviewPage: React.FC = () => {
         hasCalledProcess.current = false;
         setStatus('awaiting_payment');
       }
-      checkStatus();
+      if (!isSetupSuccess) {
+        checkStatus();
+      }
     }
 
     return () => {
@@ -61,33 +113,31 @@ const PreviewPage: React.FC = () => {
     try {
       const project = await apiRequest<ProjectResponse>(`/api/latex/project/${paperId}`);
       const projectStatus = project.status;
-      const projectPaid = project.paid || false;
+      const paid = project.paid || false;
+      const preview = project.is_preview || false;
       const projectCompilationFailed = project.compilation_failed || false;
       setFeedback(project.feedback || null);
+      setProjectPaid(paid);
+      setIsPreview(preview);
 
       const currentPath = window.location.pathname;
       const isViewingThisProject = currentPath === `/papers/${paperId}/view`;
 
       if (!isViewingThisProject) {
-        console.log('[PREVIEW] User navigated away, stopping polling');
         return;
       }
 
       if (isPaymentFlow && !hasCalledProcess.current) {
-        if (projectPaid) {
-          console.log('[PREVIEW] Payment confirmed, calling /process');
+        if (paid) {
           hasCalledProcess.current = true;
           setStatus('processing');
-
           try {
             await apiRequest('/api/latex/process', {
               method: 'POST',
               body: JSON.stringify({ project_id: paperId })
             });
-            console.log('[PREVIEW] Processing started, switching to slow polling');
             pollTimeoutRef.current = setTimeout(checkStatus, SLOW_POLL_INTERVAL);
           } catch (processError: any) {
-            console.error('[PREVIEW] Failed to start processing:', processError);
             setErrorMessage(processError.message || 'Failed to start document processing');
             setShowErrorModal(true);
           }
@@ -95,13 +145,11 @@ const PreviewPage: React.FC = () => {
         }
 
         if (paymentStartTime.current && Date.now() - paymentStartTime.current > PAYMENT_TIMEOUT) {
-          console.log('[PREVIEW] Payment verification timeout');
           setErrorMessage('Payment verification timed out. Please try again or contact us at contact@latext.ai.');
           setShowErrorModal(true);
           return;
         }
 
-        console.log('[PREVIEW] Waiting for payment confirmation, fast polling');
         setStatus('awaiting_payment');
         pollTimeoutRef.current = setTimeout(checkStatus, FAST_POLL_INTERVAL);
         setInitialLoading(false);
@@ -109,8 +157,11 @@ const PreviewPage: React.FC = () => {
       }
 
       if (projectStatus === 'uploaded' || projectStatus === 'validated') {
-        if (!isPaymentFlow) {
-          console.log('[PREVIEW] Project not yet converted, redirecting to /papers');
+        // For unpaid/preview projects that are validated, fetch payment details
+        if (!paid && !isPaymentFlow) {
+          fetchPaymentDetails();
+        }
+        if (!isPaymentFlow && !preview) {
           navigate('/papers');
         }
         return;
@@ -123,6 +174,10 @@ const PreviewPage: React.FC = () => {
           fetchPdf();
         } else {
           setLoading(false);
+        }
+        // Fetch payment details for unpaid projects
+        if (!paid) {
+          fetchPaymentDetails();
         }
       } else if (projectStatus === 'failed') {
         setStatus('failed');
@@ -140,6 +195,15 @@ const PreviewPage: React.FC = () => {
       setLoading(false);
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  const fetchPaymentDetails = async () => {
+    try {
+      const details = await apiRequest<PaymentDetails>(`/api/latex/project/${paperId}/payment-details`);
+      setPaymentDetails(details);
+    } catch {
+      // Payment details not available (already paid, etc.) — ignore
     }
   };
 
@@ -163,7 +227,6 @@ const PreviewPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // Cleanup blob URL on unmount
     return () => {
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
@@ -173,7 +236,6 @@ const PreviewPage: React.FC = () => {
 
   const handleErrorModalClose = () => {
     setShowErrorModal(false);
-    navigate(`/papers/${paperId}/payment`);
   };
 
   const handleDownloadPdf = async () => {
@@ -185,38 +247,88 @@ const PreviewPage: React.FC = () => {
   };
 
   const handleDownloadTex = async () => {
+    if (!projectPaid) {
+      if (isAnonymous) {
+        navigate('/signup');
+      }
+      return;
+    }
     try {
       await downloadFile(`/api/latex/project/${paperId}/tex`, 'document.tex');
-    } catch (error: any) {
-      if (error.message?.includes('403')) {
-        alert('Please sign up to download LaTeX files');
-      } else {
-        console.error('Error downloading TeX:', error);
-      }
+    } catch (error) {
+      console.error('Error downloading TeX:', error);
     }
   };
 
   const handleDownloadBib = async () => {
+    if (!projectPaid) {
+      if (isAnonymous) {
+        navigate('/signup');
+      }
+      return;
+    }
     try {
       await downloadFile(`/api/latex/project/${paperId}/bib`, 'document.bib');
-    } catch (error: any) {
-      if (error.message?.includes('403')) {
-        alert('Please sign up to download BibTeX files');
-      } else {
-        console.error('Error downloading BibTeX:', error);
-      }
+    } catch (error) {
+      console.error('Error downloading BibTeX:', error);
     }
   };
 
   const handleDownloadPackage = async () => {
+    if (!projectPaid) {
+      if (isAnonymous) {
+        navigate('/signup');
+      }
+      return;
+    }
     try {
       await downloadFile(`/api/latex/project/${paperId}/package`, 'latex_package.zip');
+    } catch (error) {
+      console.error('Error downloading package:', error);
+    }
+  };
+
+  const handleUseFreeUpload = async () => {
+    if (!paperId) return;
+    setPaymentLoading(true);
+    try {
+      await apiRequest('/api/latex/process', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: paperId, use_free_upload: true })
+      });
+      setProjectPaid(true);
+      setIsPreview(false);
+      setStatus('processing');
+      pollTimeoutRef.current = setTimeout(checkStatus, SLOW_POLL_INTERVAL);
     } catch (error: any) {
-      if (error.message?.includes('403')) {
-        alert('Please sign up to download compilation package');
+      setErrorMessage(error.message || 'Failed to start processing');
+      setShowErrorModal(true);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleProcessWithCredits = async () => {
+    if (!paperId) return;
+    setPaymentLoading(true);
+    try {
+      await apiRequest('/api/latex/process', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: paperId })
+      });
+      setProjectPaid(true);
+      setIsPreview(false);
+      setStatus('processing');
+      pollTimeoutRef.current = setTimeout(checkStatus, SLOW_POLL_INTERVAL);
+    } catch (error: any) {
+      if (error.status === 402) {
+        navigate('/credits');
       } else {
-        console.error('Error downloading package:', error);
+        setErrorMessage(error.message || 'Failed to process document');
+        setShowErrorModal(true);
       }
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -232,6 +344,10 @@ const PreviewPage: React.FC = () => {
       console.error('Error submitting feedback:', error);
     }
   };
+
+  // Determine what upgrade CTA to show
+  const needsUpgrade = !projectPaid && (isPreview || status === 'completed');
+  const isDisabled = status === 'awaiting_payment' || status === 'processing' || status === 'failed';
 
   if (initialLoading) {
     return <LoadingScreen />;
@@ -350,21 +466,97 @@ const PreviewPage: React.FC = () => {
               {loading ? (
                 <p className="loading-text">Loading PDF...</p>
               ) : pdfUrl ? (
-                <iframe
-                  src={pdfUrl}
-                  width="100%"
-                  height="800px"
-                  style={{ border: 'none' }}
-                  title="PDF Preview"
-                />
+                <>
+                  {isPreview && !projectPaid && (
+                    <div style={{
+                      background: '#fff3cd',
+                      border: '1px solid #ffc107',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                      marginBottom: '16px',
+                      textAlign: 'center',
+                      fontSize: '14px'
+                    }}>
+                      This is a 3-page preview. {isAnonymous ? 'Sign up to see the full document for free!' : 'Pay to unlock the full document and source files.'}
+                    </div>
+                  )}
+                  <iframe
+                    src={pdfUrl}
+                    width="100%"
+                    height="800px"
+                    style={{ border: 'none' }}
+                    title="PDF Preview"
+                  />
+                </>
               ) : (
                 <p className="error-text">Failed to load PDF</p>
               )}
             </div>
           ) : null}
 
-          {/* Feedback Section - Only show when completed */}
-          {status === 'completed' && (
+          {/* Upgrade / Payment Section */}
+          {needsUpgrade && status === 'completed' && (
+            <div className="content-section" style={{
+              background: '#f8f9fa',
+              border: '2px solid #e0e0e0',
+              borderRadius: '12px',
+              padding: '24px',
+              textAlign: 'center'
+            }}>
+              {isAnonymous ? (
+                <>
+                  <h3 className="section-heading">Want the full document?</h3>
+                  <p style={{ marginBottom: '16px', color: '#666' }}>
+                    Sign up to see the full PDF for free and unlock the complete LaTeX source package.
+                  </p>
+                  <button
+                    className="btn btn--primary btn--lg btn--pill"
+                    onClick={() => navigate('/signup')}
+                  >
+                    Sign Up Free
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h3 className="section-heading">Unlock Full Access</h3>
+                  <p style={{ marginBottom: '16px', color: '#666' }}>
+                    Pay to download the full PDF, .tex source, .bib file, and complete compilation package.
+                  </p>
+                  {paymentDetails?.can_use_free && (
+                    <button
+                      className="btn btn--primary btn--lg btn--pill"
+                      onClick={handleUseFreeUpload}
+                      disabled={paymentLoading}
+                      style={{ marginBottom: '8px' }}
+                    >
+                      {paymentLoading ? 'Processing...' : 'Use Free Upload'}
+                    </button>
+                  )}
+                  {paymentDetails?.has_sufficient_credits && (
+                    <button
+                      className="btn btn--primary btn--lg btn--pill"
+                      onClick={handleProcessWithCredits}
+                      disabled={paymentLoading}
+                      style={{ marginLeft: paymentDetails?.can_use_free ? '8px' : '0' }}
+                    >
+                      {paymentLoading ? 'Processing...' : `Pay ${paymentDetails.cost_estimate.total_credits} Credits`}
+                    </button>
+                  )}
+                  {!paymentDetails?.has_sufficient_credits && !paymentDetails?.can_use_free && (
+                    <button
+                      className="btn btn--primary btn--lg btn--pill"
+                      onClick={() => navigate('/credits')}
+                    >
+                      Top Up Credits
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Feedback Section - Only show when completed and paid */}
+          {status === 'completed' && projectPaid && (
             <div className="content-section">
               <h3 className="section-heading">
                 {feedback ? 'Thanks for your feedback!' : 'How was the output quality?'}
@@ -412,30 +604,34 @@ const PreviewPage: React.FC = () => {
             </div>
           )}
 
-          {/* Download Section - Always Visible, Disabled During Processing */}
+          {/* Download Section */}
           <div className="content-section">
             <h3 className="section-heading">Download your files here!</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadPdf}
-                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed' || compilationFailed}
+                disabled={isDisabled || compilationFailed}
               >
-                Download PDF
+                Download PDF {isPreview && !projectPaid ? '(Preview)' : ''}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadTex}
-                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed'}
+                disabled={isDisabled || !projectPaid}
+                title={!projectPaid ? 'Payment required' : ''}
+                style={{ opacity: !projectPaid ? 0.5 : 1 }}
               >
-                Download .tex
+                Download .tex {!projectPaid ? '(Locked)' : ''}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadBib}
-                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed'}
+                disabled={isDisabled || !projectPaid}
+                title={!projectPaid ? 'Payment required' : ''}
+                style={{ opacity: !projectPaid ? 0.5 : 1 }}
               >
-                Download .bib
+                Download .bib {!projectPaid ? '(Locked)' : ''}
               </button>
             </div>
 
@@ -448,9 +644,11 @@ const PreviewPage: React.FC = () => {
               <button
                 className="btn btn-primary"
                 onClick={handleDownloadPackage}
-                disabled={status === 'awaiting_payment' || status === 'processing' || status === 'failed'}
+                disabled={isDisabled || !projectPaid}
+                title={!projectPaid ? 'Payment required' : ''}
+                style={{ opacity: !projectPaid ? 0.5 : 1 }}
               >
-                Download Full Package
+                Download Full Package {!projectPaid ? '(Locked)' : ''}
               </button>
             </div>
           </div>

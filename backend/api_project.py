@@ -2,6 +2,7 @@ import os
 import shutil
 import uuid
 import json
+import requests as http_requests
 from flask import jsonify, Blueprint, request
 from werkzeug.utils import secure_filename
 from api_auth import requires_auth
@@ -9,6 +10,7 @@ from database import User, Project
 from datetime import datetime
 from utils.document_utils import extract_docx_metadata, validate_docx_file, validate_word_page_ratio
 from utils.pricing import calculate_cost
+from config import RECAPTCHA_SECRET_KEY
 
 api_project = Blueprint('api_project_blueprint', __name__, url_prefix='/api/latex')
 
@@ -50,6 +52,32 @@ def validate_template(template_id):
         return False, f"Template '{template['name']}' is not yet available"
     return True, template
 
+def verify_captcha(token, expected_action='anonymous_upload', min_score=0.5):
+    """Verify a reCAPTCHA v3 token. Returns True if valid, False otherwise."""
+    if not RECAPTCHA_SECRET_KEY:
+        print("⚠️  [CAPTCHA] No RECAPTCHA_SECRET_KEY configured, skipping verification")
+        return True
+    try:
+        response = http_requests.post('https://www.google.com/recaptcha/api/siteverify', data={
+            'secret': RECAPTCHA_SECRET_KEY,
+            'response': token
+        }, timeout=5)
+        result = response.json()
+        if not result.get('success'):
+            print(f"❌ [CAPTCHA] Verification failed: {result}")
+            return False
+        if result.get('action') != expected_action:
+            print(f"❌ [CAPTCHA] Action mismatch: expected {expected_action}, got {result.get('action')}")
+            return False
+        if result.get('score', 0) < min_score:
+            print(f"❌ [CAPTCHA] Score too low: {result.get('score')}")
+            return False
+        return True
+    except Exception as e:
+        print(f"❌ [CAPTCHA] Error verifying: {e}")
+        return False
+
+
 def create_user_directory(user_email):
     """Create a directory for a user's projects if it doesn't exist"""
     user_dir = os.path.join(USER_PROJECTS_DIR, str(user_email))
@@ -82,7 +110,7 @@ def get_templates():
     return jsonify({'templates': formatted_templates}), 200
 
 @api_project.route('/upload', methods=['POST'])
-@requires_auth(use_form=True)
+@requires_auth(use_form=True, allow_anonymous=True)
 def upload_file(user, data):
     """
     Handle file upload - FAST, just save file.
@@ -96,8 +124,23 @@ def upload_file(user, data):
     This splits the slow validation (LibreOffice, word count) into separate endpoint.
     """
     user_email = user['email']
+    is_anonymous = user.get('is_anonymous', False)
 
     try:
+        # For anonymous users: verify CAPTCHA and check preview limits
+        if is_anonymous:
+            captcha_token = request.form.get('captcha_token')
+            if captcha_token and not verify_captcha(captcha_token):
+                return jsonify({'error': 'CAPTCHA verification failed. Please try again.'}), 403
+
+            # Check preview count limit
+            preview_count = user.get('preview_count', 0)
+            if preview_count >= 5:
+                return jsonify({
+                    'error': 'Anonymous upload limit reached. Please sign up to continue.',
+                    'requires_signup': True
+                }), 403
+
         # STEP 1: Check upload limits (10 projects max until user has paid free project)
         user_id = str(user['_id'])
         project_count = Project.count_user_projects(user_id)
@@ -168,9 +211,14 @@ def upload_file(user, data):
             filesize=filesize,
             page_count=None,  # Will be populated during validation
             word_count=None,  # Will be populated during validation
-            validated=False  # NEW: Not yet validated
+            validated=False,  # NEW: Not yet validated
+            is_preview=is_anonymous  # Anonymous uploads are previews
         )
         project.insert()
+
+        # Increment preview count for anonymous users
+        if is_anonymous:
+            User.increment_preview_count(user_email)
 
         print(f"✅ [UPLOAD] Project created: {project_id} (not yet validated)")
 
@@ -193,7 +241,7 @@ def upload_file(user, data):
         }), 500
 
 @api_project.route('/validate', methods=['POST'])
-@requires_auth()
+@requires_auth(allow_anonymous=True)
 def validate_file(user, data):
     """
     Validate an uploaded file - SLOW (5-10 seconds).
@@ -481,7 +529,7 @@ def claim_free_upload(user, data):
     }), 200
 
 @api_project.route('/projects', methods=['GET'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def get_projects(user):
     """Get all projects for the authenticated user"""
     projects = Project.find_by_user(str(user['_id']))
@@ -530,7 +578,7 @@ def get_projects(user):
     return jsonify(formatted_projects), 200
 
 @api_project.route('/project/<project_id>', methods=['DELETE'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def delete_project(user, project_id):
     """Delete a project: orphan DB record, delete local files, notify latextai server"""
     from api_latext import delete_project_on_latextai
@@ -560,7 +608,7 @@ def delete_project(user, project_id):
     return jsonify({'message': message}), 200
 
 @api_project.route('/project/<project_id>', methods=['GET'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def get_project(user, project_id):
     """Get a single project by ID (minimal fields for frontend)"""
     project = Project.find_by_id(project_id)
@@ -576,6 +624,7 @@ def get_project(user, project_id):
         'upload_filename': project.get('upload_filename'),
         'status': project.get('status'),
         'paid': project.get('paid', False),
+        'is_preview': project.get('is_preview', False),
         'compilation_failed': project.get('compilation_failed', False),
         'feedback': project.get('feedback'),
     }), 200
@@ -640,7 +689,7 @@ def get_payment_details(user, project_id):
     }), 200
 
 @api_project.route('/project/<project_id>/feedback', methods=['POST'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def submit_feedback(user, data, project_id):
     """Submit user feedback for a completed project"""
     project = Project.find_by_id(project_id)

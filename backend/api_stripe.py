@@ -55,8 +55,8 @@ def create_setup_session(user, data):
         checkout_session = stripe.checkout.Session.create(
             mode='setup',
             currency='usd',
-            success_url=f'{FRONTEND_URL}/papers/{project_id}/payment?setup_success=true&session_id={{CHECKOUT_SESSION_ID}}',
-            cancel_url=f'{FRONTEND_URL}/papers/{project_id}/payment?setup_cancelled=true',
+            success_url=f'{FRONTEND_URL}/papers/{project_id}/view?setup_success=true&session_id={{CHECKOUT_SESSION_ID}}',
+            cancel_url=f'{FRONTEND_URL}/papers/{project_id}/view?setup_cancelled=true',
             metadata={
                 'project_id': project_id,
                 'user_email': user['email'],

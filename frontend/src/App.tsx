@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
 import YourPapersPage from './components/authenticated/YourPapersPage';
@@ -21,7 +21,6 @@ import SignInPage from './components/static/SignInPage';
 import VerifyPage from './components/static/VerifyPage';
 import PasswordResetPage from './components/static/PasswordResetPage';
 import ForgotPasswordPage from './components/static/ForgotPasswordPage';
-import useAuthRedirect from './hooks/useAuthRedirect';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -33,8 +32,24 @@ const ScrollToTop = () => {
   return null;
 };
 
+// Routes that should auto-spawn an anonymous session when unauthenticated
+const ANON_SPAWN_ROUTES = ['/papers', '/papers/new', '/papers/consent', '/papers/upload-confirm'];
+
 const AppContent = () => {
-  useAuthRedirect();
+  const location = useLocation();
+  const { isAuthenticated, isLoading, anonSpawn } = useAuth();
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+
+    // Check if current route should auto-spawn an anonymous session
+    const shouldSpawn = ANON_SPAWN_ROUTES.some(route => location.pathname === route) ||
+      location.pathname.match(/^\/papers\/[^/]+\/view$/);
+
+    if (shouldSpawn) {
+      anonSpawn();
+    }
+  }, [isLoading, isAuthenticated, location.pathname, anonSpawn]);
 
   return (
     <div className="App">

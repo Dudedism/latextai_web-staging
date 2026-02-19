@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { onAuthCleared, clearAuthTokens } from '../utils/auth';
 
@@ -6,6 +6,7 @@ interface User {
   email: string;
   isAdmin: boolean;
   isVerified: boolean;
+  isAnonymous: boolean;
 }
 
 interface AuthContextType {
@@ -14,11 +15,13 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   isVerified: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  isAnonymous: boolean;
+  login: (email: string, password: string, anonEmail?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  setAuthData: (data: { access_token: string; refresh_token: string; email: string; admin: boolean; is_verified?: boolean }) => void;
+  setAuthData: (data: { access_token: string; refresh_token: string; email: string; admin: boolean; is_verified?: boolean; is_anonymous?: boolean }) => void;
   clearAuth: () => void;
   refreshVerificationStatus: () => Promise<void>;
+  anonSpawn: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +41,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const anonSpawnRef = useRef(false);
 
   // Function to refresh verification status from the backend
   const refreshVerificationStatus = async () => {
@@ -85,11 +89,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('userEmail', urlEmail);
           localStorage.setItem('isAdmin', admin.toString());
           localStorage.setItem('isVerified', 'true'); // Google users are auto-verified
+          localStorage.setItem('isAnonymous', 'false');
 
           setUser({
             email: urlEmail,
             isAdmin: admin,
-            isVerified: true
+            isVerified: true,
+            isAnonymous: false
           });
 
           // Clean up URL (remove hash fragment)
@@ -104,16 +110,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const email = localStorage.getItem('userEmail');
       const isAdmin = localStorage.getItem('isAdmin') === 'true';
       const cachedVerified = localStorage.getItem('isVerified');
+      const cachedAnonymous = localStorage.getItem('isAnonymous') === 'true';
 
       if (token && email) {
         setUser({
           email,
           isAdmin,
-          isVerified: cachedVerified === 'true'
+          isVerified: cachedVerified === 'true',
+          isAnonymous: cachedAnonymous
         });
 
-        // Only fetch verification status if not cached
-        if (cachedVerified === null) {
+        // Only fetch verification status if not cached and not anonymous
+        if (cachedVerified === null && !cachedAnonymous) {
           refreshVerificationStatus();
         }
       } else {
@@ -137,6 +145,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = user !== null;
   const isAdmin = user?.isAdmin || false;
   const isVerified = user?.isVerified || false;
+  const isAnonymous = user?.isAnonymous || false;
 
   const setAuthData = (data: {
     access_token: string;
@@ -144,6 +153,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     email: string;
     admin: boolean;
     is_verified?: boolean;
+    is_anonymous?: boolean;
   }) => {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('refreshToken', data.refresh_token);
@@ -155,10 +165,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('isVerified', data.is_verified.toString());
     }
 
+    // Store anonymous status
+    localStorage.setItem('isAnonymous', (data.is_anonymous || false).toString());
+
     setUser({
       email: data.email,
       isAdmin: data.admin,
-      isVerified: data.is_verified || false
+      isVerified: data.is_verified || false,
+      isAnonymous: data.is_anonymous || false
     });
   };
 
@@ -168,15 +182,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (
     email: string,
-    password: string
+    password: string,
+    anonEmail?: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      const body: Record<string, string> = { email, password };
+      if (anonEmail) body.anon_email = anonEmail;
+
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
@@ -218,17 +236,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     clearAuth();
   };
 
+  const anonSpawn = async () => {
+    // Mutex: prevent concurrent anonSpawn calls
+    if (anonSpawnRef.current) return;
+    anonSpawnRef.current = true;
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/anonymous`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAuthData({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          email: data.email,
+          admin: false,
+          is_verified: false,
+          is_anonymous: true
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create anonymous session:', error);
+    } finally {
+      anonSpawnRef.current = false;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated,
     isLoading,
     isAdmin,
     isVerified,
+    isAnonymous,
     login,
     logout,
     setAuthData,
     clearAuth,
-    refreshVerificationStatus
+    refreshVerificationStatus,
+    anonSpawn
   };
 
   return (

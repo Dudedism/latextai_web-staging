@@ -51,7 +51,7 @@ export const refreshAccessToken = async (): Promise<boolean> => {
 };
 
 export const clearAuthTokens = (): void => {
-  ['token', 'refreshToken', 'userEmail', 'isAdmin', 'isVerified'].forEach(key => {
+  ['token', 'refreshToken', 'userEmail', 'isAdmin', 'isVerified', 'isAnonymous'].forEach(key => {
     localStorage.removeItem(key);
   });
   emitAuthCleared();

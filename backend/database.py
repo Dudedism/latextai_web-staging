@@ -54,7 +54,7 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_project_id=None, is_deleted=False, card_fingerprints=None, credit_balance=0, **kwargs):
+    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_project_id=None, is_deleted=False, card_fingerprints=None, credit_balance=0, is_anonymous=False, anonymous_id=None, preview_count=0, **kwargs):
         super().__init__(
             email=email,
             password=password,
@@ -65,6 +65,9 @@ class User(BaseModel):
             is_deleted=is_deleted,
             card_fingerprints=card_fingerprints if card_fingerprints is not None else [],
             credit_balance=credit_balance,
+            is_anonymous=is_anonymous,
+            anonymous_id=anonymous_id,
+            preview_count=preview_count,
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -272,6 +275,52 @@ class User(BaseModel):
         return result.get('credit_balance') if result else None
 
     @classmethod
+    def find_by_anonymous_id(cls, anonymous_id):
+        """Find an active anonymous user by their anonymous_id."""
+        user = cls()
+        return user.find({'anonymous_id': anonymous_id, 'is_anonymous': True, 'is_deleted': {'$ne': True}})
+
+    @classmethod
+    def increment_preview_count(cls, email):
+        """
+        Atomically increment preview_count if under the limit (5).
+        Returns the new count, or None if limit already reached.
+        """
+        result = mongo.db[cls.collection_name].find_one_and_update(
+            {'email': email, 'preview_count': {'$lt': 5}},
+            {'$inc': {'preview_count': 1}},
+            return_document=True
+        )
+        return result.get('preview_count') if result else None
+
+    @classmethod
+    def merge_anonymous_into(cls, anon_email, real_user_id, real_user_email):
+        """
+        Merge an anonymous user's data into a real user account.
+        Transfers projects, copies preview_count, marks anon record as deleted.
+        """
+        anon_user = cls.find_by_email(anon_email)
+        if not anon_user:
+            return False
+
+        anon_user_id = str(anon_user['_id'])
+
+        # Transfer all projects from anon to real user
+        Project.transfer_to_user(anon_user_id, real_user_id, real_user_email)
+
+        # Mark anonymous record as merged/deleted
+        mongo.db[cls.collection_name].update_one(
+            {'email': anon_email},
+            {'$set': {
+                'is_deleted': True,
+                'merged_into': real_user_id,
+                'merged_at': datetime.utcnow()
+            }}
+        )
+
+        return True
+
+    @classmethod
     def deduct_credits(cls, email, amount):
         """
         Deduct credits from user's balance atomically.
@@ -292,7 +341,7 @@ class Project(BaseModel):
     def __init__(self, upload_filename=None, user_email=None, user_id=None, status='unconverted',
                  project_id=None, template=None, paid=False,
                  total_credits=0, filesize=0, word_count=0, page_count=0,
-                 validated=False, feedback=None, **kwargs):
+                 validated=False, feedback=None, is_preview=False, **kwargs):
         super().__init__(
             upload_filename=upload_filename,
             user_email=user_email,
@@ -307,6 +356,7 @@ class Project(BaseModel):
             page_count=page_count,
             validated=validated,
             feedback=feedback,
+            is_preview=is_preview,
             created_at=datetime.utcnow(),
             **kwargs
         )

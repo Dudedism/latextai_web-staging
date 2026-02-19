@@ -4,10 +4,12 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import { ErrorModal } from '../common/ErrorModal';
 import { apiFetch } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const UploadConfirmPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAnonymous } = useAuth();
   const { file, templateId, templateName } = location.state || {};
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorStatusCode, setErrorStatusCode] = useState<number | undefined>(undefined);
@@ -32,6 +34,26 @@ const UploadConfirmPage: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('template', templateId);
+
+      // For anonymous users, get CAPTCHA token
+      if (isAnonymous && window.grecaptcha) {
+        try {
+          const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+          if (siteKey) {
+            const captchaToken = await new Promise<string>((resolve, reject) => {
+              window.grecaptcha!.ready(() => {
+                window.grecaptcha!.execute(siteKey, { action: 'anonymous_upload' })
+                  .then(resolve)
+                  .catch(reject);
+              });
+            });
+            formData.append('captcha_token', captchaToken);
+          }
+        } catch (captchaError) {
+          console.error('CAPTCHA error:', captchaError);
+          // Continue without CAPTCHA — backend will reject if required
+        }
+      }
 
       const uploadResponse = await apiFetch('/api/latex/upload', {
         method: 'POST',
@@ -82,14 +104,8 @@ const UploadConfirmPage: React.FC = () => {
       setFadeOut(true);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Navigate to payment page with validation results
-      navigate(`/papers/${projectId}/payment`, {
-        state: {
-          costEstimate: validateData.cost_estimate,
-          metadata: validateData.metadata,
-          canUseFree: uploadData.can_use_free
-        }
-      });
+      // Navigate to view page (payment UI is now on PreviewPage)
+      navigate(`/papers/${projectId}/view`);
 
     } catch (error) {
       setIsLoading(false);
