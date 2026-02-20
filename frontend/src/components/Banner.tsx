@@ -10,7 +10,7 @@ const Banner: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isAnonymous, logout } = useAuth();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -56,9 +56,6 @@ const Banner: React.FC = () => {
         <Link to="/journals" className={location.pathname === '/journals' ? 'active' : ''}>
           Journals
         </Link>
-        <Link to="/blog" className={location.pathname === '/blog' ? 'active' : ''}>
-          Blog
-        </Link>
       </nav>
       <div className="nav-right">
         <div className="hamburger-menu" ref={dropdownRef}>
@@ -103,36 +100,20 @@ const Banner: React.FC = () => {
                 <Link to="/" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                   Home
                 </Link>
-                {!isAuthenticated && (
-                  <Link to="/about" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    About
-                  </Link>
-                )}
+                <Link to="/about" className="dropdown-item hide-mobile" onClick={() => setIsDropdownOpen(false)}>
+                  About
+                </Link>
                 <Link to="/pricing" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                   Pricing
                 </Link>
                 <Link to="/journals" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                   Journals
                 </Link>
-                <Link to="/blog" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                  Blog
-                </Link>
               </div>
-              {isAuthenticated ? (
-                <>
-                  <Link to="/account" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Profile
-                  </Link>
-                  <Link to="/papers" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Your Papers
-                  </Link>
-                  <Link to="/papers/new" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                    Upload Paper
-                  </Link>
-                  <button className="dropdown-item sign-out" onClick={handleSignOut}>
-                    Sign Out
-                  </button>
-                </>
+              {isAuthenticated && !isAnonymous ? (
+                <button className="dropdown-item sign-out" onClick={handleSignOut}>
+                  Sign Out
+                </button>
               ) : (
                 <>
                   <Link to="/signin" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
@@ -143,6 +124,15 @@ const Banner: React.FC = () => {
                   </Link>
                 </>
               )}
+              <Link to="/account" className={`dropdown-item${!isAuthenticated || isAnonymous ? ' hide-mobile-guest' : ''}`} onClick={() => setIsDropdownOpen(false)}>
+                Profile
+              </Link>
+              <Link to="/papers" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                Your Papers
+              </Link>
+              <Link to="/papers/new" className="dropdown-item hide-mobile" onClick={() => setIsDropdownOpen(false)}>
+                Upload Paper
+              </Link>
             </div>
           )}
         </div>

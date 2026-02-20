@@ -218,6 +218,16 @@
     background: white;
   }
 
+  /* Hide items on mobile for all users */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  /* Hide items on mobile for non-signed-in users only */
+  .hide-mobile-guest {
+    display: none !important;
+  }
+
   /* Show mobile nav links in dropdown */
   .mobile-nav-links {
     display: flex;

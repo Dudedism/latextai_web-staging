@@ -203,7 +203,7 @@ def signup():
     }), 201
 
 @api_auth.route('/auth/anonymous', methods=['POST'])
-@limiter.limit("10 per hour")
+@limiter.limit("30 per hour")
 def create_anonymous():
     """
     Create an anonymous user session.
@@ -323,6 +323,7 @@ def login():
         if anon_email:
             anon_user = User.find_by_email(anon_email)
             if anon_user and anon_user.get('is_anonymous'):
+                User.invalidate_refresh_token(anon_email)
                 User.update_fields(anon_email, {
                     'is_deleted': True,
                     'tucked_away_for': str(user['_id']),
@@ -432,7 +433,9 @@ def login_google():
         existing_user = User.find_by_email(email, include_deleted=False)
 
         # Create user if none exists (check deleted users for free upload history)
+        is_new_user = False
         if not existing_user:
+            is_new_user = True
             name = id_info.get('given_name', '') + ' ' + id_info.get('family_name', '')
             name = name.strip() or email.split('@')[0]  # Fallback to email prefix if no name
             pwd = generate_password_hash(str(uuid.uuid4()))
@@ -445,7 +448,7 @@ def login_google():
             user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
             user.insert()
             existing_user = User.find_by_email(email, include_deleted=False)
-        
+
         # Auto-verify existing Google users if not already verified
         if not existing_user.get('is_verified', False):
             User.update_fields(email, {'is_verified': True})
@@ -464,12 +467,13 @@ def login_google():
         if anon_email:
             anon_user = User.find_by_email(anon_email)
             if anon_user and anon_user.get('is_anonymous'):
-                # New Google user: merge anonymous data
-                if not existing_user.get('_id') or existing_user.get('created_at', datetime.datetime.utcnow()) > datetime.datetime.utcnow() - datetime.timedelta(seconds=5):
+                if is_new_user:
+                    # New Google user: merge anonymous data
                     User.merge_anonymous_into(anon_email, str(existing_user['_id']), email)
                     print(f"✅ [GOOGLE LOGIN] Merged anonymous user into new Google account")
                 else:
-                    # Existing Google user: tuck-away
+                    # Existing Google user: tuck-away (don't merge, just orphan the anon session)
+                    User.invalidate_refresh_token(anon_email)
                     User.update_fields(anon_email, {
                         'is_deleted': True,
                         'tucked_away_for': str(existing_user['_id']),

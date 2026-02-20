@@ -42,7 +42,7 @@ Reference: `plans/anonymous_feature_proposals.md` for full design spec.
 
 # Phase 3: Anonymous Upload & CAPTCHA
 
-- [ ] Add reCAPTCHA v3 script to `frontend/index.html`
+- [ ] Add reCAPTCHA v2 script to `frontend/index.html`
 
   Use the script-tag approach (consistent with existing Google OAuth pattern). Add `<script src="https://www.google.com/recaptcha/api.js?render=SITE_KEY"></script>`. Add `VITE_RECAPTCHA_SITE_KEY` to frontend `.env.development` and `.env.staging`. Add `Window.grecaptcha` type and `ImportMetaEnv.VITE_RECAPTCHA_SITE_KEY` type to `frontend/src/vite-env.d.ts`.
 
@@ -60,7 +60,7 @@ Reference: `plans/anonymous_feature_proposals.md` for full design spec.
 
 - [ ] Add CAPTCHA token to anonymous upload flow
 
-  In `UploadConfirmPage.tsx` (where upload is triggered), execute `grecaptcha.execute(siteKey, {action: 'anonymous_upload'})` for anonymous users. Pass the CAPTCHA token in the upload request body. Backend `/upload` endpoint verifies CAPTCHA token before processing for anonymous users.
+  In `UploadConfirmPage.tsx` (or `NewPaperPage.tsx`), render the reCAPTCHA v2 checkbox widget for anonymous users. The user must complete the CAPTCHA before the upload button is enabled. Pass the CAPTCHA response token in the upload request body. Backend `/upload` endpoint verifies the token before processing for anonymous users.
 
 - [ ] Update `/upload` endpoint in `api_project.py` for anonymous users
 

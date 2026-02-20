@@ -1,6 +1,15 @@
 {
   "templates": [
     {
+      "id": "default",
+      "name": "Default Document",
+      "publisher": "LaTeX",
+      "year": "2025",
+      "thumbnail": "/LaTeX_logo.svg",
+      "latextai_name": "default_document",
+      "enabled": true
+    },
+    {
       "id": "ieee",
       "name": "IEEE Transactions",
       "publisher": "IEEE",
@@ -52,15 +61,6 @@
       "year": "2025",
       "thumbnail": "/lancet.svg",
       "latextai_name": "thelancet",
-      "enabled": true
-    },
-    {
-      "id": "default",
-      "name": "Default Document",
-      "publisher": "LaTeX",
-      "year": "2025",
-      "thumbnail": "/LaTeX_logo.svg",
-      "latextai_name": "default_document",
       "enabled": true
     }
   ]

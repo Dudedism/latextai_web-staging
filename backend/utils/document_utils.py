@@ -3,12 +3,18 @@ Document metadata extraction utilities.
 
 Uses LibreOffice headless to convert DOCX to PDF for accurate page counting.
 This is critical for pricing - we charge based on page count.
+
+Also provides extract_docx_analysis() for extracting structural metrics
+(images, charts, tables, equations, footnotes, etc.) directly from the DOCX
+ZIP/XML without any external conversion.
 """
 
 import os
 import subprocess
+from zipfile import ZipFile
 from pypdf import PdfReader
 from docx import Document
+from lxml import etree
 
 
 def get_accurate_page_count(docx_path, output_dir=None):
@@ -284,3 +290,113 @@ def validate_word_page_ratio(word_count, page_count):
         )
 
     return True, None
+
+
+def extract_docx_analysis(docx_path):
+    """
+    Extract structural metrics from a DOCX file without pandoc/LibreOffice.
+
+    Opens the DOCX as a ZIP once and extracts all metrics in a single pass:
+    images, charts, tables, equations, footnotes, hyperlinks, headings,
+    table dimensions, shapes, and application metadata.
+
+    Args:
+        docx_path (str): Path to .docx file
+
+    Returns:
+        dict: All extracted metrics (counts default to 0, strings to None)
+    """
+    metrics = {
+        'image_count': 0,
+        'chart_count': 0,
+        'table_count': 0,
+        'equation_count': 0,
+        'footnote_count': 0,
+        'hyperlink_count': 0,
+        'heading_count': 0,
+        'max_table_cols': 0,
+        'max_table_rows': 0,
+        'table_cell_count': 0,
+        'shape_count': 0,
+        'app_name': None,
+        'app_version': None,
+    }
+
+    try:
+        with ZipFile(docx_path, 'r') as zf:
+            names = zf.namelist()
+
+            # Image count: files in word/media/
+            metrics['image_count'] = len([f for f in names if f.startswith('word/media/')])
+
+            # Chart count: word/charts/chartN.xml files
+            metrics['chart_count'] = len([
+                f for f in names
+                if f.startswith('word/charts/chart') and f.endswith('.xml')
+            ])
+
+            # App metadata from docProps/app.xml
+            if 'docProps/app.xml' in names:
+                root = etree.fromstring(zf.read('docProps/app.xml'))
+                ns = {'ep': 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties'}
+                name_elem = root.find('.//ep:Application', ns)
+                if name_elem is not None and name_elem.text:
+                    metrics['app_name'] = name_elem.text.split('/')[0]
+                version_elem = root.find('.//ep:AppVersion', ns)
+                if version_elem is not None and version_elem.text:
+                    metrics['app_version'] = version_elem.text
+
+            # Document XML metrics
+            if 'word/document.xml' in names:
+                root = etree.fromstring(zf.read('word/document.xml'))
+
+                ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+                ns_m = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+                ns_wps = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape'
+                ns_v = 'urn:schemas-microsoft-com:vml'
+
+                # Equations
+                metrics['equation_count'] = len(root.findall(f'.//{{{ns_m}}}oMath'))
+
+                # Hyperlinks
+                metrics['hyperlink_count'] = len(root.findall(f'.//{{{ns_w}}}hyperlink'))
+
+                # Shapes (WPS + VML)
+                metrics['shape_count'] = (
+                    len(root.findall(f'.//{{{ns_wps}}}wsp')) +
+                    len(root.findall(f'.//{{{ns_v}}}shape'))
+                )
+
+                # Headings (paragraphs with Heading style)
+                for para in root.findall(f'.//{{{ns_w}}}p'):
+                    pstyle = para.find(f'{{{ns_w}}}pPr/{{{ns_w}}}pStyle')
+                    if pstyle is not None:
+                        style_val = pstyle.get(f'{{{ns_w}}}val', '')
+                        if 'Heading' in style_val or 'heading' in style_val:
+                            metrics['heading_count'] += 1
+
+                # Table dimensions
+                for tbl in root.findall(f'.//{{{ns_w}}}tbl'):
+                    cols = len(tbl.findall(f'{{{ns_w}}}tblGrid/{{{ns_w}}}gridCol'))
+                    rows = len(tbl.findall(f'{{{ns_w}}}tr'))
+                    if cols > metrics['max_table_cols']:
+                        metrics['max_table_cols'] = cols
+                    if rows > metrics['max_table_rows']:
+                        metrics['max_table_rows'] = rows
+                    metrics['table_cell_count'] += cols * rows
+
+            # Footnotes (subtract 2 built-in separator/continuation footnotes)
+            if 'word/footnotes.xml' in names:
+                fn_root = etree.fromstring(zf.read('word/footnotes.xml'))
+                ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+                footnotes = fn_root.findall(f'{{{ns_w}}}footnote')
+                metrics['footnote_count'] = max(0, len(footnotes) - 2)
+
+        # Table count via python-docx (more reliable than raw XML for nested tables)
+        doc = Document(docx_path)
+        metrics['table_count'] = len(doc.tables)
+
+    except Exception as e:
+        print(f"⚠️  [ANALYSIS] Error extracting document analysis: {e}")
+
+    return metrics

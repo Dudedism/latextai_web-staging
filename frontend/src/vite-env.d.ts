@@ -1,8 +1,14 @@
 /// <reference types="vite/client" />
 
+declare module '*.md?raw' {
+  const content: string;
+  export default content;
+}
+
 interface ImportMetaEnv {
   readonly VITE_BACKEND_URL: string;
   readonly VITE_RECAPTCHA_SITE_KEY: string;
+  readonly VITE_DEBUG_CONTROLS?: string;
 }
 
 declare global {
@@ -36,8 +42,15 @@ declare global {
     };
     grecaptcha?: {
       ready: (callback: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, options: Record<string, unknown>) => number;
+      render: (container: string | HTMLElement, options: {
+        sitekey: string;
+        callback?: (token: string) => void;
+        'expired-callback'?: () => void;
+        theme?: 'light' | 'dark';
+        size?: 'normal' | 'compact';
+      }) => number;
+      reset: (widgetId?: number) => void;
+      getResponse: (widgetId?: number) => string;
     };
   }
 }

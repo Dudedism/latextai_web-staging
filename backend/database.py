@@ -308,6 +308,34 @@ class User(BaseModel):
         # Transfer all projects from anon to real user
         Project.transfer_to_user(anon_user_id, real_user_id, real_user_email)
 
+        # Mark transferred projects as the user's free upload (no longer preview)
+        mongo.db['projects'].update_many(
+            {'user_id': real_user_id, 'user_email': real_user_email, 'is_preview': True},
+            {'$set': {
+                'is_preview': False,
+                'paid': True,
+                'paid_with_free_upload': True,
+                'paid_at': datetime.utcnow()
+            }}
+        )
+
+        # Mark the real user's free upload as used
+        mongo.db[cls.collection_name].update_one(
+            {'email': real_user_email},
+            {'$set': {'free_upload_used': True, 'free_upload_used_at': datetime.utcnow()}}
+        )
+
+        # Copy preview_count from anonymous user to real user
+        anon_preview_count = anon_user.get('preview_count', 0)
+        if anon_preview_count > 0:
+            mongo.db[cls.collection_name].update_one(
+                {'email': real_user_email},
+                {'$inc': {'preview_count': anon_preview_count}}
+            )
+
+        # Invalidate anonymous user's refresh tokens
+        cls.invalidate_refresh_token(anon_email)
+
         # Mark anonymous record as merged/deleted
         mongo.db[cls.collection_name].update_one(
             {'email': anon_email},
@@ -426,6 +454,9 @@ class Project(BaseModel):
                     }
                 }
             )
+
+            # Clean up associated document analysis
+            mongo.db['document_analysis'].delete_one({'project_id': project_id})
 
             if result.matched_count > 0:
                 print(f"✅ [DELETE] Orphaned project {project_id} in database")
@@ -591,3 +622,43 @@ class CreditTransaction(BaseModel):
         return list(mongo.db[cls.collection_name].find(
             {'user_id': user_id}
         ).sort('created_at', -1).limit(limit))
+
+
+class DocumentAnalysis(BaseModel):
+    collection_name = 'document_analysis'
+
+    def __init__(self, project_id=None, image_count=0, chart_count=0,
+                 table_count=0, equation_count=0, footnote_count=0,
+                 hyperlink_count=0, heading_count=0, max_table_cols=0,
+                 max_table_rows=0, table_cell_count=0, shape_count=0,
+                 app_name=None, app_version=None, **kwargs):
+        super().__init__(
+            project_id=project_id,
+            image_count=image_count,
+            chart_count=chart_count,
+            table_count=table_count,
+            equation_count=equation_count,
+            footnote_count=footnote_count,
+            hyperlink_count=hyperlink_count,
+            heading_count=heading_count,
+            max_table_cols=max_table_cols,
+            max_table_rows=max_table_rows,
+            table_cell_count=table_cell_count,
+            shape_count=shape_count,
+            app_name=app_name,
+            app_version=app_version,
+            created_at=datetime.utcnow(),
+            **kwargs
+        )
+
+    @classmethod
+    def find_by_project(cls, project_id):
+        """Find document analysis by project_id"""
+        analysis = cls()
+        return analysis.find({'project_id': project_id})
+
+    @classmethod
+    def delete_by_project(cls, project_id):
+        """Delete document analysis for a project"""
+        result = mongo.db[cls.collection_name].delete_one({'project_id': project_id})
+        return result.deleted_count > 0

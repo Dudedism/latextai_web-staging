@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
@@ -19,17 +19,13 @@ interface Paper {
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAuthenticated, isLoading, isAnonymous } = useAuth();
+  const uploadLimitHit = searchParams.get('upload_limit') === 'true';
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Wait for auth to finish loading before checking authentication
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      navigate('/signin');
-    }
-  }, [isAuthenticated, isLoading, navigate]);
 
   // Only fetch projects after auth is loaded and user is authenticated
   useEffect(() => {
@@ -97,6 +93,19 @@ const YourPapersPage: React.FC = () => {
 
       <section className="main-section">
         <div className="container">
+          {uploadLimitHit && (
+            <div className="notice notice--warning mb-6">
+              <span className="notice-icon">&#9888;</span>
+              <div className="notice-content">
+                <strong>Upload limit reached</strong>
+                <p>{isAnonymous
+                  ? 'Sign up to continue uploading documents.'
+                  : 'Pay for an existing document or purchase credits to upload more.'
+                }</p>
+              </div>
+            </div>
+          )}
+
           <div className="papers-header">
             <h1 className="section-title" style={{ marginBottom: 0 }}>Your Papers</h1>
             <div className="papers-header-actions">

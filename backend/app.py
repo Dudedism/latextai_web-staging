@@ -11,7 +11,6 @@ from api_project import api_project
 from api_user import api_user
 from api_stripe import api_stripe
 from api_credits import api_credits
-from api_blog import api_blog
 from config import *
 from database import mongo
 
@@ -127,7 +126,6 @@ app.register_blueprint(api_latext)
 app.register_blueprint(api_project)
 app.register_blueprint(api_stripe)
 app.register_blueprint(api_credits)
-app.register_blueprint(api_blog)
 
 # Test MongoDB connection
 try:

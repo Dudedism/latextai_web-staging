@@ -9,7 +9,7 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleTryFree = () => {
-    navigate('/signup');
+    navigate('/papers/new');
   };
 
   const handleBrowseJournals = () => {

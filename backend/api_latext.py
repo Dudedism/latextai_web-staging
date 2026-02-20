@@ -195,6 +195,114 @@ def admin_mark_paid(user, data):
         'project_id': project_id
     }), 200
 
+def _upgrade_preview(user, data, project, project_id):
+    """
+    Upgrade a converted preview project to a full paid project.
+    Handles credit deduction and flag flipping without re-processing.
+    """
+    use_free_upload = data.get('use_free_upload', False)
+
+    if use_free_upload:
+        user_data = User.find_by_email(user['email'])
+        if user_data.get('free_upload_used', False):
+            return jsonify({
+                'error': 'Your free upload has already been used. Please use credits.',
+                'free_upload_exhausted': True
+            }), 409
+
+        user_update = mongo.db.users.update_one(
+            {'email': user['email'], 'free_upload_used': {'$ne': True}},
+            {'$set': {'free_upload_used': True, 'free_upload_used_at': datetime.utcnow()}}
+        )
+
+        if user_update.modified_count == 0:
+            return jsonify({
+                'error': 'Your free upload has already been used. Please use credits.',
+                'free_upload_exhausted': True
+            }), 409
+
+        project_update = mongo.db.projects.update_one(
+            {'project_id': project_id, 'paid': False},
+            {'$set': {
+                'paid': True,
+                'is_preview': False,
+                'paid_with_free_upload': True,
+                'paid_at': datetime.utcnow()
+            }}
+        )
+        if project_update.modified_count == 0:
+            # Project already paid — rollback the user's free_upload_used
+            mongo.db.users.update_one(
+                {'email': user['email']},
+                {'$set': {'free_upload_used': False, 'free_upload_used_at': None}}
+            )
+            return jsonify({'message': 'Project already paid'}), 200
+        print(f"🎁 [UPGRADE] Preview upgraded with free upload for project {project_id}")
+    else:
+        page_count = project.get('page_count', 0)
+        cost_info = calculate_cost(page_count)
+        credits_required = cost_info['total_credits']
+
+        current_balance = User.get_credit_balance(user['email'])
+        if current_balance < credits_required:
+            return jsonify({
+                'error': 'Insufficient credits',
+                'credits_required': credits_required,
+                'credits_available': current_balance,
+                'requires_topup': True
+            }), 402
+
+        mark_result = mongo.db.projects.update_one(
+            {'project_id': project_id, 'paid': False},
+            {'$set': {
+                'paid': True,
+                'is_preview': False,
+                'paid_with_credits': True,
+                'credits_charged': credits_required,
+                'paid_at': datetime.utcnow()
+            }}
+        )
+
+        if mark_result.modified_count == 0:
+            return jsonify({'message': 'Project already paid'}), 200
+
+        new_balance = User.deduct_credits(user['email'], credits_required)
+        if new_balance is None:
+            mongo.db.projects.update_one(
+                {'project_id': project_id},
+                {'$set': {'paid': False, 'is_preview': True, 'paid_with_credits': False, 'credits_charged': None, 'paid_at': None}}
+            )
+            return jsonify({
+                'error': 'Failed to deduct credits. Please try again.',
+                'requires_topup': True
+            }), 402
+
+        CreditTransaction.create(
+            user_email=user['email'],
+            user_id=str(user['_id']),
+            transaction_type='deduct',
+            amount=-credits_required,
+            balance_after=new_balance,
+            description=f"Upgrade: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
+            project_id=project_id
+        )
+        print(f"💳 [UPGRADE] Preview upgraded with {credits_required} credits for project {project_id}")
+
+    # Decrement preview_count since this is now a paid upload
+    mongo.db.users.update_one(
+        {'email': user['email'], 'preview_count': {'$gt': 0}},
+        {'$inc': {'preview_count': -1}}
+    )
+
+    return jsonify({
+        'message': 'Preview upgraded successfully',
+        'project_id': project_id,
+        'paid': True,
+        'is_preview': False,
+        'upgraded': True
+    }), 200
+
+
 @api_latext.route('/process', methods=['POST'])
 @requires_auth(allow_anonymous=True)
 def process_project(user, data):
@@ -231,14 +339,19 @@ def process_project(user, data):
     if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # STEP 3: Check project status (must be 'validated' or already processing/completed/failed)
+    # STEP 3: Check project status
     project_status = project.get('status')
     if project_status == 'processing':
         return jsonify({'message': 'Project is already being processed'}), 200
-    if project_status == 'converted':
-        return jsonify({'message': 'Project has already been converted'}), 200
     if project_status == 'failed':
         return jsonify({'message': 'Project processing has failed'}), 200
+
+    # Handle preview upgrade: converted preview that hasn't been paid for
+    if project_status == 'converted' and project.get('is_preview', False) and not project.get('paid', False):
+        return _upgrade_preview(user, data, project, project_id)
+
+    if project_status == 'converted':
+        return jsonify({'message': 'Project has already been converted'}), 200
     if project_status != 'validated':
         return jsonify({
             'error': f"Project must be validated before processing (current status: {project_status})"
@@ -252,16 +365,16 @@ def process_project(user, data):
 
     # STEP 4: Handle payment - either already paid, free upload, or deduct credits
     is_anonymous = user.get('is_anonymous', False)
+    is_preview_project = project.get('is_preview', False)
     use_free_upload = data.get('use_free_upload', False)
 
-    # Anonymous users skip payment — their projects are previews
-    if is_anonymous:
-        # Mark as preview and proceed without payment
+    # Preview projects (anonymous or verified user previews) skip payment
+    if is_anonymous or is_preview_project:
         mongo.db.projects.update_one(
             {'project_id': project_id},
             {'$set': {'is_preview': True}}
         )
-        print(f"👁️  [PREVIEW] Anonymous preview processing for project {project_id}")
+        print(f"👁️  [PREVIEW] Preview processing for project {project_id} (anonymous={is_anonymous})")
     elif not project.get('paid', False):
         # Check if user wants to use free upload
         if use_free_upload:

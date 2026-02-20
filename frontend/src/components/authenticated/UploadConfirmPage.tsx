@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import { ErrorModal } from '../common/ErrorModal';
-import { apiFetch } from '../../utils/api';
+import { ConsentModal } from '../common/ConsentModal';
+import { apiFetch, apiRequest } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 const UploadConfirmPage: React.FC = () => {
@@ -15,16 +16,54 @@ const UploadConfirmPage: React.FC = () => {
   const [errorStatusCode, setErrorStatusCode] = useState<number | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<'uploading' | 'validating' | 'success'>('uploading');
+  const [loadingStage, setLoadingStage] = useState<'uploading' | 'validating' | 'processing' | 'success'>('uploading');
   const [fadeOut, setFadeOut] = useState(false);
 
-  const handleConfirmUpload = async () => {
-    if (!file || !templateId) {
-      console.error('Missing file or template');
-      navigate('/papers/new');
-      return;
-    }
+  // Consent state
+  const [showConsentModal, setShowConsentModal] = useState(false);
 
+  // reCAPTCHA v2 state
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaContainerRef = useRef<HTMLDivElement>(null);
+  const captchaWidgetId = useRef<number | null>(null);
+
+  // Render reCAPTCHA v2 checkbox for anonymous users
+  const renderCaptcha = useCallback(() => {
+    if (!isAnonymous || !captchaContainerRef.current || !window.grecaptcha) return;
+    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+    if (!siteKey) return;
+
+    // Only render once
+    if (captchaWidgetId.current !== null) return;
+
+    try {
+      captchaWidgetId.current = window.grecaptcha.render(captchaContainerRef.current, {
+        sitekey: siteKey,
+        callback: (token: string) => setCaptchaToken(token),
+        'expired-callback': () => setCaptchaToken(null),
+      });
+    } catch {
+      // Widget may already be rendered (e.g. StrictMode double-mount)
+    }
+  }, [isAnonymous]);
+
+  useEffect(() => {
+    if (!isAnonymous) return;
+    // grecaptcha may not be loaded yet — poll until ready
+    if (window.grecaptcha?.render) {
+      renderCaptcha();
+    } else {
+      const interval = setInterval(() => {
+        if (window.grecaptcha?.render) {
+          clearInterval(interval);
+          renderCaptcha();
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, [isAnonymous, renderCaptcha]);
+
+  const doUpload = async () => {
     setIsLoading(true);
     setLoadingStage('uploading');
     setFadeOut(false);
@@ -35,24 +74,9 @@ const UploadConfirmPage: React.FC = () => {
       formData.append('file', file);
       formData.append('template', templateId);
 
-      // For anonymous users, get CAPTCHA token
-      if (isAnonymous && window.grecaptcha) {
-        try {
-          const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-          if (siteKey) {
-            const captchaToken = await new Promise<string>((resolve, reject) => {
-              window.grecaptcha!.ready(() => {
-                window.grecaptcha!.execute(siteKey, { action: 'anonymous_upload' })
-                  .then(resolve)
-                  .catch(reject);
-              });
-            });
-            formData.append('captcha_token', captchaToken);
-          }
-        } catch (captchaError) {
-          console.error('CAPTCHA error:', captchaError);
-          // Continue without CAPTCHA — backend will reject if required
-        }
+      // For anonymous users, attach the CAPTCHA token
+      if (isAnonymous && captchaToken) {
+        formData.append('captcha_token', captchaToken);
       }
 
       const uploadResponse = await apiFetch('/api/latex/upload', {
@@ -99,9 +123,34 @@ const UploadConfirmPage: React.FC = () => {
 
       const validateData = await validateResponse.json();
 
+      // For preview uploads (anonymous or verified user previews), trigger processing immediately
+      if (validateData.is_preview) {
+        setFadeOut(true);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setLoadingStage('processing');
+        setFadeOut(false);
+
+        const processResponse = await apiFetch('/api/latex/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: projectId }),
+        });
+
+        if (!processResponse.ok) {
+          setIsLoading(false);
+          setErrorStatusCode(processResponse.status);
+          setErrorMessage(undefined);
+          setShowErrorModal(true);
+          console.error('Failed to process file:', processResponse.status);
+          return;
+        }
+      }
+
       // Success - fade to green
-      setLoadingStage('success');
       setFadeOut(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setLoadingStage('success');
+      setFadeOut(false);
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Navigate to view page (payment UI is now on PreviewPage)
@@ -114,6 +163,36 @@ const UploadConfirmPage: React.FC = () => {
       setShowErrorModal(true);
       console.error('Error during upload/validation:', error);
     }
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!file || !templateId) {
+      console.error('Missing file or template');
+      navigate('/papers/new');
+      return;
+    }
+
+    // Check consent before uploading
+    try {
+      const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', { method: 'GET' });
+      if (data.consent !== true) {
+        setShowConsentModal(true);
+        return;
+      }
+    } catch {
+      setShowConsentModal(true);
+      return;
+    }
+
+    doUpload();
+  };
+
+  const handleConsentResult = (consented: boolean) => {
+    if (!consented) {
+      navigate('/papers');
+      return;
+    }
+    doUpload();
   };
 
   const handleErrorModalClose = () => {
@@ -131,10 +210,10 @@ const UploadConfirmPage: React.FC = () => {
         return "We're uploading your file...";
       case 'validating':
         return "We're validating your file...";
+      case 'processing':
+        return "We're processing your file...";
       case 'success':
         return "Success!";
-      default:
-        return "Processing...";
     }
   };
 
@@ -153,6 +232,10 @@ const UploadConfirmPage: React.FC = () => {
     opacity: fadeOut ? 0.7 : 1,
   };
 
+  // Anonymous users must complete CAPTCHA before uploading (skip if no site key configured)
+  const captchaRequired = isAnonymous && !!import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+  const canSubmit = !isLoading && (!captchaRequired || !!captchaToken);
+
   return (
     <div className="page">
       <Banner />
@@ -161,9 +244,9 @@ const UploadConfirmPage: React.FC = () => {
         <div className="container container--md text-center">
           <div className="progress-steps">
             <div className="progress-step">File</div>
-            <div className="progress-arrow">→</div>
+            <div className="progress-arrow">&rarr;</div>
             <div className="progress-step">Template</div>
-            <div className="progress-arrow">→</div>
+            <div className="progress-arrow">&rarr;</div>
             <div className="progress-step progress-step--active">Upload</div>
           </div>
 
@@ -180,11 +263,18 @@ const UploadConfirmPage: React.FC = () => {
             </div>
           </div>
 
+          {/* reCAPTCHA v2 checkbox for anonymous users */}
+          {isAnonymous && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <div ref={captchaContainerRef}></div>
+            </div>
+          )}
+
           <div className="flex gap-4 justify-center">
             <button className="btn btn--ghost" onClick={handleCancel} disabled={isLoading}>
-              ← Back to Picking Template
+              &larr; Back to Picking Template
             </button>
-            <button className="btn btn--primary btn--lg" onClick={handleConfirmUpload} disabled={isLoading}>
+            <button className="btn btn--primary btn--lg" onClick={handleConfirmUpload} disabled={!canSubmit}>
               Confirm Upload
             </button>
           </div>
@@ -207,6 +297,12 @@ const UploadConfirmPage: React.FC = () => {
         onClose={handleErrorModalClose}
         statusCode={errorStatusCode}
         errorMessage={errorMessage}
+      />
+
+      <ConsentModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConsent={handleConsentResult}
       />
     </div>
   );

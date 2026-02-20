@@ -9,7 +9,6 @@ import ConsentPage from './components/authenticated/ConsentPage';
 import ProcessingPage from './components/authenticated/ProcessingPage';
 import PreviewPage from './components/authenticated/PreviewPage';
 import UploadConfirmPage from './components/authenticated/UploadConfirmPage';
-import PaymentPage from './components/authenticated/PaymentPage';
 import CreditTopUpPage from './components/authenticated/CreditTopUpPage';
 import PrivacyPolicy from './components/static/PrivacyPolicy';
 import TermsConditions from './components/static/TermsConditions';
@@ -17,6 +16,7 @@ import AboutPage from './components/static/AboutPage';
 import PricingPage from './components/static/PricingPage';
 import BrowseJournalsPage from './components/static/BrowseJournalsPage';
 import BlogPage from './components/static/BlogPage';
+import BlogPostPage from './components/static/BlogPostPage';
 import SignInPage from './components/static/SignInPage';
 import VerifyPage from './components/static/VerifyPage';
 import PasswordResetPage from './components/static/PasswordResetPage';
@@ -32,8 +32,8 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Routes that should auto-spawn an anonymous session when unauthenticated
-const ANON_SPAWN_ROUTES = ['/papers', '/papers/new', '/papers/consent', '/papers/upload-confirm'];
+// Static pages that should NOT auto-spawn an anonymous session
+const NO_ANON_ROUTES = ['/', '/about', '/pricing', '/journals', '/blog', '/privacy', '/terms', '/signin', '/signup', '/verify', '/forgot-password', '/reset-password'];
 
 const AppContent = () => {
   const location = useLocation();
@@ -41,14 +41,8 @@ const AppContent = () => {
 
   useEffect(() => {
     if (isLoading || isAuthenticated) return;
-
-    // Check if current route should auto-spawn an anonymous session
-    const shouldSpawn = ANON_SPAWN_ROUTES.some(route => location.pathname === route) ||
-      location.pathname.match(/^\/papers\/[^/]+\/view$/);
-
-    if (shouldSpawn) {
-      anonSpawn();
-    }
+    if (NO_ANON_ROUTES.includes(location.pathname) || location.pathname.startsWith('/blog/')) return;
+    anonSpawn();
   }, [isLoading, isAuthenticated, location.pathname, anonSpawn]);
 
   return (
@@ -61,7 +55,6 @@ const AppContent = () => {
         <Route path="/papers/new" element={<NewPaperPage />} />
         <Route path="/papers/consent" element={<ConsentPage />} />
         <Route path="/papers/upload-confirm" element={<UploadConfirmPage />} />
-        <Route path="/papers/:projectId/payment" element={<PaymentPage />} />
         <Route path="/credits" element={<CreditTopUpPage />} />
         <Route path="/papers/processing" element={<ProcessingPage />} />
         <Route path="/papers/:id/view" element={<PreviewPage />} />
@@ -71,6 +64,7 @@ const AppContent = () => {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/journals" element={<BrowseJournalsPage />} />
         <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignInPage />} />
         <Route path="/verify" element={<VerifyPage />} />

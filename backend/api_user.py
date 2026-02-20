@@ -9,10 +9,18 @@ api_user = Blueprint('api_user_blueprint', __name__, url_prefix='/api/user')
 @api_user.route('/profile', methods=['GET'])
 @requires_auth
 def get_profile(user):
+    user_data = User.find_by_email(user['email'])
+    if not user_data:
+        return jsonify({'error': 'User not found'}), 404
+
     return jsonify({
-        'email': user['email'],
-        'info': user.get('info', {}),
-        'created_at': user.get('created_at')
+        'email': user_data['email'],
+        'is_verified': user_data.get('is_verified', False),
+        'admin': user_data.get('admin', False),
+        'is_anonymous': user_data.get('is_anonymous', False),
+        'data_consent': user_data.get('data_consent'),
+        'info': user_data.get('info', {}),
+        'created_at': user_data.get('created_at')
     }), 200
 
 @api_user.route('/profile', methods=['PUT'])

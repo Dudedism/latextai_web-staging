@@ -21,6 +21,7 @@ interface AuthContextType {
   setAuthData: (data: { access_token: string; refresh_token: string; email: string; admin: boolean; is_verified?: boolean; is_anonymous?: boolean }) => void;
   clearAuth: () => void;
   refreshVerificationStatus: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   anonSpawn: () => Promise<void>;
 }
 
@@ -67,6 +68,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Failed to fetch verification status:', error);
+    }
+  };
+
+  // Refresh full user profile from the backend
+  const refreshUser = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/user/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('userEmail', data.email);
+        localStorage.setItem('isAdmin', (data.admin || false).toString());
+        localStorage.setItem('isVerified', (data.is_verified || false).toString());
+        localStorage.setItem('isAnonymous', (data.is_anonymous || false).toString());
+
+        setUser({
+          email: data.email,
+          isAdmin: data.admin || false,
+          isVerified: data.is_verified || false,
+          isAnonymous: data.is_anonymous || false
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
     }
   };
 
@@ -277,6 +311,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setAuthData,
     clearAuth,
     refreshVerificationStatus,
+    refreshUser,
     anonSpawn
   };
 
