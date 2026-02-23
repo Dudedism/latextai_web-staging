@@ -25,7 +25,6 @@ def test_user():
     with app.app_context():
         user = create_test_user(
             is_verified=True,
-            free_project_id=None,
             mongo_db=mongo.db,
             base_url=BASE_URL
         )

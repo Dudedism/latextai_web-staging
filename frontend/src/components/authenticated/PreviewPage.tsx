@@ -21,6 +21,16 @@ interface ProjectResponse {
   feedback?: 'positive' | 'negative' | null;
 }
 
+interface CreditSplit {
+  free_credits_used: number;
+  paid_credits_used: number;
+  discount_applied: boolean;
+  discount_amount: number;
+  access_level: 'full' | 'free_only';
+  sufficient: boolean;
+  total_after_discount: number;
+}
+
 interface PaymentDetails {
   metadata: {
     filename: string;
@@ -37,8 +47,10 @@ interface PaymentDetails {
     total_dollars: number;
     breakdown: string;
   };
-  can_use_free: boolean;
   credit_balance: number;
+  free_credit_balance: number;
+  first_purchase_discount_available: boolean;
+  credit_split: CreditSplit;
   has_sufficient_credits: boolean;
 }
 
@@ -68,47 +80,12 @@ const PreviewPage: React.FC = () => {
   const [mockFreeCredits, setMockFreeCredits] = useState(750);
   const [mockPaidCredits, setMockPaidCredits] = useState(0);
   const effectiveAnonymous = mockAnonymous !== null ? mockAnonymous : isAnonymous;
-  const freeCredits = import.meta.env.VITE_DEBUG_CONTROLS === 'true' ? mockFreeCredits : 750;
+  const freeCredits = (import.meta.env.VITE_DEBUG_CONTROLS === 'true' && mockAnonymous !== null) ? mockFreeCredits : (paymentDetails?.free_credit_balance ?? 0);
 
   const isPaymentFlow = searchParams.get('payment_success') === 'true';
-  const isSetupSuccess = searchParams.get('setup_success') === 'true';
   const paymentStartTime = useRef<number | null>(null);
   const hasCalledProcess = useRef(false);
-  const claimingRef = useRef(false);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Handle Stripe setup return (free upload claim)
-  useEffect(() => {
-    if (isSetupSuccess && paperId && !claimingRef.current) {
-      claimingRef.current = true;
-      setSearchParams({});
-      claimFreeAfterSetup();
-    }
-  }, [isSetupSuccess, paperId]);
-
-  const claimFreeAfterSetup = async () => {
-    if (!paperId) return;
-    setPaymentLoading(true);
-    try {
-      await apiRequest('/api/latex/claim-free', {
-        method: 'POST',
-        body: JSON.stringify({ project_id: paperId })
-      });
-      await apiRequest('/api/latex/process', {
-        method: 'POST',
-        body: JSON.stringify({ project_id: paperId })
-      });
-      setProjectPaid(true);
-      setIsPreview(false);
-      setStatus('processing');
-      pollTimeoutRef.current = setTimeout(checkStatus, FAST_POLL_INTERVAL);
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Failed to claim free upload');
-      setShowErrorModal(true);
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (paperId) {
@@ -118,9 +95,7 @@ const PreviewPage: React.FC = () => {
         setStatus('awaiting_payment');
         setSearchParams({});
       }
-      if (!isSetupSuccess) {
-        checkStatus();
-      }
+      checkStatus();
     }
 
     return () => {
@@ -141,6 +116,9 @@ const PreviewPage: React.FC = () => {
       setProjectPaid(paid);
       setIsPreview(preview);
       setPaidWithFreeUpload(project.paid_with_free_upload || false);
+
+      // State logging
+      console.log(`[PreviewPage] status=${projectStatus} paid=${paid} preview=${preview} freeUpload=${project.paid_with_free_upload || false} compileFailed=${projectCompilationFailed} isAnonymous=${isAnonymous}`);
 
       const currentPath = window.location.pathname;
       const isViewingThisProject = currentPath === `/papers/${paperId}/view`;
@@ -208,8 +186,8 @@ const PreviewPage: React.FC = () => {
         } else {
           setLoading(false);
         }
-        // Fetch payment details for unpaid projects
-        if (!paid) {
+        // Fetch payment details for unpaid projects or free-upload projects (need cost data for upgrade CTA)
+        if (!paid || project.paid_with_free_upload) {
           fetchPaymentDetails();
         }
       } else if (projectStatus === 'failed') {
@@ -220,6 +198,9 @@ const PreviewPage: React.FC = () => {
       } else {
         setStatus('processing');
         setCompilationFailed(false);
+        if (!paymentDetails && (preview || isAnonymous)) {
+          fetchPaymentDetails();
+        }
         pollTimeoutRef.current = setTimeout(checkStatus, FAST_POLL_INTERVAL);
       }
     } catch (error) {
@@ -303,33 +284,13 @@ const PreviewPage: React.FC = () => {
     }
   };
 
-  const handleUseFreeUpload = async () => {
-    if (!paperId) return;
-    setPaymentLoading(true);
-    try {
-      await apiRequest('/api/latex/process', {
-        method: 'POST',
-        body: JSON.stringify({ project_id: paperId, use_free_upload: true })
-      });
-      setProjectPaid(true);
-      setIsPreview(false);
-      setStatus('processing');
-      pollTimeoutRef.current = setTimeout(checkStatus, FAST_POLL_INTERVAL);
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Failed to start processing');
-      setShowErrorModal(true);
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
   const handleProcessWithCredits = async () => {
     if (!paperId) return;
     setPaymentLoading(true);
     try {
       await apiRequest('/api/latex/process', {
         method: 'POST',
-        body: JSON.stringify({ project_id: paperId })
+        body: JSON.stringify({ project_id: paperId, use_credits: true })
       });
       setProjectPaid(true);
       setIsPreview(false);
@@ -340,6 +301,29 @@ const PreviewPage: React.FC = () => {
         navigate('/credits');
       } else {
         setErrorMessage(error.message || 'Failed to process document');
+        setShowErrorModal(true);
+      }
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleUnlockFullAccess = async () => {
+    if (!paperId) return;
+    setPaymentLoading(true);
+    try {
+      await apiRequest(`/api/latex/project/${paperId}/unlock`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      setProjectPaid(true);
+      setPaidWithFreeUpload(false);
+      setPaymentDetails(null);
+    } catch (error: any) {
+      if (error.status === 402) {
+        navigate(`/credits?amount=${paymentDetails?.cost_estimate?.total_credits ?? 0}&project_id=${paperId}&return_to=${encodeURIComponent(window.location.pathname)}`);
+      } else {
+        setErrorMessage(error.message || 'Failed to unlock full access');
         setShowErrorModal(true);
       }
     } finally {
@@ -371,9 +355,11 @@ const PreviewPage: React.FC = () => {
     setMockPreset(preset);
     const defaults: Record<string, [number, number]> = {
       proc_anon: [750, 0], done_anon: [750, 0],
+      proc_free: [750, 0], done_free: [750, 0],
+      proc_free_low: [300, 0], done_free_low: [300, 0],
       proc_credits: [150, 500], done_credits: [150, 500],
       proc_low: [50, 300], done_low: [50, 300],
-      done_free_claimed: [150, 500],
+      done_free_claimed: [150, 0], done_free_claimed_topup: [150, 500], done_free_claimed_cf: [150, 500],
       proc_paid: [0, 0], done_paid: [0, 0],
       comp_failed: [0, 0], failed: [0, 0],
     };
@@ -388,6 +374,27 @@ const PreviewPage: React.FC = () => {
   };
   const MOCK_COST: PaymentDetails['cost_estimate'] = {
     base_credits: 499, additional_pages: 2, additional_credits: 100, total_credits: 599, total_dollars: 5.99, breakdown: ''
+  };
+
+  // Local credit split calculation for debug mock only
+  const calculate_credit_split_local = (totalCost: number, freeBalance: number, paidBalance: number, discountAvailable: boolean): CreditSplit => {
+    const freeUsed = Math.min(totalCost, freeBalance);
+    let remaining = totalCost - freeUsed;
+    let discountApplied = false;
+    let discountAmount = 0;
+    if (discountAvailable && remaining > 0) {
+      discountAmount = remaining - Math.ceil(remaining / 2);
+      remaining = Math.ceil(remaining / 2);
+      discountApplied = true;
+    }
+    const paidUsed = Math.min(remaining, paidBalance);
+    const sufficient = (freeUsed + paidUsed + discountAmount) >= totalCost;
+    return {
+      free_credits_used: freeUsed, paid_credits_used: paidUsed,
+      discount_applied: discountApplied, discount_amount: discountAmount,
+      access_level: paidUsed > 0 ? 'full' : 'free_only', sufficient,
+      total_after_discount: totalCost - discountAmount,
+    };
   };
 
   const applyMock = () => {
@@ -406,11 +413,14 @@ const PreviewPage: React.FC = () => {
     // Derive payment details from sliders
     const totalAvailable = mockFreeCredits + mockPaidCredits;
     const hasFree = mockFreeCredits > 0;
+    const mockSplit = calculate_credit_split_local(MOCK_COST.total_credits, mockFreeCredits, mockPaidCredits, true);
     const pd: PaymentDetails = {
       metadata: MOCK_META, cost_estimate: MOCK_COST,
-      can_use_free: hasFree,
       credit_balance: mockPaidCredits,
-      has_sufficient_credits: totalAvailable >= MOCK_COST.total_credits,
+      free_credit_balance: mockFreeCredits,
+      first_purchase_discount_available: true,
+      credit_split: mockSplit,
+      has_sufficient_credits: mockSplit.sufficient,
     };
 
     switch (mockPreset) {
@@ -420,6 +430,12 @@ const PreviewPage: React.FC = () => {
       case 'proc_anon':
         setStatus('processing');
         setMockAnonymous(true);
+        setIsPreview(true);
+        setPaymentDetails(pd);
+        return;
+      case 'proc_free':
+      case 'proc_free_low':
+        setStatus('processing');
         setIsPreview(true);
         setPaymentDetails(pd);
         return;
@@ -444,6 +460,12 @@ const PreviewPage: React.FC = () => {
         setIsPreview(true);
         setPaymentDetails(pd);
         return;
+      case 'done_free':
+      case 'done_free_low':
+        setStatus('completed');
+        setIsPreview(true);
+        setPaymentDetails(pd);
+        return;
       case 'done_credits':
       case 'done_low':
         setStatus('completed');
@@ -451,10 +473,17 @@ const PreviewPage: React.FC = () => {
         setPaymentDetails(pd);
         return;
       case 'done_free_claimed':
+      case 'done_free_claimed_topup':
         setStatus('completed');
         setProjectPaid(true);
         setPaidWithFreeUpload(true);
         setPaymentDetails(pd);
+        return;
+      case 'done_free_claimed_cf':
+        setStatus('completed');
+        setCompilationFailed(true);
+        setProjectPaid(true);
+        setPaidWithFreeUpload(true);
         return;
       case 'done_paid':
         setStatus('completed');
@@ -482,8 +511,8 @@ const PreviewPage: React.FC = () => {
       );
     }
 
-    const { metadata, cost_estimate, can_use_free, credit_balance, has_sufficient_credits } = pd;
-    const creditsNeeded = cost_estimate.total_credits - credit_balance;
+    const { metadata, cost_estimate, credit_balance, has_sufficient_credits, credit_split } = pd;
+    const freeBalance = pd.free_credit_balance ?? 0;
 
     return (
       <div className="invoice-card">
@@ -498,16 +527,27 @@ const PreviewPage: React.FC = () => {
         <div className="invoice-body">
           {/* Heading */}
           <h3 className="invoice-heading">
-            {effectiveAnonymous || freeCredits >= 750 ? 'Sign Up & Get Started Free' : isUpgrade ? 'Upgrade to Full Access' : 'Pay to Process'}
+            {effectiveAnonymous
+              ? 'Sign Up & Unlock for Free!'
+              : freeCredits >= cost_estimate.total_credits
+                ? 'Unlock Your Document for Free'
+                : isUpgrade
+                  ? 'Upgrade to Full Access'
+                  : 'Use Credits to Unlock'}
           </h3>
 
-          {/* Features checklist — free signup sell vs paid features */}
-          {effectiveAnonymous || freeCredits >= 750 ? (
+          {/* Features checklist — free signup sell vs authenticated free vs paid features */}
+          {effectiveAnonymous ? (
             <ul className="invoice-features">
               <li>Professionally compiled PDF document</li>
               <li>750 free credits — one full conversion</li>
               <li>5 free document previews</li>
-              <li>Access to all journal templates</li>
+            </ul>
+          ) : freeCredits >= cost_estimate.total_credits ? (
+            <ul className="invoice-features">
+              <li>Professionally compiled PDF document</li>
+              <li>Your free credits cover this conversion</li>
+              <li>Pay with credits later to unlock source files</li>
             </ul>
           ) : (
             <ul className="invoice-features">
@@ -521,11 +561,11 @@ const PreviewPage: React.FC = () => {
             </ul>
           )}
 
-          {/* State A: Anonymous user without free upload — sign-up CTA */}
-          {effectiveAnonymous && !can_use_free ? (
+          {/* State A: Anonymous user — sign-up CTA */}
+          {effectiveAnonymous ? (
             <>
               <p className="invoice-message">
-                Sign up to see the full PDF for free and unlock the complete LaTeX source package.
+                Sign up to see the full PDF for free.
               </p>
               <div className="invoice-cta">
                 <button
@@ -551,33 +591,36 @@ const PreviewPage: React.FC = () => {
                       <span className="detail-value">+{cost_estimate.additional_credits} credits</span>
                     </div>
                   )}
-                  {freeCredits > 0 && (
+                  {credit_split?.free_credits_used > 0 && (
                     <div className="detail-item invoice-free-credits">
-                      <span className="detail-label">Free credits{can_use_free ? ' (sign up)' : ''}</span>
-                      <span className="detail-value">−{freeCredits} credits</span>
+                      <span className="detail-label">Free credits</span>
+                      <span className="detail-value">−{credit_split.free_credits_used} credits</span>
+                    </div>
+                  )}
+                  {credit_split?.discount_applied && (
+                    <div className="detail-item invoice-free-credits">
+                      <span className="detail-label">First-purchase discount (50%)</span>
+                      <span className="detail-value">−{credit_split.discount_amount} credits</span>
                     </div>
                   )}
                   {(() => {
-                    const afterFree = Math.max(0, cost_estimate.total_credits - freeCredits);
-                    const paidCost = Math.min(afterFree, credit_balance);
-                    const remainingFree = Math.max(0, freeCredits - cost_estimate.total_credits);
-                    const remainingPaid = credit_balance - paidCost;
-                    const covered = freeCredits + credit_balance >= cost_estimate.total_credits;
-                    const shortfall = Math.max(0, cost_estimate.total_credits - freeCredits - credit_balance);
+                    const effectiveCost = credit_split
+                      ? cost_estimate.total_credits - (credit_split.free_credits_used ?? 0) - (credit_split.discount_amount ?? 0)
+                      : cost_estimate.total_credits;
+                    const hasDiscount = (credit_split?.free_credits_used ?? 0) > 0 || credit_split?.discount_applied;
+                    const remainingFree = freeBalance - (credit_split?.free_credits_used ?? 0);
+                    const remainingPaid = credit_balance - (credit_split?.paid_credits_used ?? 0);
+                    const covered = credit_split?.sufficient ?? false;
 
                     return (
                       <>
                         <div className="detail-item invoice-total">
                           <span className="detail-label">Total cost</span>
                           <span className="detail-value">
-                            {freeCredits >= cost_estimate.total_credits ? (
+                            {hasDiscount && effectiveCost < cost_estimate.total_credits ? (
                               <>
-                                <em className="invoice-highlight invoice-total-free">0 credits</em>
-                                <br /><span className="invoice-strikethrough">{cost_estimate.total_credits} credits</span>
-                              </>
-                            ) : freeCredits > 0 ? (
-                              <>
-                                <em className="invoice-highlight invoice-total-free">{afterFree} credits</em>
+                                <em className="invoice-highlight invoice-total-free">{effectiveCost} credits</em>
+                                {effectiveCost > 0 && <> <span className="invoice-total-dollars">(${(effectiveCost / 100).toFixed(2)})</span></>}
                                 <br /><span className="invoice-strikethrough">{cost_estimate.total_credits} credits</span>
                               </>
                             ) : (
@@ -598,7 +641,7 @@ const PreviewPage: React.FC = () => {
                           <span className="detail-label">Your balance after</span>
                           <span className={`detail-value ${covered ? 'text-success' : 'text-error'}`}>
                             {!covered ? (
-                              <span className="text-error">−{shortfall} credits</span>
+                              <span className="text-error">Need more credits</span>
                             ) : (
                               <>
                                 {remainingPaid > 0 && <>{remainingPaid.toLocaleString()} credits</>}
@@ -615,45 +658,39 @@ const PreviewPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* State B: Free upload promo */}
-              {freeCredits >= 750 && (
+              {/* State B: Free credits cover entire conversion */}
+              {credit_split?.sufficient && credit_split.paid_credits_used === 0 && freeCredits > 0 && (
                 <div className="invoice-promo">
                   <div className="notice notice--info">
                     <span className="notice-icon" role="img" aria-label="gift">&#127873;</span>
                     <div className="notice-content">
                       <strong>Your free credits cover this entire conversion!</strong>
-                      <p>No payment required. Sign up to claim!</p>
+                      <p>No payment required.</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {!has_sufficient_credits && freeCredits < 750 && (
+              {!has_sufficient_credits && (
                 <p className="invoice-shortfall"><strong><em>Need more credits</em></strong></p>
               )}
 
               {/* CTA buttons */}
               <div className="invoice-cta">
-                {freeCredits >= 750 ? (
-                  <button
-                    className="btn btn--accent btn--lg btn--pill"
-                    onClick={handleUseFreeUpload}
-                    disabled={paymentLoading}
-                  >
-                    {paymentLoading ? 'Processing...' : 'Claim Free Credits'}
-                  </button>
-                ) : has_sufficient_credits ? (
+                {has_sufficient_credits ? (
                   <button
                     className="btn btn--success btn--lg btn--pill"
                     onClick={handleProcessWithCredits}
                     disabled={paymentLoading}
                   >
-                    {paymentLoading ? 'Processing...' : `Pay ${cost_estimate.total_credits} Credits`}
+                    {paymentLoading ? 'Processing...' : credit_split?.access_level === 'free_only'
+                      ? 'Use Free Credits'
+                      : `Pay ${credit_split?.paid_credits_used ?? cost_estimate.total_credits} Credits`}
                   </button>
                 ) : (
                   <button
                     className="btn btn--accent btn--lg btn--pill"
-                    onClick={() => navigate(`/credits?amount=${cost_estimate.total_credits}&project_name=${encodeURIComponent(metadata.filename)}&project_id=${paperId}`)}
+                    onClick={() => navigate(`/credits?amount=${cost_estimate.total_credits}&project_name=${encodeURIComponent(metadata.filename)}&project_id=${paperId}&return_to=${encodeURIComponent(window.location.pathname)}`)}
                   >
                     Top Up Credits
                   </button>
@@ -769,21 +806,6 @@ const PreviewPage: React.FC = () => {
                 </p>
               </div>
             </div>
-          ) : status === 'completed' && compilationFailed ? (
-            <div className="processing-state">
-              <div className="error-state">
-                <h2 className="processing-title">PDF Compilation Failed</h2>
-                <p className="processing-subtitle" style={{ maxWidth: '600px', margin: '0 auto' }}>
-                  Your document was successfully converted to LaTeX, but PDF compilation encountered an error.
-                </p>
-                <p className="processing-subtitle" style={{ maxWidth: '600px', margin: '16px auto 0' }}>
-                  You can still download the .tex file, .bib file, and full compilation package below to compile locally.
-                </p>
-                <p className="processing-subtitle" style={{ marginTop: '16px' }}>
-                  Need help? Contact us at <a href="mailto:contact@latext.ai" style={{ color: '#2196f3', fontWeight: 600 }}>contact@latext.ai</a>
-                </p>
-              </div>
-            </div>
           ) : status === 'completed' && !compilationFailed ? (
             <div className="preview-document-wrapper">
               {loading ? (
@@ -800,7 +822,7 @@ const PreviewPage: React.FC = () => {
                       textAlign: 'center',
                       fontSize: '14px'
                     }}>
-                      This is a 3-page preview. {effectiveAnonymous ? 'Sign up to see the full document for free!' : 'Pay to unlock the full document and source files.'}
+                      This is a 3-page preview. {effectiveAnonymous ? 'Sign up to see the full document for free!' : freeCredits >= (paymentDetails?.cost_estimate?.total_credits ?? 999) ? 'Use your free credits below to unlock the full document.' : 'Pay to unlock the full document and source files.'}
                     </div>
                   )}
                   <iframe
@@ -820,9 +842,224 @@ const PreviewPage: React.FC = () => {
           {/* Invoice Card for unpaid completed projects */}
           {showInvoiceCard && status === 'completed' && renderInvoiceCard()}
 
+          {/* Download Section */}
+          {status === 'completed' && (
+            <div className={`dl-section${!projectPaid ? ' dl-section--locked' : ''}`}>
+              {/* Context messaging block — only shown for paid/free-claimed projects */}
+              {projectPaid && <div className="dl-message">
+                {compilationFailed && paidWithFreeUpload ? (
+                  <>
+                    <h3 className="dl-message-heading">We've unlocked your full package</h3>
+                    <p className="dl-message-text">
+                      Unfortunately, PDF compilation encountered an error during processing.
+                      Since you used your free upload on this document, we've unlocked full access
+                      to all source files as a courtesy — no additional cost.
+                    </p>
+                    <p className="dl-message-text">
+                      You can compile locally using the files below. Need help? Contact us at{' '}
+                      <a href="mailto:contact@latext.ai" className="dl-message-link">contact@latext.ai</a>.
+                    </p>
+                    <ul className="dl-message-features">
+                      <li>Full Package (.zip) — LaTeX source, bibliography, style files, and extracted images</li>
+                      <li>LaTeX Source (.tex) — Editable source file for local compilation</li>
+                      <li>Bibliography (.bib) — Your references in BibTeX format</li>
+                    </ul>
+                  </>
+                ) : compilationFailed ? (
+                  <>
+                    <h3 className="dl-message-heading">PDF compilation encountered an error</h3>
+                    <p className="dl-message-text">
+                      Your document was successfully converted to LaTeX, but the PDF compilation
+                      step ran into an issue. Don't worry — all your source files are still available.
+                    </p>
+                    <p className="dl-message-text">
+                      You can compile locally using the files below. Need help? Contact us at{' '}
+                      <a href="mailto:contact@latext.ai" className="dl-message-link">contact@latext.ai</a>.
+                    </p>
+                    <ul className="dl-message-features">
+                      <li>Full Package (.zip) — LaTeX source, bibliography, style files, and extracted images</li>
+                      <li>LaTeX Source (.tex) — Editable source file for local compilation</li>
+                      <li>Bibliography (.bib) — Your references in BibTeX format</li>
+                    </ul>
+                  </>
+                ) : paidWithFreeUpload ? (() => {
+                  const split = paymentDetails?.credit_split;
+                  const upgradeCost = split?.paid_credits_used ?? 0;
+                  const hasDiscount = split?.discount_applied ?? (paymentDetails?.first_purchase_discount_available ?? false);
+                  const canUnlock = split?.sufficient ?? false;
+
+                  const totalCredits = paymentDetails?.cost_estimate?.total_credits ?? 0;
+                  const freeUsed = split?.free_credits_used ?? 0;
+                  const discountAmt = split?.discount_amount ?? 0;
+                  const paidNeeded = totalCredits - freeUsed - discountAmt;
+                  const paidBalance = paymentDetails?.credit_balance ?? 0;
+                  const deficit = Math.max(0, paidNeeded - paidBalance);
+
+                  return canUnlock ? (
+                    <>
+                      <h3 className="dl-message-heading">Ready to unlock?</h3>
+                      <p className="dl-message-text">
+                        You have enough credits to unlock the full package for this document.
+                        This includes editable LaTeX source (.tex), bibliography (.bib),
+                        journal style files, and the complete compilation package.
+                      </p>
+                      {hasDiscount && (
+                        <p className="dl-message-text">
+                          With your <strong>50% first-time discount</strong>, the unlock price
+                          is just <strong>{upgradeCost} credits</strong>
+                          {freeCredits > 0 && <> (after applying your remaining free credits)</>}.
+                        </p>
+                      )}
+                      <ul className="dl-message-features">
+                        <li>Editable LaTeX source file (.tex)</li>
+                        <li>Bibliography file (.bib)</li>
+                        <li>Journal style files (.bst, .sty, .cls)</li>
+                        <li>Extracted images and full compilation package</li>
+                      </ul>
+                      <div className="dl-message-actions">
+                        <button
+                          className="btn btn--success btn--lg btn--pill"
+                          onClick={handleUnlockFullAccess}
+                          disabled={paymentLoading}
+                        >
+                          {paymentLoading ? 'Unlocking...' : `Unlock Full Access — ${upgradeCost} Credits`}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="dl-message-heading">Enjoying your results?</h3>
+                      <p className="dl-message-text">
+                        Thank you for trying LaTexT! Your PDF is ready to download below.
+                        To unlock the full package — editable LaTeX source, bibliography,
+                        and all compilation files — top up your credits.
+                      </p>
+
+                      <div className="invoice-breakdown" style={{ margin: '16px 0' }}>
+                        <div className="detail-grid">
+                          <div className="detail-item">
+                            <span className="detail-label">Full access cost</span>
+                            <span className="detail-value">{totalCredits} credits</span>
+                          </div>
+                          {freeUsed > 0 && (
+                            <div className="detail-item invoice-free-credits">
+                              <span className="detail-label">Free credits applied</span>
+                              <span className="detail-value">−{freeUsed} credits</span>
+                            </div>
+                          )}
+                          {discountAmt > 0 && (
+                            <div className="detail-item invoice-free-credits">
+                              <span className="detail-label">First-purchase discount (50%)</span>
+                              <span className="detail-value">−{discountAmt} credits</span>
+                            </div>
+                          )}
+                          {paidBalance > 0 && (
+                            <div className="detail-item">
+                              <span className="detail-label">Your balance</span>
+                              <span className="detail-value">−{Math.min(paidBalance, paidNeeded)} credits</span>
+                            </div>
+                          )}
+                          <div className="detail-item invoice-total">
+                            <span className="detail-label">Credits needed</span>
+                            <span className="detail-value"><strong>{deficit} credits</strong> (${(deficit / 100).toFixed(2)})</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {hasDiscount && (
+                        <p className="dl-message-text">
+                          As a first-time buyer, you'll receive a <strong>50% discount</strong> on your paid credits.
+                        </p>
+                      )}
+                      <ul className="dl-message-features">
+                        <li>Editable LaTeX source file (.tex)</li>
+                        <li>Bibliography file (.bib)</li>
+                        <li>Journal style files (.bst, .sty, .cls)</li>
+                        <li>Extracted images and full compilation package</li>
+                      </ul>
+                      <div className="dl-message-actions">
+                        <button
+                          className="btn btn--accent btn--lg btn--pill"
+                          onClick={() => navigate(`/credits?amount=${deficit}&project_id=${paperId}&return_to=${encodeURIComponent(window.location.pathname)}`)}
+                        >
+                          Top Up {deficit} Credits (${(deficit / 100).toFixed(2)})
+                        </button>
+                      </div>
+                    </>
+                  );
+                })() : (
+                  <>
+                    <h3 className="dl-message-heading">Your document is ready</h3>
+                    <p className="dl-message-text">
+                      Your conversion is complete! Here's what's included in your downloads:
+                    </p>
+                    <ul className="dl-message-features">
+                      <li>Full Package (.zip) — Everything in one download: PDF, LaTeX source, bibliography, style files, and extracted images.</li>
+                      <li>PDF Document — Your professionally formatted paper, ready to submit.</li>
+                      <li>LaTeX Source (.tex) — Editable source file for further customization.</li>
+                      <li>Bibliography (.bib) — Your references in BibTeX format.</li>
+                    </ul>
+                  </>
+                )}
+              </div>}
+
+              {/* Full Package hero card */}
+              <div className={`dl-hero${paidWithFreeUpload && !compilationFailed ? ' dl-card--locked' : ''}`}>
+                <img className="dl-hero-icon" src="/zip.png" alt="ZIP" />
+                <div className="dl-hero-content">
+                  <strong className="dl-hero-title">Full Package (.zip)</strong>
+                  <p className="dl-hero-subtitle">Includes PDF, LaTeX source, and all assets.</p>
+                  <button
+                    className="dl-hero-btn"
+                    onClick={handleDownloadPackage}
+                    disabled={paidWithFreeUpload && !compilationFailed}
+                  >
+                    Download Full Package
+                  </button>
+                </div>
+              </div>
+
+              {/* Individual file cards */}
+              <div className="dl-grid">
+                <div className={`dl-card${compilationFailed ? ' dl-card--locked' : ''}`}>
+                  <img className="dl-card-icon" src="/pdf.png" alt="PDF" height="54" />
+                  <strong className="dl-card-title">PDF Document (.pdf)</strong>
+                  <button className="dl-card-btn" onClick={handleDownloadPdf} disabled={compilationFailed}>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Download
+                  </button>
+                </div>
+
+                <div className={`dl-card${paidWithFreeUpload && !compilationFailed ? ' dl-card--locked' : ''}`}>
+                  <img className="dl-card-icon" src="/tex.png" alt="TEX" height="54" />
+                  <strong className="dl-card-title">LaTeX Source (.tex)</strong>
+                  <button className="dl-card-btn" onClick={handleDownloadTex} disabled={paidWithFreeUpload && !compilationFailed}>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Download
+                  </button>
+                </div>
+
+                <div className={`dl-card${paidWithFreeUpload && !compilationFailed ? ' dl-card--locked' : ''}`}>
+                  <img className="dl-card-icon" src="/bibtex.png" alt="BibTeX" height="54" />
+                  <strong className="dl-card-title">Bibliography (.bib)</strong>
+                  <button className="dl-card-btn" onClick={handleDownloadBib} disabled={paidWithFreeUpload && !compilationFailed}>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Feedback Section - Only show when completed and paid */}
           {status === 'completed' && projectPaid && (
-            <div className="content-section">
+            <div className="content-section" style={{ marginTop: '40px' }}>
               <h3 className="section-heading">
                 {feedback ? 'Thanks for your feedback!' : 'How was the output quality?'}
               </h3>
@@ -869,99 +1106,6 @@ const PreviewPage: React.FC = () => {
             </div>
           )}
 
-          {/* Download Section — only shown for paid projects */}
-          {projectPaid && status === 'completed' && (
-            <div className="dl-section">
-              <h3 className="dl-heading">Download Your Converted Document</h3>
-
-              {/* Full Package hero card */}
-              <div className={`dl-hero${paidWithFreeUpload ? ' dl-card--locked' : ''}`}>
-                <img className="dl-hero-icon" src="/zip.png" alt="ZIP" />
-                <div className="dl-hero-content">
-                  {paidWithFreeUpload && <span className="dl-badge dl-badge--locked">Locked</span>}
-                  <strong className="dl-hero-title">Full Package (.zip)</strong>
-                  <p className="dl-hero-subtitle">Includes PDF, LaTeX source, and all assets.</p>
-                  <button
-                    className="dl-hero-btn"
-                    onClick={handleDownloadPackage}
-                    disabled={paidWithFreeUpload}
-                  >
-                    Download Full Package
-                  </button>
-                </div>
-              </div>
-
-              {/* Individual file cards */}
-              <div className="dl-grid">
-                <div className="dl-card">
-                  <img className="dl-card-icon" src="/pdf.png" alt="PDF" height="54" />
-                  <strong className="dl-card-title">PDF Document (.pdf)</strong>
-                  <button className="dl-card-btn" onClick={handleDownloadPdf} disabled={compilationFailed}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                      <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Download
-                  </button>
-                </div>
-
-                <div className={`dl-card${paidWithFreeUpload ? ' dl-card--locked' : ''}`}>
-                  <img className="dl-card-icon" src="/tex.png" alt="TEX" height="54" />
-                  <strong className="dl-card-title">LaTeX Source (.tex)</strong>
-                  <button className="dl-card-btn" onClick={handleDownloadTex} disabled={paidWithFreeUpload}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                      <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Download
-                  </button>
-                </div>
-
-                <div className={`dl-card${paidWithFreeUpload ? ' dl-card--locked' : ''}`}>
-                  <img className="dl-card-icon" src="/bibtex.png" alt="BibTeX" height="54" />
-                  <strong className="dl-card-title">Bibliography (.bib)</strong>
-                  <button className="dl-card-btn" onClick={handleDownloadBib} disabled={paidWithFreeUpload}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                      <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Download
-                  </button>
-                </div>
-              </div>
-
-              {/* Soft upgrade prompt for free-claimed projects */}
-              {paidWithFreeUpload && (
-                <div className="upgrade-prompt">
-                  <h3 className="upgrade-prompt-heading">Enjoying your results?</h3>
-                  <p className="upgrade-prompt-text">
-                    Thank you for trying LaTexT! Your PDF is ready to download above.
-                    To unlock the full package — editable LaTeX source (.tex), bibliography (.bib),
-                    and all compilation files — you can use your remaining free credits.
-                  </p>
-                  <p className="upgrade-prompt-text">
-                    Since this is your first purchase, we'll apply a <strong>50% discount</strong> on
-                    the credit cost after your remaining free credits are used. Alternatively, you
-                    can <a href="/papers/new" className="upgrade-prompt-link">upload a new document</a> and
-                    receive the same discount and free credit usage.
-                  </p>
-                  <ul className="upgrade-prompt-features">
-                    <li>Editable LaTeX source file (.tex)</li>
-                    <li>Bibliography file (.bib)</li>
-                    <li>Journal style files (.bst, .sty, .cls)</li>
-                    <li>Extracted images and full compilation package</li>
-                  </ul>
-                  <div className="upgrade-prompt-actions">
-                    <button
-                      className="btn btn--success btn--lg btn--pill"
-                      onClick={handleProcessWithCredits}
-                      disabled={paymentLoading}
-                    >
-                      {paymentLoading ? 'Processing...' : 'Unlock Full Access'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Debug Controls — dev/staging only, tree-shaken from production */}
           {import.meta.env.VITE_DEBUG_CONTROLS === 'true' && (
             <div className="content-section" style={{ borderTop: '2px solid #e74c3c', marginTop: '2rem', paddingTop: '1rem' }}>
@@ -970,15 +1114,21 @@ const PreviewPage: React.FC = () => {
                 <select className="form-select" value={mockPreset} onChange={e => handlePresetChange(e.target.value)}>
                   <optgroup label="Processing">
                     <option value="proc_anon">Processing — Anonymous Preview</option>
-                    <option value="proc_credits">Processing — Has Credits</option>
-                    <option value="proc_low">Processing — Low Credits</option>
+                    <option value="proc_free">Processing — Signed Up, Free Credits</option>
+                    <option value="proc_free_low">Processing — Signed Up, Low Free Credits</option>
+                    <option value="proc_credits">Processing — Has Paid Credits</option>
+                    <option value="proc_low">Processing — Low Paid Credits</option>
                     <option value="proc_paid">Processing — Paid</option>
                   </optgroup>
                   <optgroup label="Completed (PDF visible)">
                     <option value="done_anon">Completed — Anonymous Preview</option>
-                    <option value="done_credits">Completed — Has Credits (Upgrade)</option>
-                    <option value="done_low">Completed — Low Credits (Upgrade)</option>
+                    <option value="done_free">Completed — Signed Up, Free Credits</option>
+                    <option value="done_free_low">Completed — Signed Up, Low Free Credits</option>
+                    <option value="done_credits">Completed — Has Paid Credits (Upgrade)</option>
+                    <option value="done_low">Completed — Low Paid Credits (Upgrade)</option>
                     <option value="done_free_claimed">Completed — Free Claimed (PDF only)</option>
+                    <option value="done_free_claimed_topup">Completed — Free Claimed + After Credit Topup</option>
+                    <option value="done_free_claimed_cf">Completed — Free Claimed + Compilation Failed</option>
                     <option value="done_paid">Completed — Paid (Downloads)</option>
                     <option value="comp_failed">Completed — Compilation Failed</option>
                   </optgroup>

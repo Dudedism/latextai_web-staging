@@ -140,19 +140,19 @@ def signup():
 
     pwd = generate_password_hash(data['password'])
 
-    # Check if any deleted users with this email have used their free upload or have card fingerprints
+    # Check if any deleted users with this email have inherited state
     deleted_users = User.find_deleted_by_email(data['email'])
-    inherited_free_project_id = None
     inherited_card_fingerprints = []
+    inherited_free_credit_balance = 750  # Default for new users
+    inherited_first_purchase_discount_used = False
     for du in deleted_users:
-        if du.get('free_project_id'):
-            inherited_free_project_id = du.get('free_project_id')
         if du.get('card_fingerprints'):
             inherited_card_fingerprints.extend(du.get('card_fingerprints', []))
+        if du.get('free_credit_balance', 750) < inherited_free_credit_balance:
+            inherited_free_credit_balance = du.get('free_credit_balance', 750)
+        if du.get('first_purchase_discount_used', False):
+            inherited_first_purchase_discount_used = True
     inherited_card_fingerprints = list(set(inherited_card_fingerprints))
-
-    if inherited_free_project_id:
-        print(f"ℹ️  [SIGNUP] User has previously used free upload (from deleted account)")
 
     # Create user with is_verified=False (requires email verification)
     user = User(
@@ -160,8 +160,9 @@ def signup():
         password=pwd,
         is_verified=False,
         admin=False,
-        free_project_id=inherited_free_project_id,
-        card_fingerprints=inherited_card_fingerprints
+        card_fingerprints=inherited_card_fingerprints,
+        free_credit_balance=inherited_free_credit_balance,
+        first_purchase_discount_used=inherited_first_purchase_discount_used,
     )
 
     user.insert()
@@ -440,12 +441,20 @@ def login_google():
             name = name.strip() or email.split('@')[0]  # Fallback to email prefix if no name
             pwd = generate_password_hash(str(uuid.uuid4()))
 
-            # Check deleted users for free upload history
+            # Check deleted users for free upload history and credit inheritance
             deleted_users = User.find_deleted_by_email(email)
-            free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
+            inherited_free_credit_balance = 750
+            inherited_first_purchase_discount_used = False
+            for du in deleted_users:
+                if du.get('free_credit_balance', 750) < inherited_free_credit_balance:
+                    inherited_free_credit_balance = du.get('free_credit_balance', 750)
+                if du.get('first_purchase_discount_used', False):
+                    inherited_first_purchase_discount_used = True
 
             # Google users are automatically verified (is_verified=True by default in User constructor)
-            user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
+            user = User(name=name, email=email, password=pwd, admin=False,
+                        free_credit_balance=inherited_free_credit_balance,
+                        first_purchase_discount_used=inherited_first_purchase_discount_used)
             user.insert()
             existing_user = User.find_by_email(email, include_deleted=False)
 
@@ -542,7 +551,7 @@ def delete_account(user, data):
     - Deletes all used tokens
     - Deletes local uploaded files
     - Sends deletion request to latextai server
-    - Keeps user record with _id, free_project_id, and card_fingerprints for abuse tracking
+    - Keeps user record with _id and card_fingerprints for abuse tracking
     - Strips email and personal information
     - Marks account as deleted
     """
@@ -612,7 +621,9 @@ def delete_account(user, data):
         User.invalidate_refresh_token(user['email'])
         print(f"   Invalidated refresh tokens")
 
-        # Orphan the user account (keep _id, free_project_id, card_fingerprints for abuse tracking)
+        # Orphan the user account (keep _id, card_fingerprints for abuse tracking)
+        # Preserve free_credit_balance and first_purchase_discount_used for re-signup inheritance
+        current_user = User.find_by_email(user['email'])
         orphan_data = {
             'is_deleted': True,
             'deleted_at': datetime.datetime.utcnow(),
@@ -622,6 +633,8 @@ def delete_account(user, data):
             'admin': False,
             'data_consent': None,
             'credit_balance': 0,
+            'free_credit_balance': current_user.get('free_credit_balance', 0) if current_user else 0,
+            'first_purchase_discount_used': current_user.get('first_purchase_discount_used', False) if current_user else False,
         }
 
         update_result = mongo.db.users.update_one(

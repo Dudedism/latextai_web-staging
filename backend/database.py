@@ -54,17 +54,18 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, free_project_id=None, is_deleted=False, card_fingerprints=None, credit_balance=0, is_anonymous=False, anonymous_id=None, preview_count=0, **kwargs):
+    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, is_deleted=False, card_fingerprints=None, credit_balance=0, free_credit_balance=0, first_purchase_discount_used=False, is_anonymous=False, anonymous_id=None, preview_count=0, **kwargs):
         super().__init__(
             email=email,
             password=password,
             is_verified=is_verified,
             admin=admin,
             data_consent=data_consent,
-            free_project_id=free_project_id,
             is_deleted=is_deleted,
             card_fingerprints=card_fingerprints if card_fingerprints is not None else [],
             credit_balance=credit_balance,
+            free_credit_balance=free_credit_balance,
+            first_purchase_discount_used=first_purchase_discount_used,
             is_anonymous=is_anonymous,
             anonymous_id=anonymous_id,
             preview_count=preview_count,
@@ -171,32 +172,6 @@ class User(BaseModel):
         return result.modified_count > 0
 
     @classmethod
-    def set_free_project(cls, email, project_id):
-        """
-        Atomically set the free project for a user.
-        Only succeeds if user hasn't already claimed a free project.
-
-        Returns:
-            bool: True if successfully set, False if already claimed
-        """
-        result = mongo.db[cls.collection_name].update_one(
-            {'email': email, 'free_project_id': None},
-            {'$set': {'free_project_id': project_id, 'free_project_claimed_at': datetime.utcnow()}}
-        )
-        return result.modified_count > 0
-
-    @classmethod
-    def has_claimed_free_project(cls, email):
-        """Check if user has already claimed their free project (checks both old and new fields)"""
-        return mongo.db[cls.collection_name].count_documents(
-            {'email': email, '$or': [
-                {'free_project_id': {'$ne': None}},
-                {'free_upload_used': True}
-            ]},
-            limit=1
-        ) > 0
-
-    @classmethod
     def add_card_fingerprint(cls, email, fingerprint):
         """
         Add a card fingerprint to user's array if not already present.
@@ -209,27 +184,6 @@ class User(BaseModel):
             {'$addToSet': {'card_fingerprints': fingerprint}}
         )
         return result.modified_count > 0
-
-    @classmethod
-    def find_user_with_fingerprint_and_free_claim(cls, fingerprints, exclude_email=None):
-        """
-        Find any user who has ANY of these fingerprints AND has claimed a free project.
-        Used to detect abuse (same card claiming free across multiple accounts).
-
-        Args:
-            fingerprints: List of card fingerprints to check
-            exclude_email: Email to exclude from search (current user)
-
-        Returns:
-            User document if found, None otherwise
-        """
-        query = {
-            'card_fingerprints': {'$in': fingerprints},
-            'free_project_id': {'$ne': None}
-        }
-        if exclude_email:
-            query['email'] = {'$ne': exclude_email}
-        return mongo.db[cls.collection_name].find_one(query)
 
     @classmethod
     def set_upload_lock(cls, email):
@@ -260,6 +214,63 @@ class User(BaseModel):
             {'credit_balance': 1}
         )
         return result.get('credit_balance', 0) if result else 0
+
+    @classmethod
+    def get_free_credit_balance(cls, email):
+        """Get user's current free credit balance"""
+        result = mongo.db[cls.collection_name].find_one(
+            {'email': email, 'is_deleted': {'$ne': True}},
+            {'free_credit_balance': 1}
+        )
+        return result.get('free_credit_balance', 0) if result else 0
+
+    @classmethod
+    def get_all_balances(cls, email):
+        """Get user's credit balance, free credit balance, and first purchase discount status in one query"""
+        result = mongo.db[cls.collection_name].find_one(
+            {'email': email, 'is_deleted': {'$ne': True}},
+            {'credit_balance': 1, 'free_credit_balance': 1, 'first_purchase_discount_used': 1}
+        )
+        if not result:
+            return {'credit_balance': 0, 'free_credit_balance': 0, 'first_purchase_discount_used': False}
+        return {
+            'credit_balance': result.get('credit_balance', 0),
+            'free_credit_balance': result.get('free_credit_balance', 0),
+            'first_purchase_discount_used': result.get('first_purchase_discount_used', False),
+        }
+
+    @classmethod
+    def deduct_split_credits(cls, email, free_amount, paid_amount):
+        """
+        Atomically deduct from both free and paid credit balances.
+        Only succeeds if user has sufficient balance in both pools.
+        Returns (new_free, new_paid) or None if insufficient.
+        """
+        query = {'email': email}
+        if free_amount > 0:
+            query['free_credit_balance'] = {'$gte': free_amount}
+        if paid_amount > 0:
+            query['credit_balance'] = {'$gte': paid_amount}
+
+        inc_update = {}
+        if free_amount > 0:
+            inc_update['free_credit_balance'] = -free_amount
+        if paid_amount > 0:
+            inc_update['credit_balance'] = -paid_amount
+
+        if not inc_update:
+            # Nothing to deduct
+            balances = cls.get_all_balances(email)
+            return (balances['free_credit_balance'], balances['credit_balance'])
+
+        result = mongo.db[cls.collection_name].find_one_and_update(
+            query,
+            {'$inc': inc_update},
+            return_document=True
+        )
+        if result:
+            return (result.get('free_credit_balance', 0), result.get('credit_balance', 0))
+        return None
 
     @classmethod
     def add_credits(cls, email, amount):
@@ -297,8 +308,11 @@ class User(BaseModel):
     def merge_anonymous_into(cls, anon_email, real_user_id, real_user_email):
         """
         Merge an anonymous user's data into a real user account.
-        Transfers projects, copies preview_count, marks anon record as deleted.
+        Transfers projects, deducts free credits for merged project cost,
+        copies preview_count, marks anon record as deleted.
         """
+        from utils.pricing import calculate_cost
+
         anon_user = cls.find_by_email(anon_email)
         if not anon_user:
             return False
@@ -307,6 +321,35 @@ class User(BaseModel):
 
         # Transfer all projects from anon to real user
         Project.transfer_to_user(anon_user_id, real_user_id, real_user_email)
+
+        # Ensure real user has at least 750 free credits (handles pre-feature users)
+        mongo.db[cls.collection_name].update_one(
+            {'email': real_user_email},
+            {'$max': {'free_credit_balance': 750}}
+        )
+
+        # Calculate cost of merged preview projects and deduct from free credits
+        preview_projects = list(mongo.db['projects'].find({
+            'user_id': real_user_id, 'user_email': real_user_email, 'is_preview': True
+        }))
+        total_cost = 0
+        for proj in preview_projects:
+            page_count = proj.get('page_count', 0)
+            if page_count > 0:
+                cost_info = calculate_cost(page_count)
+                total_cost += cost_info['total_credits']
+
+        # Deduct from free credits (clamp to 0)
+        if total_cost > 0:
+            mongo.db[cls.collection_name].update_one(
+                {'email': real_user_email},
+                {'$inc': {'free_credit_balance': -total_cost}}
+            )
+            # Clamp free_credit_balance to 0 if it went negative
+            mongo.db[cls.collection_name].update_one(
+                {'email': real_user_email, 'free_credit_balance': {'$lt': 0}},
+                {'$set': {'free_credit_balance': 0}}
+            )
 
         # Mark transferred projects as the user's free upload (no longer preview)
         mongo.db['projects'].update_many(
@@ -319,12 +362,6 @@ class User(BaseModel):
             }}
         )
 
-        # Mark the real user's free upload as used
-        mongo.db[cls.collection_name].update_one(
-            {'email': real_user_email},
-            {'$set': {'free_upload_used': True, 'free_upload_used_at': datetime.utcnow()}}
-        )
-
         # Copy preview_count from anonymous user to real user
         anon_preview_count = anon_user.get('preview_count', 0)
         if anon_preview_count > 0:
@@ -332,6 +369,30 @@ class User(BaseModel):
                 {'email': real_user_email},
                 {'$inc': {'preview_count': anon_preview_count}}
             )
+
+        # Store anonymous email on real user so latextai can find files during rename
+        mongo.db[cls.collection_name].update_one(
+            {'email': real_user_email},
+            {'$set': {'anonymous_name': anon_email}}
+        )
+
+        # Rename local user_projects directory from anon email to real email
+        import os
+        import shutil
+        old_dir = os.path.join('user_projects', anon_email)
+        new_dir = os.path.join('user_projects', real_user_email)
+        if os.path.exists(old_dir):
+            if os.path.exists(new_dir):
+                # Merge: move individual project dirs into existing dir
+                for entry in os.listdir(old_dir):
+                    src = os.path.join(old_dir, entry)
+                    dst = os.path.join(new_dir, entry)
+                    if not os.path.exists(dst):
+                        shutil.move(src, dst)
+                if not os.listdir(old_dir):
+                    os.rmdir(old_dir)
+            else:
+                os.rename(old_dir, new_dir)
 
         # Invalidate anonymous user's refresh tokens
         cls.invalidate_refresh_token(anon_email)
@@ -347,6 +408,70 @@ class User(BaseModel):
         )
 
         return True
+
+    @classmethod
+    def cleanup_expired_anonymous(cls, max_age_days=3):
+        """
+        Clean up anonymous users older than max_age_days that were never merged.
+        Orphans their projects and credit transactions, deletes local files,
+        and marks the user as deleted.
+
+        Returns count of users cleaned up.
+        """
+        import os
+        import shutil
+
+        cutoff = datetime.utcnow() - timedelta(days=max_age_days)
+        expired_users = list(mongo.db[cls.collection_name].find({
+            'is_anonymous': True,
+            'is_deleted': {'$ne': True},
+            'created_at': {'$lt': cutoff}
+        }))
+
+        cleaned = 0
+        for user in expired_users:
+            try:
+                user_id = str(user['_id'])
+                anon_email = user.get('email')
+
+                # Orphan all projects and delete their local files
+                projects = Project.find_by_user(user_id)
+                for project in projects:
+                    project_id = project.get('project_id')
+                    if project_id and anon_email:
+                        Project.delete_with_files(project_id, anon_email)
+
+                # Delete user's file directory
+                if anon_email:
+                    user_dir = os.path.join('user_projects', anon_email)
+                    if os.path.exists(user_dir):
+                        shutil.rmtree(user_dir, ignore_errors=True)
+
+                # Orphan credit transactions
+                mongo.db['credit_transactions'].update_many(
+                    {'user_id': user_id},
+                    {'$set': {'user_email': None}}
+                )
+
+                # Delete used tokens
+                if anon_email:
+                    UsedToken.delete_by_email(anon_email)
+
+                # Mark user as deleted
+                mongo.db[cls.collection_name].update_one(
+                    {'_id': user['_id']},
+                    {'$set': {
+                        'is_deleted': True,
+                        'deleted_at': datetime.utcnow(),
+                        'deleted_reason': 'expired_anonymous'
+                    }}
+                )
+
+                cleaned += 1
+            except Exception as e:
+                print(f"[CLEANUP] Error cleaning anonymous user {user.get('_id')}: {e}")
+
+        return cleaned
 
     @classmethod
     def deduct_credits(cls, email, amount):

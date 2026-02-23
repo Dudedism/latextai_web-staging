@@ -3,6 +3,8 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
 import os
+import threading
+import time
 
 from api_public import api_public
 from api_auth import api_auth
@@ -12,7 +14,7 @@ from api_user import api_user
 from api_stripe import api_stripe
 from api_credits import api_credits
 from config import *
-from database import mongo
+from database import mongo, User
 
 app = Flask(__name__)
 
@@ -137,6 +139,28 @@ try:
         print(f"Database name: {mongo.db.name}")
 except Exception as e:
     print(f"ERROR: Failed to connect to MongoDB: {e}")
+
+
+def _run_anonymous_cleanup(app):
+    """Background thread: clean up expired anonymous users every 6 hours."""
+    INTERVAL = 6 * 60 * 60  # 6 hours
+    time.sleep(60)  # Initial delay — let app fully start
+    while True:
+        try:
+            with app.app_context():
+                count = User.cleanup_expired_anonymous(max_age_days=3)
+                if count > 0:
+                    print(f"[CLEANUP] Deleted {count} expired anonymous users")
+        except Exception as e:
+            print(f"[CLEANUP] Error: {e}")
+        time.sleep(INTERVAL)
+
+
+# Start cleanup thread (guard against duplicate in Flask debug reloader)
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN'):
+    cleanup_thread = threading.Thread(target=_run_anonymous_cleanup, args=(app,), daemon=True)
+    cleanup_thread.start()
+
 
 @app.route('/')
 def hello():

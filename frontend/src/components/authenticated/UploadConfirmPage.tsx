@@ -84,17 +84,30 @@ const UploadConfirmPage: React.FC = () => {
         body: formData,
       });
 
-      if (!uploadResponse.ok) {
+      // Handle duplicate upload (409) — resume with existing project
+      let projectId: string;
+      if (uploadResponse.status === 409) {
+        const dupData = await uploadResponse.json();
+        if (dupData.project_id) {
+          projectId = dupData.project_id;
+        } else {
+          setIsLoading(false);
+          setErrorStatusCode(409);
+          setErrorMessage(dupData.error || 'An upload is already in progress.');
+          setShowErrorModal(true);
+          return;
+        }
+      } else if (!uploadResponse.ok) {
         setIsLoading(false);
         setErrorStatusCode(uploadResponse.status);
         setErrorMessage(undefined);
         setShowErrorModal(true);
         console.error('Failed to upload file:', uploadResponse.status);
         return;
+      } else {
+        const uploadData = await uploadResponse.json();
+        projectId = uploadData.project_id;
       }
-
-      const uploadData = await uploadResponse.json();
-      const projectId = uploadData.project_id;
 
       // Fade to green briefly before transition
       setFadeOut(true);
@@ -111,6 +124,12 @@ const UploadConfirmPage: React.FC = () => {
         },
         body: JSON.stringify({ project_id: projectId }),
       });
+
+      if (validateResponse.status === 409) {
+        // Already validated (concurrent request completed) — go to view
+        navigate(`/papers/${projectId}/view`);
+        return;
+      }
 
       if (!validateResponse.ok) {
         setIsLoading(false);

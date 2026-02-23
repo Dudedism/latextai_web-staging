@@ -335,7 +335,12 @@
   border-radius: 16px;
   padding: 32px 28px;
   max-width: 880px;
-  margin: 0 auto;
+  margin: 40px auto 0;
+}
+
+.dl-section--locked {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .dl-heading {
@@ -477,7 +482,7 @@
 }
 
 .dl-card-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
   border-color: var(--color-gray-300, #ccc);
   color: var(--color-gray-300, #ccc);
@@ -489,15 +494,11 @@
   pointer-events: none;
 }
 
-.dl-hero.dl-card--locked {
-  border-color: var(--color-gray-200, #e0e0e0);
-  background: var(--color-gray-50, #fafafa);
-}
-
-.dl-hero.dl-card--locked .dl-hero-icon,
-.dl-hero.dl-card--locked .dl-hero-title,
-.dl-hero.dl-card--locked .dl-hero-subtitle {
-  opacity: 0.5;
+.dl-card--locked .dl-hero-btn,
+.dl-card--locked .dl-hero-btn:disabled,
+.dl-card--locked .dl-card-btn,
+.dl-card--locked .dl-card-btn:disabled {
+  opacity: 1;
 }
 
 /* Responsive */
@@ -516,58 +517,58 @@
   }
 }
 
-/* === UPGRADE PROMPT (free-claimed) === */
-.upgrade-prompt {
-  margin-top: 32px;
+/* === DOWNLOAD MESSAGE BLOCK === */
+.dl-message {
   padding: 28px 24px;
   background: var(--color-gray-50, #fafafa);
   border-radius: 12px;
   text-align: center;
+  margin-bottom: 24px;
 }
 
-.upgrade-prompt-heading {
+.dl-message-heading {
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
   margin: 0 0 16px 0;
 }
 
-.upgrade-prompt-text {
+.dl-message-text {
   color: var(--color-gray-600, #555);
   font-size: var(--fs-sm);
   line-height: 1.7;
   margin: 0 0 12px 0;
-  max-width: 480px;
+  max-width: 520px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.upgrade-prompt-link {
+.dl-message-link {
   color: var(--accent);
   text-decoration: underline;
 }
 
-.upgrade-prompt-features {
+.dl-message-features {
   list-style: none;
   padding: 0;
   margin: 16px auto 0;
-  max-width: 320px;
+  max-width: 480px;
   text-align: left;
 }
 
-.upgrade-prompt-features li {
+.dl-message-features li {
   padding: 6px 0;
   font-size: var(--fs-sm);
   color: var(--color-gray-600, #555);
 }
 
-.upgrade-prompt-features li::before {
+.dl-message-features li::before {
   content: '\2713';
   color: var(--color-success);
   font-weight: var(--fw-bold);
   margin-right: 10px;
 }
 
-.upgrade-prompt-actions {
+.dl-message-actions {
   margin-top: 20px;
 }
 

@@ -8,16 +8,19 @@ api_credits = Blueprint('api_credits_blueprint', __name__, url_prefix='/api/cred
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-MIN_TOPUP_CREDITS = 500
+MIN_TOPUP_CREDITS = 100
 
 
 @api_credits.route('/balance', methods=['GET'])
 @requires_auth()
 def get_balance(user):
-    """Get user's current credit balance"""
-    balance = User.get_credit_balance(user['email'])
+    """Get user's current credit balance (paid + free)"""
+    balances = User.get_all_balances(user['email'])
+    balance = balances['credit_balance']
+    free_balance = balances['free_credit_balance']
     return jsonify({
         'balance': balance,
+        'free_balance': free_balance,
         'formatted': f'${balance / 100:.2f}'
     }), 200
 
@@ -54,7 +57,7 @@ def create_topup_session(user, data):
 
     Request body:
         {
-            "credits": 500  # minimum 500 (= $5)
+            "credits": 100  # minimum 100 (= $1)
         }
 
     Returns:

@@ -25,7 +25,6 @@ def test_user():
     with app.app_context():
         user = create_test_user(
             is_verified=True,
-            free_project_id=None,
             mongo_db=mongo.db,
             base_url=BASE_URL
         )
@@ -265,20 +264,6 @@ class TestProjectValidation:
 
         print("✅ TEST PASSED: Project ID >36 chars rejected")
 
-    def test_claim_free_project_id_too_long(self, test_user):
-        """Project ID over 36 chars should be rejected."""
-        print("\n" + "="*60)
-        print("TEST: Claim Free - Project ID too long")
-        print("="*60)
-
-        headers = {"Authorization": f"Bearer {test_user['access_token']}"}
-        payload = {"project_id": "a" * 37}
-
-        response = requests.post(f"{BASE_URL}/api/latex/claim-free", json=payload, headers=headers)
-
-        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
-
-        print("✅ TEST PASSED: Project ID >36 chars rejected")
 
 
 class TestValidInputsAccepted:

@@ -130,9 +130,6 @@ const Banner: React.FC = () => {
               <Link to="/papers" className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                 Your Papers
               </Link>
-              <Link to="/papers/new" className="dropdown-item hide-mobile" onClick={() => setIsDropdownOpen(false)}>
-                Upload Paper
-              </Link>
             </div>
           )}
         </div>

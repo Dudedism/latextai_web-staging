@@ -52,75 +52,8 @@ const SignInPage: React.FC = () => {
     }
   }, [isAuthenticated, isAnonymous, navigate]);
 
-  // Initialize Google Sign-In button dynamically
-  useEffect(() => {
-    // Load Google Identity Services script if not already loaded
-    const loadGoogleScript = () => {
-      return new Promise<void>((resolve) => {
-        if (window.google?.accounts) {
-          resolve();
-          return;
-        }
-        
-        const existingScript = document.getElementById('google-gsi-script');
-        if (existingScript) {
-          existingScript.addEventListener('load', () => resolve());
-          return;
-        }
-
-        const script = document.createElement('script');
-        script.id = 'google-gsi-script';
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => resolve();
-        document.head.appendChild(script);
-      });
-    };
-
-    const initializeGoogleButton = async () => {
-      await loadGoogleScript();
-      
-      // Determine the API URL based on current environment
-      const apiBaseUrl = window.location.hostname === 'localhost' 
-        ? 'http://localhost:8000'
-        : `https://${window.location.hostname}`;
-      
-      // Small delay to ensure the container is rendered
-      setTimeout(() => {
-        const container = document.getElementById('google-signin-container');
-        if (container && window.google?.accounts) {
-          // Clear any previous button
-          container.innerHTML = '';
-          
-          // Set anon_email cookie before OAuth redirect so backend can merge/tuck-away
-          const anonEmail = localStorage.getItem('isAnonymous') === 'true' ? localStorage.getItem('userEmail') : null;
-          if (anonEmail) {
-            document.cookie = `anon_email=${encodeURIComponent(anonEmail)}; path=/; max-age=300; SameSite=Lax`;
-          }
-
-          window.google.accounts.id.initialize({
-            client_id: '720160772474-jrdbco5ieojmvg83sr1juo3kineasj20.apps.googleusercontent.com',
-            ux_mode: 'redirect',
-            login_uri: `${apiBaseUrl}/api/auth/google`,
-          });
-          
-          window.google.accounts.id.renderButton(container, {
-            type: 'standard',
-            size: 'large',
-            theme: 'outline',
-            text: 'continue_with',
-            shape: 'rectangular',
-            logo_alignment: 'left',
-            locale: 'en',
-            width: 360,
-          });
-        }
-      }, 100);
-    };
-
-    initializeGoogleButton();
-  }, [authMode]);
+  // TODO: Re-enable Google Sign-In when ready
+  // Google OAuth initialization temporarily disabled
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,18 +163,6 @@ const SignInPage: React.FC = () => {
 
       <section className="main-section main-section--centered">
         <div className="container container--sm" style={{ maxWidth: '400px' }}>
-
-          {/* Google Sign-In Button - on both Sign In and Sign Up pages */}
-          <div style={{ marginBottom: '32px', marginTop: '10px', width: '100%' }}>
-            <div 
-              key={authMode}
-              id="google-signin-container"
-              style={{
-                transform: 'scale(1.05, 1.2)',
-                transformOrigin: 'top center'
-              }}
-            ></div>
-          </div>
 
           <h1 className="section-title text-center">
             {authMode === 'signin' ? 'Sign In' : 'Sign Up'}

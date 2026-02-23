@@ -7,9 +7,9 @@ from flask import jsonify, Blueprint, request
 from werkzeug.utils import secure_filename
 from api_auth import requires_auth
 from database import User, Project, DocumentAnalysis
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.document_utils import extract_docx_metadata, validate_docx_file, validate_word_page_ratio, extract_docx_analysis
-from utils.pricing import calculate_cost
+from utils.pricing import calculate_cost, calculate_credit_split
 from config import RECAPTCHA_SECRET_KEY
 
 api_project = Blueprint('api_project_blueprint', __name__, url_prefix='/api/latex')
@@ -172,6 +172,24 @@ def upload_file(user, data):
                 'requires_payment': True
             }), 402  # 402 Payment Required
 
+        # STEP 1b: Reject duplicate uploads (prevent refresh/double-submit spam)
+        from database import mongo
+        recent_cutoff = datetime.utcnow() - timedelta(seconds=60)
+        existing_upload = mongo.db.projects.find_one({
+            'user_id': user_id,
+            'validated': False,
+            'status': 'uploaded',
+            'created_at': {'$gte': recent_cutoff},
+            'is_orphaned': {'$ne': True}
+        })
+        if existing_upload:
+            print(f"⚠️  [UPLOAD] Duplicate upload blocked for user {user_id}, existing project: {existing_upload['project_id']}")
+            return jsonify({
+                'error': 'An upload is already in progress.',
+                'project_id': existing_upload['project_id'],
+                'duplicate': True
+            }), 409
+
         # STEP 2: Validate file presence
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
@@ -217,9 +235,8 @@ def upload_file(user, data):
             return jsonify({'error': error_msg}), 400
 
         # STEP 6: Determine if this is a preview upload
-        # Anonymous users always get previews. Verified users get previews if they have quota.
-        is_verified = user.get('is_verified', False)
-        is_preview_upload = is_anonymous or (is_verified and user.get('preview_count', 0) < 5)
+        # Anonymous users always get previews. Signed-up users get previews if they have quota (5 max).
+        is_preview_upload = is_anonymous or user.get('preview_count', 0) < 5
 
         # STEP 7: Create database entry with validated=False
         # No metadata yet - will be populated by /validate endpoint
@@ -395,7 +412,6 @@ def validate_file(user, data):
                 'filename': project['upload_filename']
             },
             'cost_estimate': cost_estimate,
-            'can_use_free': not User.has_claimed_free_project(user_email),
             'document_analysis': analysis
         }), 200
 
@@ -455,121 +471,6 @@ def get_cost_estimate(user):
         'project_id': project_id,
         'page_count': page_count,
         'cost_estimate': cost_estimate
-    }), 200
-
-@api_project.route('/claim-free', methods=['POST'])
-@requires_auth()
-def claim_free_upload(user, data):
-    """
-    Atomically claim the free upload for a project.
-
-    Requires card verification via Stripe setup mode before calling.
-    User's card fingerprints are checked against other users to prevent abuse.
-
-    Request body:
-        {
-            "project_id": "uuid-here"
-        }
-
-    Returns:
-        Success message with project details
-
-    Validation:
-        1. Project must have card_verified_at (set by setup webhook)
-        2. User must have at least one card fingerprint
-        3. None of user's fingerprints can be used by another user for free upload
-        4. Atomic claim to prevent race conditions
-    """
-    project_id = data.get('project_id')
-
-    if not project_id:
-        return jsonify({'error': 'project_id is required'}), 400
-
-    if len(project_id) > 36:
-        return jsonify({'error': 'Invalid project_id format'}), 400
-
-    project = Project.find_by_id(project_id)
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
-
-    if project.get('user_id') != str(user['_id']):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    if not project.get('validated', False):
-        return jsonify({
-            'error': 'Project must be validated before claiming free upload',
-            'requires_validation': True
-        }), 400
-
-    if project.get('status') != 'validated':
-        return jsonify({
-            'error': f"Project must be validated before payment (current status: {project.get('status')})",
-            'requires_validation': True
-        }), 400
-
-    if project.get('paid', False):
-        return jsonify({
-            'error': 'Project is already paid for'
-        }), 400
-
-    if not project.get('card_verified_at'):
-        return jsonify({
-            'error': 'Card verification required. Please complete Stripe checkout first.',
-            'requires_card_verification': True
-        }), 400
-
-    user_data = User.find_by_email(user['email'])
-    user_fingerprints = user_data.get('card_fingerprints', []) if user_data else []
-
-    if not user_fingerprints:
-        return jsonify({
-            'error': 'No card on file. Please complete Stripe checkout first.',
-            'requires_card_verification': True
-        }), 400
-
-    abuse_user = User.find_user_with_fingerprint_and_free_claim(user_fingerprints, exclude_email=user['email'])
-    if abuse_user:
-        print(f"⚠️ [CLAIM-FREE] Abuse detected: card already used by another account")
-        # Mark this user's free upload as forfeited due to abuse
-        User.set_free_project(user['email'], 'ABUSE_BLOCKED')
-        print(f"⚠️ [CLAIM-FREE] Free upload forfeited due to card reuse")
-        return jsonify({
-            'error': 'This card has already been used for a free upload on another account'
-        }), 409
-
-    success = User.set_free_project(user['email'], project_id)
-
-    if not success:
-        if User.has_claimed_free_project(user['email']):
-            return jsonify({
-                'error': 'You have already used your free upload'
-            }), 409
-        else:
-            return jsonify({
-                'error': 'Failed to claim free upload'
-            }), 500
-
-    print(f"✅ [CLAIM-FREE] Free upload claimed for project {project_id}")
-
-    mark_success = Project.mark_as_paid(project_id=project_id, total_cost=0.0)
-
-    if not mark_success:
-        from database import mongo
-        mongo.db.users.update_one(
-            {'email': user['email']},
-            {'$set': {'free_project_id': None, 'free_project_claimed_at': None}}
-        )
-        return jsonify({
-            'error': 'Failed to mark project as paid'
-        }), 500
-
-    print(f"✅ [CLAIM-FREE] Project {project_id} marked as paid (free)")
-
-    return jsonify({
-        'message': 'Free upload claimed successfully',
-        'project_id': project_id,
-        'paid': True,
-        'total_cost': 0.0
     }), 200
 
 @api_project.route('/projects', methods=['GET'])
@@ -700,8 +601,8 @@ def get_payment_details(user, project_id):
     if not project.get('validated', False):
         return jsonify({'error': 'Project not yet validated'}), 400
 
-    # Check if already paid
-    if project.get('paid', False):
+    # Check if already paid (allow through for free-upload projects — frontend needs cost data for upgrade CTA)
+    if project.get('paid', False) and not project.get('paid_with_free_upload', False):
         return jsonify({'error': 'Project already paid'}), 409
 
     # Get metadata
@@ -719,11 +620,19 @@ def get_payment_details(user, project_id):
     # Calculate cost estimate (same as validation)
     cost_estimate = calculate_cost(page_count)
 
-    # Check if user can use free upload
-    can_use_free = not User.has_claimed_free_project(user_email)
+    # Get all balances in one query
+    balances = User.get_all_balances(user_email)
+    credit_balance = balances['credit_balance']
+    free_credit_balance = balances['free_credit_balance']
+    first_purchase_discount_used = balances['first_purchase_discount_used']
 
-    # Get user's credit balance
-    credit_balance = User.get_credit_balance(user_email)
+    # Pre-compute credit split
+    credit_split = calculate_credit_split(
+        cost_estimate['total_credits'],
+        free_credit_balance,
+        credit_balance,
+        not first_purchase_discount_used
+    )
 
     # Look up document analysis
     analysis_doc = DocumentAnalysis.find_by_project(project_id)
@@ -741,9 +650,11 @@ def get_payment_details(user, project_id):
             'template': template_name
         },
         'cost_estimate': cost_estimate,
-        'can_use_free': can_use_free,
         'credit_balance': credit_balance,
-        'has_sufficient_credits': credit_balance >= cost_estimate['total_credits'],
+        'free_credit_balance': free_credit_balance,
+        'first_purchase_discount_available': not first_purchase_discount_used,
+        'credit_split': credit_split,
+        'has_sufficient_credits': credit_split['sufficient'],
         'document_analysis': document_analysis
     }), 200
 

@@ -28,7 +28,6 @@ def test_user_with_credits():
     with app.app_context():
         user = create_test_user(
             is_verified=True,
-            free_project_id='already_used',
             mongo_db=mongo.db,
             base_url=BASE_URL
         )

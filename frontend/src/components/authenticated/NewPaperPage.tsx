@@ -4,6 +4,7 @@ import Banner from '../Banner';
 import Footer from '../Footer';
 import ChooseTemplatePage from './ChooseTemplatePage';
 import { apiRequest } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 type UploadState = 'upload' | 'preview' | 'template';
 
@@ -11,6 +12,7 @@ const NewPaperPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isAuthenticated, isLoading } = useAuth();
   const [uploadState, setUploadState] = useState<UploadState>('upload');
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -24,8 +26,12 @@ const NewPaperPage: React.FC = () => {
       setDocumentTitle(state.file.name);
       setUploadState('template');
     }
+  }, []);
 
-    // Check upload eligibility — redirect if at limit
+  // Check upload eligibility only after auth is ready
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) return;
+
     apiRequest<{ can_upload: boolean; reason?: string }>('/api/latex/can-upload', { method: 'GET' })
       .then(data => {
         if (!data.can_upload) {
@@ -33,7 +39,7 @@ const NewPaperPage: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isLoading, isAuthenticated]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

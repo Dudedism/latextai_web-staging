@@ -28,7 +28,7 @@ interface TransactionResponse {
   }>;
 }
 
-const MIN_CREDITS = 500;
+const MIN_CREDITS = 100;
 
 const CreditTopUpPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -39,11 +39,12 @@ const CreditTopUpPage: React.FC = () => {
   const paramAmount = searchParams.get('amount');
   const paramProjectName = searchParams.get('project_name');
   const paramProjectId = searchParams.get('project_id');
+  const paramReturnTo = searchParams.get('return_to');
   const hasProjectContext = !!(paramProjectName && paramProjectId);
 
   const [balance, setBalance] = useState<number>(0);
   const [creditAmount, setCreditAmount] = useState<string>(
-    paramAmount && parseInt(paramAmount, 10) >= MIN_CREDITS ? paramAmount : '500'
+    paramAmount && parseInt(paramAmount, 10) >= MIN_CREDITS ? paramAmount : String(MIN_CREDITS)
   );
   const [transactions, setTransactions] = useState<TransactionResponse['transactions']>([]);
   const [loading, setLoading] = useState(true);
@@ -227,10 +228,12 @@ const CreditTopUpPage: React.FC = () => {
         title="Top-Up Successful"
         message={`${successCredits} credits have been added to your account.`}
         actionButton={{
-          label: paramProjectId ? 'Return to Document' : 'Continue',
+          label: (paramReturnTo || paramProjectId) ? 'Return to Document' : 'Continue',
           onClick: () => {
             setShowSuccessModal(false);
-            if (paramProjectId) {
+            if (paramReturnTo) {
+              navigate(paramReturnTo);
+            } else if (paramProjectId) {
               navigate(`/papers/${paramProjectId}/view`);
             }
           }
