@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
@@ -28,13 +28,24 @@ interface TransactionResponse {
   }>;
 }
 
-const MIN_CREDITS = 500;
+const MIN_CREDITS = 100;
 
 const CreditTopUpPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Query params for project-specific top-up flow
+  const paramAmount = searchParams.get('amount');
+  const paramProjectName = searchParams.get('project_name');
+  const paramProjectId = searchParams.get('project_id');
+  const paramReturnTo = searchParams.get('return_to');
+  const hasProjectContext = !!(paramProjectName && paramProjectId);
+
   const [balance, setBalance] = useState<number>(0);
-  const [creditAmount, setCreditAmount] = useState<string>('500');
+  const [creditAmount, setCreditAmount] = useState<string>(
+    paramAmount && parseInt(paramAmount, 10) >= MIN_CREDITS ? paramAmount : String(MIN_CREDITS)
+  );
   const [transactions, setTransactions] = useState<TransactionResponse['transactions']>([]);
   const [loading, setLoading] = useState(true);
   const [topUpLoading, setTopUpLoading] = useState(false);
@@ -133,6 +144,16 @@ const CreditTopUpPage: React.FC = () => {
             <div className="text-muted">${(balance / 100).toFixed(2)}</div>
           </div>
 
+          {hasProjectContext && (
+            <div className="notice notice--info mb-6">
+              <span className="notice-icon">&#9432;</span>
+              <div className="notice-content">
+                <strong>{paramProjectName}</strong>
+                <p>Requires <strong>{paramAmount}</strong> credits (${paramAmount ? (parseInt(paramAmount, 10) / 100).toFixed(2) : '0.00'}) to process.</p>
+              </div>
+            </div>
+          )}
+
           <div className="card mb-6">
             <h2 className="section-heading">Top Up Credits</h2>
             <p className="text-muted text-sm mb-6">
@@ -164,7 +185,7 @@ const CreditTopUpPage: React.FC = () => {
               onClick={handleTopUp}
               disabled={!isValidAmount || topUpLoading}
             >
-              {topUpLoading ? 'Redirecting to Stripe...' : `Top Up $${dollarAmount}`}
+              {topUpLoading ? 'Redirecting to Stripe...' : hasProjectContext ? `Top Up for ${paramProjectName} ($${dollarAmount})` : `Top Up $${dollarAmount}`}
             </button>
           </div>
 
@@ -207,8 +228,15 @@ const CreditTopUpPage: React.FC = () => {
         title="Top-Up Successful"
         message={`${successCredits} credits have been added to your account.`}
         actionButton={{
-          label: 'Continue',
-          onClick: () => setShowSuccessModal(false)
+          label: (paramReturnTo || paramProjectId) ? 'Return to Document' : 'Continue',
+          onClick: () => {
+            setShowSuccessModal(false);
+            if (paramReturnTo) {
+              navigate(paramReturnTo);
+            } else if (paramProjectId) {
+              navigate(`/papers/${paramProjectId}/view`);
+            }
+          }
         }}
       />
     </div>

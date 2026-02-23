@@ -16,14 +16,9 @@ interface AccountPageProps {
 
 const AccountPage: React.FC<AccountPageProps> = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isVerified, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, isVerified, isAnonymous, logout, refreshUser } = useAuth();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/signin');
-    }
-  }, [isAuthenticated, navigate]);
   const [dataConsent, setDataConsent] = useState<boolean | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -33,24 +28,25 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   // Use user data from context
   const userEmail = user?.email || 'user@example.com';
 
-  // Fetch data consent status on mount
+  // Refresh user profile and fetch consent on mount
   useEffect(() => {
-    const fetchDataConsent = async () => {
+    const fetchAccountData = async () => {
       try {
         setLoading(true);
+        await refreshUser();
         const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', {
           method: 'GET',
         });
         setDataConsent(data.consent);
       } catch (error) {
-        console.error('Error fetching data consent:', error);
+        console.error('Error fetching account data:', error);
       } finally {
         setLoading(false);
       }
     };
 
     if (isAuthenticated) {
-      fetchDataConsent();
+      fetchAccountData();
     } else {
       setLoading(false);
     }
@@ -147,6 +143,59 @@ const AccountPage: React.FC<AccountPageProps> = () => {
 
   if (loading) {
     return <LoadingScreen />;
+  }
+
+  if (isAnonymous) {
+    return (
+      <div className="page">
+        <Banner />
+        <section className="main-section main-section--centered">
+          <div className="container container--sm">
+            <h1 className="section-title">Guest Session</h1>
+            <p style={{ marginBottom: '24px', color: '#666' }}>
+              You are browsing as a guest. Sign up to access your full account, save your projects, and unlock all features.
+            </p>
+
+            <div className="mb-8">
+              <div className="mb-6">
+                <label className="form-label form-label--light">Data Consent</label>
+                <div className="flex items-center gap-4">
+                  {dataConsent ? (
+                    <>
+                      <span className="badge badge--success">✓ Consent Granted</span>
+                      <button className="btn btn--danger btn--sm btn--pill" onClick={handleConsentToggle}>
+                        Revoke Consent
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="badge badge--error">Consent Not Granted</span>
+                      <button className="btn btn--primary btn--sm btn--pill" onClick={handleConsentToggle}>
+                        Grant Consent
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4" style={{ alignItems: 'center' }}>
+              <button className="btn btn--primary btn--lg btn--pill" onClick={() => navigate('/signup')}>
+                Sign Up
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <ConsentModal
+          isOpen={showConsentModal}
+          onClose={() => setShowConsentModal(false)}
+          onConsent={handleConsentResult}
+        />
+
+        <Footer />
+      </div>
+    );
   }
 
   return (

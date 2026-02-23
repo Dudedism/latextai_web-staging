@@ -43,14 +43,17 @@ const SignInPage: React.FC = () => {
     }
   }, [location.pathname]);
   
-  const { isAuthenticated, login: authLogin, setAuthData } = useAuth();
+  const { isAuthenticated, isAnonymous, login: authLogin, setAuthData, user } = useAuth();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated (but not if anonymous — anon users should be able to sign up)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isAnonymous) {
       navigate('/papers');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isAnonymous, navigate]);
+
+  // TODO: Re-enable Google Sign-In when ready
+  // Google OAuth initialization temporarily disabled
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +79,8 @@ const SignInPage: React.FC = () => {
     try {
       if (authMode === 'signin') {
         // Use AuthContext login for signin
-        const result = await authLogin(email, password);
+        const anonEmail = isAnonymous && user?.email ? user.email : undefined;
+        const result = await authLogin(email, password, anonEmail);
 
         if (result.success) {
           // Navigate to papers page
@@ -87,7 +91,12 @@ const SignInPage: React.FC = () => {
         }
       } else {
         // Handle signup with direct fetch (now with auto-login)
-        const body = { email, password };
+        const body: Record<string, string> = { email, password };
+
+        // If user was anonymous, pass the anon email for merge
+        if (isAnonymous && user?.email) {
+          body.anon_email = user.email;
+        }
 
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/signup`, {
           method: 'POST',
@@ -154,6 +163,7 @@ const SignInPage: React.FC = () => {
 
       <section className="main-section main-section--centered">
         <div className="container container--sm" style={{ maxWidth: '400px' }}>
+
           <h1 className="section-title text-center">
             {authMode === 'signin' ? 'Sign In' : 'Sign Up'}
           </h1>
@@ -199,19 +209,20 @@ const SignInPage: React.FC = () => {
 
             {authMode === 'signup' && (
               <div style={{ marginTop: '8px' }}>
-                <label className="auth-checkbox">
+                <label className="auth-checkbox" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                   <input
                     type="checkbox"
                     checked={agreeToTerms}
                     onChange={(e) => setAgreeToTerms(e.target.checked)}
                     required
+                    style={{ marginTop: '4px', flexShrink: 0 }}
                   />
-                  I agree with the <Link to="/terms">terms and conditions</Link> of using this tool.
+                  <span>I agree with the <Link to="/terms">terms and conditions</Link> of using this tool.</span>
                 </label>
               </div>
             )}
 
-            <button type="submit" className="btn btn--primary btn--pill btn--full" style={{ marginTop: '16px' }} disabled={loading}>
+            <button type="submit" className="btn btn--primary btn--pill" style={{ marginTop: '16px', width: '360px' }} disabled={loading}>
               {loading ? 'Loading...' : `${authMode === 'signin' ? 'Sign In' : 'Get Started'} →`}
             </button>
 

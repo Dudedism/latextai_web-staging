@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LandingPage from './components/homepage/LandingPage';
 import AccountPage from './components/authenticated/AccountPage';
 import YourPapersPage from './components/authenticated/YourPapersPage';
@@ -9,18 +9,18 @@ import ConsentPage from './components/authenticated/ConsentPage';
 import ProcessingPage from './components/authenticated/ProcessingPage';
 import PreviewPage from './components/authenticated/PreviewPage';
 import UploadConfirmPage from './components/authenticated/UploadConfirmPage';
-import PaymentPage from './components/authenticated/PaymentPage';
 import CreditTopUpPage from './components/authenticated/CreditTopUpPage';
 import PrivacyPolicy from './components/static/PrivacyPolicy';
 import TermsConditions from './components/static/TermsConditions';
 import AboutPage from './components/static/AboutPage';
 import PricingPage from './components/static/PricingPage';
 import BrowseJournalsPage from './components/static/BrowseJournalsPage';
+import BlogPage from './components/static/BlogPage';
+import BlogPostPage from './components/static/BlogPostPage';
 import SignInPage from './components/static/SignInPage';
 import VerifyPage from './components/static/VerifyPage';
 import PasswordResetPage from './components/static/PasswordResetPage';
 import ForgotPasswordPage from './components/static/ForgotPasswordPage';
-import useAuthRedirect from './hooks/useAuthRedirect';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -32,8 +32,18 @@ const ScrollToTop = () => {
   return null;
 };
 
+// Static pages that should NOT auto-spawn an anonymous session
+const NO_ANON_ROUTES = ['/', '/about', '/pricing', '/journals', '/blog', '/privacy', '/terms', '/signin', '/signup', '/verify', '/forgot-password', '/reset-password'];
+
 const AppContent = () => {
-  useAuthRedirect();
+  const location = useLocation();
+  const { isAuthenticated, isLoading, anonSpawn } = useAuth();
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+    if (NO_ANON_ROUTES.includes(location.pathname) || location.pathname.startsWith('/blog/')) return;
+    anonSpawn();
+  }, [isLoading, isAuthenticated, location.pathname, anonSpawn]);
 
   return (
     <div className="App">
@@ -45,7 +55,6 @@ const AppContent = () => {
         <Route path="/papers/new" element={<NewPaperPage />} />
         <Route path="/papers/consent" element={<ConsentPage />} />
         <Route path="/papers/upload-confirm" element={<UploadConfirmPage />} />
-        <Route path="/papers/:projectId/payment" element={<PaymentPage />} />
         <Route path="/credits" element={<CreditTopUpPage />} />
         <Route path="/papers/processing" element={<ProcessingPage />} />
         <Route path="/papers/:id/view" element={<PreviewPage />} />
@@ -54,6 +63,8 @@ const AppContent = () => {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/journals" element={<BrowseJournalsPage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/signup" element={<SignInPage />} />
         <Route path="/verify" element={<VerifyPage />} />

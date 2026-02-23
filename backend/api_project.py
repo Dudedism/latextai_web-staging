@@ -2,13 +2,15 @@ import os
 import shutil
 import uuid
 import json
+import requests as http_requests
 from flask import jsonify, Blueprint, request
 from werkzeug.utils import secure_filename
 from api_auth import requires_auth
-from database import User, Project
-from datetime import datetime
-from utils.document_utils import extract_docx_metadata, validate_docx_file, validate_word_page_ratio
-from utils.pricing import calculate_cost
+from database import User, Project, DocumentAnalysis
+from datetime import datetime, timedelta
+from utils.document_utils import extract_docx_metadata, validate_docx_file, validate_word_page_ratio, extract_docx_analysis
+from utils.pricing import calculate_cost, calculate_credit_split
+from config import RECAPTCHA_SECRET_KEY
 
 api_project = Blueprint('api_project_blueprint', __name__, url_prefix='/api/latex')
 
@@ -50,6 +52,26 @@ def validate_template(template_id):
         return False, f"Template '{template['name']}' is not yet available"
     return True, template
 
+def verify_captcha(token):
+    """Verify a reCAPTCHA v2 token. Returns True if valid, False otherwise."""
+    if not RECAPTCHA_SECRET_KEY:
+        print("⚠️  [CAPTCHA] No RECAPTCHA_SECRET_KEY configured, skipping verification")
+        return True
+    try:
+        response = http_requests.post('https://www.google.com/recaptcha/api/siteverify', data={
+            'secret': RECAPTCHA_SECRET_KEY,
+            'response': token
+        }, timeout=5)
+        result = response.json()
+        if not result.get('success'):
+            print(f"❌ [CAPTCHA] Verification failed: {result}")
+            return False
+        return True
+    except Exception as e:
+        print(f"❌ [CAPTCHA] Error verifying: {e}")
+        return False
+
+
 def create_user_directory(user_email):
     """Create a directory for a user's projects if it doesn't exist"""
     user_dir = os.path.join(USER_PROJECTS_DIR, str(user_email))
@@ -81,8 +103,28 @@ def get_templates():
 
     return jsonify({'templates': formatted_templates}), 200
 
+@api_project.route('/can-upload', methods=['GET'])
+@requires_auth(allow_anonymous=True)
+def can_upload(user):
+    """Check if user is eligible to upload (preview limit + project limit)."""
+    is_anonymous = user.get('is_anonymous', False)
+
+    if is_anonymous:
+        preview_count = user.get('preview_count', 0)
+        if preview_count >= 1:
+            return jsonify({'can_upload': False, 'reason': 'preview_limit'}), 200
+
+    user_id = str(user['_id'])
+    project_count = Project.count_user_projects(user_id)
+    has_paid_free = Project.has_paid_free_project(user_id)
+
+    if project_count >= 10 and not has_paid_free:
+        return jsonify({'can_upload': False, 'reason': 'project_limit'}), 200
+
+    return jsonify({'can_upload': True}), 200
+
 @api_project.route('/upload', methods=['POST'])
-@requires_auth(use_form=True)
+@requires_auth(use_form=True, allow_anonymous=True)
 def upload_file(user, data):
     """
     Handle file upload - FAST, just save file.
@@ -96,8 +138,28 @@ def upload_file(user, data):
     This splits the slow validation (LibreOffice, word count) into separate endpoint.
     """
     user_email = user['email']
+    is_anonymous = user.get('is_anonymous', False)
 
     try:
+        # For anonymous users: verify CAPTCHA and check preview limits
+        if is_anonymous:
+            captcha_token = request.form.get('captcha_token')
+            if RECAPTCHA_SECRET_KEY:
+                if not captcha_token:
+                    return jsonify({'error': 'CAPTCHA verification required.'}), 403
+                if not verify_captcha(captcha_token):
+                    return jsonify({'error': 'CAPTCHA verification failed. Please try again.'}), 403
+            elif not captcha_token:
+                print("⚠️  [CAPTCHA] No RECAPTCHA_SECRET_KEY configured, skipping CAPTCHA requirement")
+
+            # Check preview count limit (anonymous gets exactly 1 preview, ever)
+            preview_count = user.get('preview_count', 0)
+            if preview_count >= 1:
+                return jsonify({
+                    'error': 'Anonymous upload limit reached. Please sign up to continue.',
+                    'requires_signup': True
+                }), 403
+
         # STEP 1: Check upload limits (10 projects max until user has paid free project)
         user_id = str(user['_id'])
         project_count = Project.count_user_projects(user_id)
@@ -109,6 +171,24 @@ def upload_file(user, data):
                 'project_count': project_count,
                 'requires_payment': True
             }), 402  # 402 Payment Required
+
+        # STEP 1b: Reject duplicate uploads (prevent refresh/double-submit spam)
+        from database import mongo
+        recent_cutoff = datetime.utcnow() - timedelta(seconds=60)
+        existing_upload = mongo.db.projects.find_one({
+            'user_id': user_id,
+            'validated': False,
+            'status': 'uploaded',
+            'created_at': {'$gte': recent_cutoff},
+            'is_orphaned': {'$ne': True}
+        })
+        if existing_upload:
+            print(f"⚠️  [UPLOAD] Duplicate upload blocked for user {user_id}, existing project: {existing_upload['project_id']}")
+            return jsonify({
+                'error': 'An upload is already in progress.',
+                'project_id': existing_upload['project_id'],
+                'duplicate': True
+            }), 409
 
         # STEP 2: Validate file presence
         if 'file' not in request.files:
@@ -154,7 +234,11 @@ def upload_file(user, data):
             shutil.rmtree(project_dir, ignore_errors=True)
             return jsonify({'error': error_msg}), 400
 
-        # STEP 6: Create database entry with validated=False
+        # STEP 6: Determine if this is a preview upload
+        # Anonymous users always get previews. Signed-up users get previews if they have quota (5 max).
+        is_preview_upload = is_anonymous or user.get('preview_count', 0) < 5
+
+        # STEP 7: Create database entry with validated=False
         # No metadata yet - will be populated by /validate endpoint
         project = Project(
             project_id=project_id,
@@ -168,9 +252,23 @@ def upload_file(user, data):
             filesize=filesize,
             page_count=None,  # Will be populated during validation
             word_count=None,  # Will be populated during validation
-            validated=False  # NEW: Not yet validated
+            validated=False,
+            is_preview=is_preview_upload
         )
         project.insert()
+
+        # Increment preview count for preview uploads
+        if is_preview_upload:
+            new_count = User.increment_preview_count(user_email)
+            if new_count is None:
+                # Limit reached concurrently — clean up and reject
+                from database import mongo
+                mongo.db.projects.delete_one({'project_id': project_id})
+                shutil.rmtree(project_dir, ignore_errors=True)
+                return jsonify({
+                    'error': 'Preview upload limit reached. Please sign up to continue.' if is_anonymous else 'Preview upload limit reached. Please pay for full uploads.',
+                    'requires_signup': is_anonymous
+                }), 403
 
         print(f"✅ [UPLOAD] Project created: {project_id} (not yet validated)")
 
@@ -193,7 +291,7 @@ def upload_file(user, data):
         }), 500
 
 @api_project.route('/validate', methods=['POST'])
-@requires_auth()
+@requires_auth(allow_anonymous=True)
 def validate_file(user, data):
     """
     Validate an uploaded file - SLOW (5-10 seconds).
@@ -256,9 +354,16 @@ def validate_file(user, data):
             # Validation failed - delete project and files
             print(f"❌ [VALIDATE] Document processing error: {e}")
             Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
+            DocumentAnalysis.delete_by_project(project_id)
             return jsonify({
                 'error': 'Failed to process document. Please ensure it is a valid Word file.'
             }), 500
+
+        # STEP 6b: Extract document analysis (FAST - pure DOCX ZIP/XML parsing)
+        analysis = extract_docx_analysis(file_path)
+        doc_analysis = DocumentAnalysis(project_id=project_id, **analysis)
+        doc_analysis.insert()
+        print(f"📊 [VALIDATE] Document analysis stored: {analysis['image_count']} images, {analysis['table_count']} tables, {analysis['equation_count']} equations")
 
         # STEP 7: Validate word-to-page ratio
         is_valid_ratio, ratio_error = validate_word_page_ratio(word_count, page_count)
@@ -266,6 +371,7 @@ def validate_file(user, data):
             # Validation failed - delete project and files
             print(f"❌ [VALIDATE] Invalid word/page ratio: {ratio_error}")
             Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
+            DocumentAnalysis.delete_by_project(project_id)
             return jsonify({'error': ratio_error}), 400
 
         print(f"✅ [VALIDATE] Word/page ratio valid: {word_count / page_count:.0f} words/page")
@@ -298,6 +404,7 @@ def validate_file(user, data):
             'message': 'File validated successfully',
             'project_id': project_id,
             'validated': True,
+            'is_preview': project.get('is_preview', False),
             'metadata': {
                 'filesize': filesize,
                 'page_count': page_count,
@@ -305,7 +412,7 @@ def validate_file(user, data):
                 'filename': project['upload_filename']
             },
             'cost_estimate': cost_estimate,
-            'can_use_free': not User.has_claimed_free_project(user_email)
+            'document_analysis': analysis
         }), 200
 
     except Exception as e:
@@ -314,6 +421,7 @@ def validate_file(user, data):
         try:
             if 'project_id' in locals() and project_id and 'user_email' in locals():
                 Project.delete_with_files(project_id, user_email, USER_PROJECTS_DIR)
+                DocumentAnalysis.delete_by_project(project_id)
         except Exception as cleanup_error:
             print(f"⚠️  [VALIDATE] Cleanup error: {cleanup_error}")
 
@@ -322,7 +430,7 @@ def validate_file(user, data):
         }), 500
 
 @api_project.route('/cost-estimate', methods=['GET'])
-@requires_auth()
+@requires_auth(allow_anonymous=True)
 def get_cost_estimate(user):
     """
     Get cost estimate for an existing project.
@@ -365,123 +473,8 @@ def get_cost_estimate(user):
         'cost_estimate': cost_estimate
     }), 200
 
-@api_project.route('/claim-free', methods=['POST'])
-@requires_auth()
-def claim_free_upload(user, data):
-    """
-    Atomically claim the free upload for a project.
-
-    Requires card verification via Stripe setup mode before calling.
-    User's card fingerprints are checked against other users to prevent abuse.
-
-    Request body:
-        {
-            "project_id": "uuid-here"
-        }
-
-    Returns:
-        Success message with project details
-
-    Validation:
-        1. Project must have card_verified_at (set by setup webhook)
-        2. User must have at least one card fingerprint
-        3. None of user's fingerprints can be used by another user for free upload
-        4. Atomic claim to prevent race conditions
-    """
-    project_id = data.get('project_id')
-
-    if not project_id:
-        return jsonify({'error': 'project_id is required'}), 400
-
-    if len(project_id) > 36:
-        return jsonify({'error': 'Invalid project_id format'}), 400
-
-    project = Project.find_by_id(project_id)
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
-
-    if project.get('user_id') != str(user['_id']):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    if not project.get('validated', False):
-        return jsonify({
-            'error': 'Project must be validated before claiming free upload',
-            'requires_validation': True
-        }), 400
-
-    if project.get('status') != 'validated':
-        return jsonify({
-            'error': f"Project must be validated before payment (current status: {project.get('status')})",
-            'requires_validation': True
-        }), 400
-
-    if project.get('paid', False):
-        return jsonify({
-            'error': 'Project is already paid for'
-        }), 400
-
-    if not project.get('card_verified_at'):
-        return jsonify({
-            'error': 'Card verification required. Please complete Stripe checkout first.',
-            'requires_card_verification': True
-        }), 400
-
-    user_data = User.find_by_email(user['email'])
-    user_fingerprints = user_data.get('card_fingerprints', []) if user_data else []
-
-    if not user_fingerprints:
-        return jsonify({
-            'error': 'No card on file. Please complete Stripe checkout first.',
-            'requires_card_verification': True
-        }), 400
-
-    abuse_user = User.find_user_with_fingerprint_and_free_claim(user_fingerprints, exclude_email=user['email'])
-    if abuse_user:
-        print(f"⚠️ [CLAIM-FREE] Abuse detected: card already used by another account")
-        # Mark this user's free upload as forfeited due to abuse
-        User.set_free_project(user['email'], 'ABUSE_BLOCKED')
-        print(f"⚠️ [CLAIM-FREE] Free upload forfeited due to card reuse")
-        return jsonify({
-            'error': 'This card has already been used for a free upload on another account'
-        }), 409
-
-    success = User.set_free_project(user['email'], project_id)
-
-    if not success:
-        if User.has_claimed_free_project(user['email']):
-            return jsonify({
-                'error': 'You have already used your free upload'
-            }), 409
-        else:
-            return jsonify({
-                'error': 'Failed to claim free upload'
-            }), 500
-
-    print(f"✅ [CLAIM-FREE] Free upload claimed for project {project_id}")
-
-    mark_success = Project.mark_as_paid(project_id=project_id, total_cost=0.0)
-
-    if not mark_success:
-        from database import mongo
-        mongo.db.users.update_one(
-            {'email': user['email']},
-            {'$set': {'free_project_id': None, 'free_project_claimed_at': None}}
-        )
-        return jsonify({
-            'error': 'Failed to mark project as paid'
-        }), 500
-
-    print(f"✅ [CLAIM-FREE] Project {project_id} marked as paid (free)")
-
-    return jsonify({
-        'message': 'Free upload claimed successfully',
-        'project_id': project_id,
-        'paid': True,
-        'total_cost': 0.0
-    }), 200
-
 @api_project.route('/projects', methods=['GET'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def get_projects(user):
     """Get all projects for the authenticated user"""
     projects = Project.find_by_user(str(user['_id']))
@@ -530,7 +523,7 @@ def get_projects(user):
     return jsonify(formatted_projects), 200
 
 @api_project.route('/project/<project_id>', methods=['DELETE'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def delete_project(user, project_id):
     """Delete a project: orphan DB record, delete local files, notify latextai server"""
     from api_latext import delete_project_on_latextai
@@ -560,7 +553,7 @@ def delete_project(user, project_id):
     return jsonify({'message': message}), 200
 
 @api_project.route('/project/<project_id>', methods=['GET'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def get_project(user, project_id):
     """Get a single project by ID (minimal fields for frontend)"""
     project = Project.find_by_id(project_id)
@@ -571,17 +564,26 @@ def get_project(user, project_id):
     if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
+    # Look up document analysis
+    analysis_doc = DocumentAnalysis.find_by_project(project_id)
+    document_analysis = None
+    if analysis_doc:
+        document_analysis = {k: v for k, v in analysis_doc.items() if k not in ('_id', 'project_id', 'created_at')}
+
     return jsonify({
         'project_id': project.get('project_id'),
         'upload_filename': project.get('upload_filename'),
         'status': project.get('status'),
         'paid': project.get('paid', False),
+        'is_preview': project.get('is_preview', False),
+        'paid_with_free_upload': project.get('paid_with_free_upload', False),
         'compilation_failed': project.get('compilation_failed', False),
         'feedback': project.get('feedback'),
+        'document_analysis': document_analysis,
     }), 200
 
 @api_project.route('/project/<project_id>/payment-details', methods=['GET'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def get_payment_details(user, project_id):
     """Get payment details for a project (cost estimate, metadata, etc.)"""
     user_email = user['email']
@@ -599,8 +601,8 @@ def get_payment_details(user, project_id):
     if not project.get('validated', False):
         return jsonify({'error': 'Project not yet validated'}), 400
 
-    # Check if already paid
-    if project.get('paid', False):
+    # Check if already paid (allow through for free-upload projects — frontend needs cost data for upgrade CTA)
+    if project.get('paid', False) and not project.get('paid_with_free_upload', False):
         return jsonify({'error': 'Project already paid'}), 409
 
     # Get metadata
@@ -618,11 +620,25 @@ def get_payment_details(user, project_id):
     # Calculate cost estimate (same as validation)
     cost_estimate = calculate_cost(page_count)
 
-    # Check if user can use free upload
-    can_use_free = not User.has_claimed_free_project(user_email)
+    # Get all balances in one query
+    balances = User.get_all_balances(user_email)
+    credit_balance = balances['credit_balance']
+    free_credit_balance = balances['free_credit_balance']
+    first_purchase_discount_used = balances['first_purchase_discount_used']
 
-    # Get user's credit balance
-    credit_balance = User.get_credit_balance(user_email)
+    # Pre-compute credit split
+    credit_split = calculate_credit_split(
+        cost_estimate['total_credits'],
+        free_credit_balance,
+        credit_balance,
+        not first_purchase_discount_used
+    )
+
+    # Look up document analysis
+    analysis_doc = DocumentAnalysis.find_by_project(project_id)
+    document_analysis = None
+    if analysis_doc:
+        document_analysis = {k: v for k, v in analysis_doc.items() if k not in ('_id', 'project_id', 'created_at')}
 
     return jsonify({
         'project_id': project_id,
@@ -634,13 +650,16 @@ def get_payment_details(user, project_id):
             'template': template_name
         },
         'cost_estimate': cost_estimate,
-        'can_use_free': can_use_free,
         'credit_balance': credit_balance,
-        'has_sufficient_credits': credit_balance >= cost_estimate['total_credits']
+        'free_credit_balance': free_credit_balance,
+        'first_purchase_discount_available': not first_purchase_discount_used,
+        'credit_split': credit_split,
+        'has_sufficient_credits': credit_split['sufficient'],
+        'document_analysis': document_analysis
     }), 200
 
 @api_project.route('/project/<project_id>/feedback', methods=['POST'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def submit_feedback(user, data, project_id):
     """Submit user feedback for a completed project"""
     project = Project.find_by_id(project_id)

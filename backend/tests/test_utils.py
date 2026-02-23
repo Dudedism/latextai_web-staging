@@ -10,8 +10,8 @@ from werkzeug.security import generate_password_hash
 
 
 def create_test_user(email=None, password=None, is_verified=True,
-                     free_project_id=None, admin=False, mongo_db=None,
-                     base_url=None):
+                     admin=False, mongo_db=None,
+                     base_url=None, **kwargs):
     """Create a test user directly in MongoDB and get auth tokens via API."""
     # Generate defaults if not provided
     if email is None:
@@ -32,7 +32,6 @@ def create_test_user(email=None, password=None, is_verified=True,
         'email': email,
         'password': generate_password_hash(password),
         'is_verified': is_verified,
-        'free_project_id': free_project_id,
         'admin': admin,
         'data_consent': None,
         'is_deleted': False,
@@ -60,7 +59,6 @@ def create_test_user(email=None, password=None, is_verified=True,
         'password': password,
         'user_id': user_id,
         'is_verified': is_verified,
-        'free_project_id': free_project_id,
         'admin': admin,
         'access_token': tokens['access_token'],
         'refresh_token': tokens['refresh_token']

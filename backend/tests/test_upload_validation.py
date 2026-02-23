@@ -32,7 +32,6 @@ def test_user():
     with app.app_context():
         user = create_test_user(
             is_verified=True,
-            free_project_id=None,
             mongo_db=mongo.db,
             base_url=BASE_URL
         )
@@ -191,8 +190,6 @@ def test_valid_document_validation(test_user):
         assert 'validated' in response_data, "Response should contain validated"
         assert 'metadata' in response_data, "Response should contain metadata"
         assert 'cost_estimate' in response_data, "Response should contain cost_estimate"
-        assert 'can_use_free' in response_data, "Response should contain can_use_free"
-
         # ASSERTION 3: validated should be True
         assert response_data['validated'] == True, f"validated should be True, got {response_data['validated']}"
 

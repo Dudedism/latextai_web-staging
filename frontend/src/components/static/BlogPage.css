@@ -1,0 +1,294 @@
+.blog-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.blog-bg-area {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+}
+
+/* Left side: Word document style */
+.blog-bg-area::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.13;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='900' fill='none'%3E%3Crect width='700' height='900' fill='%23fff'/%3E%3Crect x='40' y='20' width='620' height='860' rx='2' fill='%23fafafa' stroke='%23e0e0e0' stroke-width='1'/%3E%3Crect x='40' y='20' width='620' height='36' fill='%23f0f0f0'/%3E%3Crect x='52' y='30' width='14' height='14' rx='2' fill='%23ddd'/%3E%3Crect x='72' y='30' width='14' height='14' rx='2' fill='%23ddd'/%3E%3Crect x='92' y='30' width='14' height='14' rx='2' fill='%23ddd'/%3E%3Crect x='114' y='34' width='1' height='8' fill='%23ccc'/%3E%3Crect x='124' y='30' width='18' height='14' rx='2' fill='%23ddd'/%3E%3Crect x='148' y='30' width='18' height='14' rx='2' fill='%23ddd'/%3E%3Crect x='172' y='30' width='18' height='14' rx='2' fill='%23ddd'/%3E%3Ctext x='350' y='96' font-family='Georgia,serif' font-size='22' fill='%23222' text-anchor='middle' font-weight='bold'%3EOn the Convergence of Neural%3C/text%3E%3Ctext x='350' y='122' font-family='Georgia,serif' font-size='22' fill='%23222' text-anchor='middle' font-weight='bold'%3ENetwork Architectures%3C/text%3E%3Ctext x='350' y='152' font-family='Georgia,serif' font-size='13' fill='%23666' text-anchor='middle'%3EJ. Smith, A. Kumar%3C/text%3E%3Ctext x='350' y='170' font-family='Georgia,serif' font-size='12' fill='%23888' text-anchor='middle' font-style='italic'%3EDepartment of Computer Science%3C/text%3E%3Crect x='80' y='190' width='540' height='1' fill='%23ddd'/%3E%3Ctext x='80' y='220' font-family='Georgia,serif' font-size='16' fill='%23222' font-weight='bold'%3EAbstract%3C/text%3E%3Ctext x='80' y='244' font-family='Georgia,serif' font-size='12' fill='%23444'%3EThis paper presents a comprehensive analysis of modern deep%3C/text%3E%3Ctext x='80' y='262' font-family='Georgia,serif' font-size='12' fill='%23444'%3Elearning architectures and their convergence properties under%3C/text%3E%3Ctext x='80' y='280' font-family='Georgia,serif' font-size='12' fill='%23444'%3Evarious training conditions. We demonstrate that modified%3C/text%3E%3Ctext x='80' y='298' font-family='Georgia,serif' font-size='12' fill='%23444'%3Etransformer architectures achieve superior convergence rates.%3C/text%3E%3Crect x='80' y='318' width='540' height='1' fill='%23ddd'/%3E%3Ctext x='80' y='348' font-family='Georgia,serif' font-size='16' fill='%23222' font-weight='bold'%3E1. Introduction%3C/text%3E%3Ctext x='80' y='374' font-family='Georgia,serif' font-size='12' fill='%23444'%3EThe rapid advancement of artificial intelligence has led to%3C/text%3E%3Ctext x='80' y='392' font-family='Georgia,serif' font-size='12' fill='%23444'%3Esignificant breakthroughs in natural language processing and%3C/text%3E%3Ctext x='80' y='410' font-family='Georgia,serif' font-size='12' fill='%23444'%3Ecomputer vision. Recent studies have shown that attention-based%3C/text%3E%3Ctext x='80' y='428' font-family='Georgia,serif' font-size='12' fill='%23444'%3Emodels outperform traditional recurrent neural networks in a%3C/text%3E%3Ctext x='80' y='446' font-family='Georgia,serif' font-size='12' fill='%23444'%3Ewide range of tasks %5B1%5D. Furthermore, the scaling laws of large%3C/text%3E%3Ctext x='80' y='464' font-family='Georgia,serif' font-size='12' fill='%23444'%3Elanguage models have been extensively studied %5B2, 3%5D.%3C/text%3E%3Ctext x='80' y='500' font-family='Georgia,serif' font-size='16' fill='%23222' font-weight='bold'%3E2. Related Work%3C/text%3E%3Ctext x='80' y='526' font-family='Georgia,serif' font-size='12' fill='%23444'%3ETransformer models were first introduced by Vaswani et al.%3C/text%3E%3Ctext x='80' y='544' font-family='Georgia,serif' font-size='12' fill='%23444'%3E(2017) and have since become the dominant architecture across%3C/text%3E%3Ctext x='80' y='562' font-family='Georgia,serif' font-size='12' fill='%23444'%3Emany domains of machine learning. Vision transformers (ViT)%3C/text%3E%3Ctext x='80' y='580' font-family='Georgia,serif' font-size='12' fill='%23444'%3Eextended this approach to image classification tasks.%3C/text%3E%3Ctext x='80' y='616' font-family='Georgia,serif' font-size='16' fill='%23222' font-weight='bold'%3E3. Methodology%3C/text%3E%3Ctext x='80' y='642' font-family='Georgia,serif' font-size='12' fill='%23444'%3EWe employ a modified transformer architecture with the%3C/text%3E%3Ctext x='80' y='660' font-family='Georgia,serif' font-size='12' fill='%23444'%3Efollowing loss function applied across all training batches:%3C/text%3E%3Ctext x='250' y='696' font-family='Georgia,serif' font-size='14' fill='%23333' font-style='italic' text-anchor='middle'%3EL = -%CE%A3 yi log(y%CC%82i)%3C/text%3E%3Ctext x='80' y='732' font-family='Georgia,serif' font-size='12' fill='%23444'%3EThe model was trained on 8 NVIDIA A100 GPUs with a batch%3C/text%3E%3Ctext x='80' y='750' font-family='Georgia,serif' font-size='12' fill='%23444'%3Esize of 256 and an initial learning rate of 3e-4 with cosine%3C/text%3E%3Ctext x='80' y='768' font-family='Georgia,serif' font-size='12' fill='%23444'%3Eannealing schedule over 100 epochs.%3C/text%3E%3C/svg%3E");
+  background-size: 1200px auto;
+  background-repeat: repeat-y;
+  background-position: right top;
+}
+
+/* Right side: LaTeX editor style */
+.blog-bg-area::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.13;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='900' fill='none'%3E%3Crect width='700' height='900' fill='%23fff'/%3E%3Crect x='0' y='0' width='44' height='900' fill='%23f5f5f5'/%3E%3Crect x='44' y='0' width='1' height='900' fill='%23e0e0e0'/%3E%3Ctext x='22' y='30' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E1%3C/text%3E%3Ctext x='22' y='50' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E2%3C/text%3E%3Ctext x='22' y='70' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E3%3C/text%3E%3Ctext x='22' y='90' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E4%3C/text%3E%3Ctext x='22' y='110' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E5%3C/text%3E%3Ctext x='22' y='130' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E6%3C/text%3E%3Ctext x='22' y='150' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E7%3C/text%3E%3Ctext x='22' y='170' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E8%3C/text%3E%3Ctext x='22' y='190' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E9%3C/text%3E%3Ctext x='22' y='210' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E10%3C/text%3E%3Ctext x='22' y='230' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E11%3C/text%3E%3Ctext x='22' y='250' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E12%3C/text%3E%3Ctext x='22' y='270' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E13%3C/text%3E%3Ctext x='22' y='290' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E14%3C/text%3E%3Ctext x='22' y='310' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E15%3C/text%3E%3Ctext x='22' y='330' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E16%3C/text%3E%3Ctext x='22' y='350' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E17%3C/text%3E%3Ctext x='22' y='370' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E18%3C/text%3E%3Ctext x='22' y='390' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E19%3C/text%3E%3Ctext x='22' y='410' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E20%3C/text%3E%3Ctext x='22' y='430' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E21%3C/text%3E%3Ctext x='22' y='450' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E22%3C/text%3E%3Ctext x='22' y='470' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E23%3C/text%3E%3Ctext x='22' y='490' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E24%3C/text%3E%3Ctext x='22' y='510' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E25%3C/text%3E%3Ctext x='22' y='530' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E26%3C/text%3E%3Ctext x='22' y='550' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E27%3C/text%3E%3Ctext x='22' y='570' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E28%3C/text%3E%3Ctext x='22' y='590' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E29%3C/text%3E%3Ctext x='22' y='610' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E30%3C/text%3E%3Ctext x='22' y='630' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E31%3C/text%3E%3Ctext x='22' y='650' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E32%3C/text%3E%3Ctext x='22' y='670' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E33%3C/text%3E%3Ctext x='22' y='690' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E34%3C/text%3E%3Ctext x='22' y='710' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E35%3C/text%3E%3Ctext x='22' y='730' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E36%3C/text%3E%3Ctext x='22' y='750' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E37%3C/text%3E%3Ctext x='22' y='770' font-family='monospace' font-size='11' fill='%23999' text-anchor='middle'%3E38%3C/text%3E%3Ctext x='56' y='30' font-family='monospace' font-size='13' fill='%237b3092'%3E\\documentclass%3C/text%3E%3Ctext x='212' y='30' font-family='monospace' font-size='13' fill='%23986801'%3E%7Barticle%7D%3C/text%3E%3Ctext x='56' y='50' font-family='monospace' font-size='13' fill='%237b3092'%3E\\usepackage%3C/text%3E%3Ctext x='186' y='50' font-family='monospace' font-size='13' fill='%23986801'%3E%7Bamsmath%7D%3C/text%3E%3Ctext x='56' y='70' font-family='monospace' font-size='13' fill='%237b3092'%3E\\usepackage%3C/text%3E%3Ctext x='186' y='70' font-family='monospace' font-size='13' fill='%23986801'%3E%7Bgraphicx%7D%3C/text%3E%3Ctext x='56' y='90' font-family='monospace' font-size='13' fill='%237b3092'%3E\\usepackage%3C/text%3E%3Ctext x='186' y='90' font-family='monospace' font-size='13' fill='%234078f2'%3E%5Butf8%5D%3C/text%3E%3Ctext x='232' y='90' font-family='monospace' font-size='13' fill='%23986801'%3E%7Binputenc%7D%3C/text%3E%3Ctext x='56' y='130' font-family='monospace' font-size='13' fill='%237b3092'%3E\\title%3C/text%3E%3Ctext x='112' y='130' font-family='monospace' font-size='13' fill='%23986801'%3E%7B%3C/text%3E%3Ctext x='128' y='130' font-family='monospace' font-size='13' fill='%232350a14f'%3EOn the Convergence of Neural%3C/text%3E%3Ctext x='72' y='150' font-family='monospace' font-size='13' fill='%232350a14f'%3E%20%20Network Architectures%3C/text%3E%3Ctext x='300' y='150' font-family='monospace' font-size='13' fill='%23986801'%3E%7D%3C/text%3E%3Ctext x='56' y='170' font-family='monospace' font-size='13' fill='%237b3092'%3E\\author%3C/text%3E%3Ctext x='128' y='170' font-family='monospace' font-size='13' fill='%23986801'%3E%7B%3C/text%3E%3Ctext x='140' y='170' font-family='monospace' font-size='13' fill='%232350a14f'%3EJ. Smith and A. Kumar%3C/text%3E%3Ctext x='376' y='170' font-family='monospace' font-size='13' fill='%23986801'%3E%7D%3C/text%3E%3Ctext x='56' y='190' font-family='monospace' font-size='13' fill='%237b3092'%3E\\date%3C/text%3E%3Ctext x='104' y='190' font-family='monospace' font-size='13' fill='%23986801'%3E%7B%3C/text%3E%3Ctext x='116' y='190' font-family='monospace' font-size='13' fill='%232350a14f'%3EFebruary 2026%3C/text%3E%3Ctext x='264' y='190' font-family='monospace' font-size='13' fill='%23986801'%3E%7D%3C/text%3E%3Ctext x='56' y='230' font-family='monospace' font-size='13' fill='%237b3092'%3E\\begin%3C/text%3E%3Ctext x='120' y='230' font-family='monospace' font-size='13' fill='%23986801'%3E%7Bdocument%7D%3C/text%3E%3Ctext x='56' y='250' font-family='monospace' font-size='13' fill='%237b3092'%3E\\maketitle%3C/text%3E%3Ctext x='56' y='290' font-family='monospace' font-size='13' fill='%237b3092'%3E\\begin%3C/text%3E%3Ctext x='120' y='290' font-family='monospace' font-size='13' fill='%23986801'%3E%7Babstract%7D%3C/text%3E%3Ctext x='56' y='310' font-family='monospace' font-size='13' fill='%23383a42'%3EThis paper presents a comprehensive%3C/text%3E%3Ctext x='56' y='330' font-family='monospace' font-size='13' fill='%23383a42'%3Eanalysis of modern deep learning%3C/text%3E%3Ctext x='56' y='350' font-family='monospace' font-size='13' fill='%23383a42'%3Earchitectures and their convergence%3C/text%3E%3Ctext x='56' y='370' font-family='monospace' font-size='13' fill='%23383a42'%3Eproperties under various conditions.%3C/text%3E%3Ctext x='56' y='390' font-family='monospace' font-size='13' fill='%237b3092'%3E\\end%3C/text%3E%3Ctext x='100' y='390' font-family='monospace' font-size='13' fill='%23986801'%3E%7Babstract%7D%3C/text%3E%3Ctext x='56' y='430' font-family='monospace' font-size='13' fill='%237b3092'%3E\\section%3C/text%3E%3Ctext x='144' y='430' font-family='monospace' font-size='13' fill='%23986801'%3E%7BIntroduction%7D%3C/text%3E%3Ctext x='56' y='450' font-family='monospace' font-size='13' fill='%23383a42'%3EThe rapid advancement of artificial%3C/text%3E%3Ctext x='56' y='470' font-family='monospace' font-size='13' fill='%23383a42'%3Eintelligence has led to significant%3C/text%3E%3Ctext x='56' y='490' font-family='monospace' font-size='13' fill='%23383a42'%3Ebreakthroughs in natural language%3C/text%3E%3Ctext x='56' y='510' font-family='monospace' font-size='13' fill='%23383a42'%3Eprocessing and computer vision.%3C/text%3E%3Ctext x='56' y='530' font-family='monospace' font-size='13' fill='%23383a42'%3ERecent studies have shown that%3C/text%3E%3Ctext x='56' y='550' font-family='monospace' font-size='13' fill='%23383a42'%3Eattention-based models outperform%3C/text%3E%3Ctext x='56' y='570' font-family='monospace' font-size='13' fill='%23383a42'%3Etraditional recurrent networks.%3C/text%3E%3Ctext x='56' y='610' font-family='monospace' font-size='13' fill='%237b3092'%3E\\section%3C/text%3E%3Ctext x='144' y='610' font-family='monospace' font-size='13' fill='%23986801'%3E%7BMethodology%7D%3C/text%3E%3Ctext x='56' y='630' font-family='monospace' font-size='13' fill='%23383a42'%3EWe employ a modified transformer%3C/text%3E%3Ctext x='56' y='650' font-family='monospace' font-size='13' fill='%23383a42'%3Earchitecture with the following%3C/text%3E%3Ctext x='56' y='670' font-family='monospace' font-size='13' fill='%23383a42'%3Eloss function:%3C/text%3E%3Ctext x='56' y='710' font-family='monospace' font-size='13' fill='%234078f2'%3E$%3C/text%3E%3Ctext x='68' y='710' font-family='monospace' font-size='13' fill='%23c45a28'%3E\\mathcal%7BL%7D%3C/text%3E%3Ctext x='192' y='710' font-family='monospace' font-size='13' fill='%23383a42'%3E= -%3C/text%3E%3Ctext x='220' y='710' font-family='monospace' font-size='13' fill='%23c45a28'%3E\\sum_%7Bi%3D1%7D%5E%7BN%7D%3C/text%3E%3Ctext x='350' y='710' font-family='monospace' font-size='13' fill='%23383a42'%3Ey_i%3C/text%3E%3Ctext x='380' y='710' font-family='monospace' font-size='13' fill='%23c45a28'%3E\\log%3C/text%3E%3Ctext x='420' y='710' font-family='monospace' font-size='13' fill='%23383a42'%3E(%3C/text%3E%3Ctext x='430' y='710' font-family='monospace' font-size='13' fill='%23c45a28'%3E\\hat%7By%7D%3C/text%3E%3Ctext x='498' y='710' font-family='monospace' font-size='13' fill='%23383a42'%3E_i)%3C/text%3E%3Ctext x='530' y='710' font-family='monospace' font-size='13' fill='%234078f2'%3E$%3C/text%3E%3Ctext x='56' y='750' font-family='monospace' font-size='13' fill='%23a0a1a7' font-style='italic'%3E%25 Training parameters%3C/text%3E%3Ctext x='56' y='770' font-family='monospace' font-size='13' fill='%23383a42'%3EThe model was trained on 8 A100%3C/text%3E%3C/svg%3E");
+  background-size: 1200px auto;
+  background-repeat: repeat-y;
+  background-position: left top;
+}
+
+.blog-main {
+  flex: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.blog-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.blog-title {
+  font-size: 48px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 12px 0;
+}
+
+.blog-subtitle {
+  font-size: 20px;
+  color: #555;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Posts List */
+.blog-posts {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.blog-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  font-size: 18px;
+}
+
+/* Post card link */
+.blog-post-card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.blog-post {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(229, 229, 229, 0.8);
+  border-radius: 12px;
+  padding: 28px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.blog-post:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.10);
+  transform: translateY(-2px);
+}
+
+.blog-post-header {
+  margin-bottom: 16px;
+}
+
+.blog-post-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+}
+
+.blog-post-meta {
+  font-size: 14px;
+  color: #888;
+  display: flex;
+  gap: 12px;
+}
+
+.blog-post-date {
+  color: #666;
+}
+
+.blog-post-author {
+  color: #888;
+}
+
+.blog-post-excerpt {
+  color: #555;
+  font-size: 17px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Back link */
+.blog-back-link {
+  display: inline-block;
+  margin-bottom: 32px;
+  color: #555;
+  text-decoration: none;
+  font-size: 15px;
+  transition: color 0.2s;
+}
+
+.blog-back-link:hover {
+  color: #1a1a1a;
+}
+
+/* Markdown content styles */
+.blog-post-content--markdown {
+  color: #333;
+  font-size: 17px;
+  line-height: 1.75;
+  font-weight: 450;
+  margin-top: 32px;
+}
+
+.blog-post-content--markdown h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 36px 0 16px 0;
+}
+
+.blog-post-content--markdown h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 28px 0 12px 0;
+}
+
+.blog-post-content--markdown p {
+  margin: 0 0 16px 0;
+}
+
+.blog-post-content--markdown strong {
+  font-weight: 700;
+}
+
+.blog-post-content--markdown a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.blog-post-content--markdown a:hover {
+  color: #1d4ed8;
+}
+
+.blog-post-content--markdown ul,
+.blog-post-content--markdown ol {
+  margin: 0 0 16px 0;
+  padding-left: 28px;
+}
+
+.blog-post-content--markdown li {
+  margin-bottom: 6px;
+}
+
+.blog-post-content--markdown blockquote {
+  border-left: 3px solid #ddd;
+  margin: 0 0 16px 0;
+  padding: 4px 0 4px 20px;
+  color: #555;
+}
+
+.blog-post-content--markdown code {
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.blog-post-content--markdown pre {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 16px 20px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0 0 16px 0;
+}
+
+.blog-post-content--markdown pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  font-size: 14px;
+}
+
+.blog-post-content--markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 16px 0;
+}
+
+.blog-post-content--markdown th,
+.blog-post-content--markdown td {
+  border: 1px solid #ddd;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.blog-post-content--markdown th {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.blog-post-content--markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.blog-post-content--markdown hr {
+  border: none;
+  border-top: 1px solid #e5e5e5;
+  margin: 32px 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .blog-main {
+    padding: 24px 16px;
+  }
+
+  .blog-title {
+    font-size: 32px;
+  }
+
+  .blog-post {
+    padding: 20px;
+  }
+
+  .blog-post-title {
+    font-size: 20px;
+  }
+
+  .blog-post-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

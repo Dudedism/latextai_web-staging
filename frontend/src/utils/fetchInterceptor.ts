@@ -9,7 +9,7 @@ export const setupFetchInterceptor = () => {
   let isRefreshing = false;
 
   // Auth endpoints that legitimately return 401 for invalid credentials
-  const authEndpoints = ['/api/login', '/api/signup', '/api/refresh'];
+  const authEndpoints = ['/api/login', '/api/signup', '/api/refresh', '/api/auth/anonymous'];
 
   window.fetch = async (...args) => {
     const response = await originalFetch(...args);
@@ -53,13 +53,19 @@ export const setupFetchInterceptor = () => {
           isRefreshing = false;
           return await originalFetch(url, newOptions);
         } else {
-          console.log('❌ Token refresh failed - redirecting to sign in');
+          const wasAnonymous = localStorage.getItem('isAnonymous') === 'true';
 
           // Clear auth data
           logout();
 
-          // Redirect to signin page
-          window.location.href = '/signin';
+          if (!wasAnonymous) {
+            console.log('❌ Token refresh failed - redirecting to sign in');
+            // Redirect to signin page only for real users
+            window.location.href = '/signin';
+          } else {
+            console.log('❌ Anonymous token refresh failed - session cleared');
+            // Anonymous sessions will be re-spawned by AuthContext
+          }
         }
       } finally {
         isRefreshing = false;

@@ -9,7 +9,7 @@ from database import User, Project, CreditTransaction, mongo
 from datetime import datetime
 from config import LATEXTAI_SERVICE_URL, LATEXTAI_API_KEY
 from utils.document_utils import extract_docx_metadata, validate_docx_file
-from utils.pricing import calculate_cost
+from utils.pricing import calculate_cost, calculate_credit_split
 
 api_latext = Blueprint('api_latext_blueprint', __name__, url_prefix='/api/latex')
 
@@ -195,8 +195,236 @@ def admin_mark_paid(user, data):
         'project_id': project_id
     }), 200
 
-@api_latext.route('/process', methods=['POST'])
+def _process_credit_payment(user, project, project_id, description_prefix="Conversion"):
+    """
+    Unified credit payment logic for both new processing and preview upgrades.
+    Uses free credits first, applies first-purchase discount, then paid credits.
+    Returns (response, status_code) tuple.
+    """
+    page_count = project.get('page_count', 0)
+    cost_info = calculate_cost(page_count)
+    total_cost = cost_info['total_credits']
+
+    # Get all balances in one query
+    balances = User.get_all_balances(user['email'])
+    split = calculate_credit_split(
+        total_cost,
+        balances['free_credit_balance'],
+        balances['credit_balance'],
+        not balances['first_purchase_discount_used']
+    )
+
+    if not split['sufficient']:
+        return jsonify({
+            'error': 'Insufficient credits',
+            'credits_required': total_cost,
+            'credits_available': balances['credit_balance'],
+            'free_credits_available': balances['free_credit_balance'],
+            'credit_split': split,
+            'requires_topup': True
+        }), 402
+
+    # Determine project payment flags based on access level
+    is_free_only = split['access_level'] == 'free_only'
+    project_set = {
+        'paid': True,
+        'is_preview': False,
+        'paid_at': datetime.utcnow(),
+        'free_credits_used': split['free_credits_used'],
+        'paid_credits_used': split['paid_credits_used'],
+        'discount_applied': split['discount_applied'],
+        'discount_amount': split['discount_amount'],
+    }
+    if is_free_only:
+        project_set['paid_with_free_upload'] = True
+    else:
+        project_set['paid_with_credits'] = True
+        project_set['credits_charged'] = split['paid_credits_used']
+
+    # Atomically mark project as paid
+    mark_result = mongo.db.projects.update_one(
+        {'project_id': project_id, 'paid': False},
+        {'$set': project_set}
+    )
+    if mark_result.modified_count == 0:
+        return jsonify({'message': 'Project already paid'}), 200
+
+    # Atomically deduct credits
+    deduct_result = User.deduct_split_credits(
+        user['email'], split['free_credits_used'], split['paid_credits_used']
+    )
+    if deduct_result is None:
+        # Rollback project
+        mongo.db.projects.update_one(
+            {'project_id': project_id},
+            {'$set': {
+                'paid': False, 'is_preview': True, 'paid_with_free_upload': False,
+                'paid_with_credits': False, 'credits_charged': None, 'paid_at': None,
+                'free_credits_used': None, 'paid_credits_used': None,
+                'discount_applied': None, 'discount_amount': None,
+            }}
+        )
+        return jsonify({
+            'error': 'Failed to deduct credits. Please try again.',
+            'requires_topup': True
+        }), 402
+
+    new_free_balance, new_paid_balance = deduct_result
+
+    # Mark first purchase discount as used
+    if split['discount_applied']:
+        User.update_fields(user['email'], {'first_purchase_discount_used': True})
+
+    # Record transaction
+    total_deducted = split['free_credits_used'] + split['paid_credits_used']
+    CreditTransaction.create(
+        user_email=user['email'],
+        user_id=str(user['_id']),
+        transaction_type='deduct',
+        amount=-total_deducted,
+        balance_after=new_paid_balance,
+        description=f"{description_prefix}: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
+        project_id=project_id
+    )
+
+    print(f"💳 [{description_prefix.upper()}] {split['free_credits_used']} free + {split['paid_credits_used']} paid credits for project {project_id}")
+
+    return None, None  # Success — caller continues
+
+
+def _upgrade_preview(user, data, project, project_id):
+    """
+    Upgrade a converted preview project to a full paid project.
+    Uses unified credit split logic for payment.
+    """
+    error_response, status_code = _process_credit_payment(user, project, project_id, "Upgrade")
+    if error_response is not None:
+        return error_response, status_code
+
+    # Decrement preview_count since this is now a paid upload
+    mongo.db.users.update_one(
+        {'email': user['email'], 'preview_count': {'$gt': 0}},
+        {'$inc': {'preview_count': -1}}
+    )
+
+    return jsonify({
+        'message': 'Preview upgraded successfully',
+        'project_id': project_id,
+        'paid': True,
+        'is_preview': False,
+        'upgraded': True
+    }), 200
+
+
+@api_latext.route('/project/<project_id>/unlock', methods=['POST'])
 @requires_auth()
+def unlock_full_access(user, data, project_id):
+    """
+    Unlock full access on a paid_with_free_upload project.
+    Recalculates credit split using current balances, deducts credits,
+    and grants full download access. Does NOT re-process.
+    """
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    if project.get('user_id') != str(user['_id']):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    if not project.get('paid_with_free_upload', False):
+        return jsonify({'error': 'Project is not a free-upload project'}), 400
+
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Project is not yet converted'}), 400
+
+    # Recalculate fresh using current balances (matches what payment-details shows the user)
+    page_count = project.get('page_count', 0)
+    cost_info = calculate_cost(page_count)
+    total_cost = cost_info['total_credits']
+
+    balances = User.get_all_balances(user['email'])
+    split = calculate_credit_split(
+        total_cost,
+        balances['free_credit_balance'],
+        balances['credit_balance'],
+        not balances['first_purchase_discount_used']
+    )
+
+    # Must use paid credits to unlock full access
+    if split['access_level'] == 'free_only':
+        return jsonify({
+            'error': 'Insufficient paid credits for full access',
+            'credits_required': total_cost,
+            'credit_split': split,
+            'requires_topup': True
+        }), 402
+
+    if not split['sufficient']:
+        return jsonify({
+            'error': 'Insufficient credits',
+            'credits_required': total_cost,
+            'credit_split': split,
+            'requires_topup': True
+        }), 402
+
+    # Atomically update project first
+    mark_result = mongo.db.projects.update_one(
+        {'project_id': project_id, 'paid_with_free_upload': True},
+        {'$set': {
+            'paid_with_free_upload': False,
+            'paid_with_credits': True,
+            'credits_charged': split['paid_credits_used'],
+            'paid_credits_used': split['paid_credits_used'],
+            'free_credits_used': split['free_credits_used'],
+            'discount_applied': split['discount_applied'],
+            'discount_amount': split['discount_amount'],
+            'unlocked_at': datetime.utcnow(),
+        }}
+    )
+    if mark_result.modified_count == 0:
+        return jsonify({'error': 'Project already unlocked'}), 409
+
+    # Deduct credits
+    deduct_result = User.deduct_split_credits(
+        user['email'], split['free_credits_used'], split['paid_credits_used']
+    )
+    if deduct_result is None:
+        # Rollback
+        mongo.db.projects.update_one(
+            {'project_id': project_id},
+            {'$set': {'paid_with_free_upload': True, 'paid_with_credits': False}}
+        )
+        return jsonify({'error': 'Failed to deduct credits. Please try again.'}), 402
+
+    new_free_balance, new_paid_balance = deduct_result
+
+    # Mark first purchase discount as used
+    if split['discount_applied']:
+        User.update_fields(user['email'], {'first_purchase_discount_used': True})
+
+    # Record transaction
+    total_deducted = split['free_credits_used'] + split['paid_credits_used']
+    CreditTransaction.create(
+        user_email=user['email'],
+        user_id=str(user['_id']),
+        transaction_type='deduct',
+        amount=-total_deducted,
+        balance_after=new_paid_balance,
+        description=f"Unlock: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
+        project_id=project_id
+    )
+
+    print(f"🔓 [UNLOCK] {split['free_credits_used']} free + {split['paid_credits_used']} paid credits for project {project_id}")
+
+    return jsonify({
+        'message': 'Full access unlocked',
+        'project_id': project_id,
+        'credits_charged': split['paid_credits_used']
+    }), 200
+
+
+@api_latext.route('/process', methods=['POST'])
+@requires_auth(allow_anonymous=True)
 def process_project(user, data):
     """
     Initiate processing by forwarding to latextai service.
@@ -231,14 +459,19 @@ def process_project(user, data):
     if project.get('user_id') != str(user['_id']):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # STEP 3: Check project status (must be 'validated' or already processing/completed/failed)
+    # STEP 3: Check project status
     project_status = project.get('status')
     if project_status == 'processing':
         return jsonify({'message': 'Project is already being processed'}), 200
-    if project_status == 'converted':
-        return jsonify({'message': 'Project has already been converted'}), 200
     if project_status == 'failed':
         return jsonify({'message': 'Project processing has failed'}), 200
+
+    # Handle preview upgrade: converted preview that hasn't been paid for
+    if project_status == 'converted' and project.get('is_preview', False) and not project.get('paid', False):
+        return _upgrade_preview(user, data, project, project_id)
+
+    if project_status == 'converted':
+        return jsonify({'message': 'Project has already been converted'}), 200
     if project_status != 'validated':
         return jsonify({
             'error': f"Project must be validated before processing (current status: {project_status})"
@@ -250,62 +483,24 @@ def process_project(user, data):
             'error': 'Project has not been validated. Please validate before processing.'
         }), 400
 
-    # STEP 4: Handle payment - either already paid or deduct credits
-    if not project.get('paid', False):
-        page_count = project.get('page_count', 0)
-        cost_info = calculate_cost(page_count)
-        credits_required = cost_info['total_credits']
+    # STEP 4: Handle payment - either already paid, preview, or deduct credits
+    is_anonymous = user.get('is_anonymous', False)
+    is_preview_project = project.get('is_preview', False)
+    use_credits = data.get('use_credits', False)
 
-        current_balance = User.get_credit_balance(user['email'])
-        if current_balance < credits_required:
-            return jsonify({
-                'error': 'Insufficient credits',
-                'credits_required': credits_required,
-                'credits_available': current_balance,
-                'requires_topup': True
-            }), 402
-
-        # ATOMIC: Mark project as paid FIRST to prevent double-charge race condition
-        # Only one concurrent request can succeed with this update
-        mark_result = mongo.db.projects.update_one(
-            {'project_id': project_id, 'paid': False},
-            {'$set': {
-                'paid': True,
-                'paid_with_credits': True,
-                'credits_charged': credits_required,
-                'paid_at': datetime.utcnow()
-            }}
+    # Preview projects (anonymous or verified user previews) skip payment
+    # Unless user explicitly chose to pay with credits from the invoice card
+    if is_anonymous or (is_preview_project and not use_credits):
+        mongo.db.projects.update_one(
+            {'project_id': project_id},
+            {'$set': {'is_preview': True}}
         )
-
-        if mark_result.modified_count == 0:
-            # Another request already marked this project as paid
-            print(f"⚠️  [CREDITS] Project {project_id} already paid (race condition prevented)")
-            return jsonify({'message': 'Project already paid'}), 200
-
-        # Now deduct credits (we own the project payment)
-        new_balance = User.deduct_credits(user['email'], credits_required)
-        if new_balance is None:
-            # Rollback: Clear paid status since we couldn't charge
-            mongo.db.projects.update_one(
-                {'project_id': project_id},
-                {'$set': {'paid': False, 'paid_with_credits': False, 'credits_charged': None, 'paid_at': None}}
-            )
-            return jsonify({
-                'error': 'Failed to deduct credits. Please try again.',
-                'requires_topup': True
-            }), 402
-
-        CreditTransaction.create(
-            user_email=user['email'],
-            user_id=str(user['_id']),
-            transaction_type='deduct',
-            amount=-credits_required,
-            balance_after=new_balance,
-            description=f"Conversion: {project.get('upload_filename', 'document.docx')} ({page_count} pages)",
-            project_id=project_id
-        )
-
-        print(f"💳 [CREDITS] Charged {credits_required} credits for project {project_id}")
+        print(f"👁️  [PREVIEW] Preview processing for project {project_id} (anonymous={is_anonymous})")
+    elif not project.get('paid', False):
+        # Unified credit payment (free + paid + discount)
+        error_response, status_code = _process_credit_payment(user, project, project_id, "Conversion")
+        if error_response is not None:
+            return error_response, status_code
 
     # STEP 5: Get template configuration
     template_id = project.get('template')
@@ -391,9 +586,9 @@ def process_project(user, data):
         }), 500
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
-@requires_auth()
+@requires_auth(allow_anonymous=True)
 def get_pdf(user, project_id):
-    """Proxy PDF download request to latextai service"""
+    """Proxy PDF download request to latextai service. Preview projects get 3-page PDF."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -406,6 +601,10 @@ def get_pdf(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Determine which PDF to serve: preview (3-page) or full
+    is_preview = project.get('is_preview', False) and not project.get('paid', False)
+    download_endpoint = '/api/download/pdf-preview' if is_preview else '/api/download/pdf'
 
     try:
         # Proxy request to latextai service
@@ -418,7 +617,7 @@ def get_pdf(user, project_id):
         }
 
         response = requests.get(
-            f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
+            f"{LATEXTAI_SERVICE_URL}{download_endpoint}",
             params=params,
             headers=headers,
             stream=True,
@@ -431,6 +630,21 @@ def get_pdf(user, project_id):
                 response.iter_content(chunk_size=8192),
                 content_type='application/pdf'
             )
+        elif is_preview and response.status_code == 404:
+            # Preview endpoint might not exist yet — fallback to full PDF
+            response = requests.get(
+                f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
+                params=params,
+                headers=headers,
+                stream=True,
+                timeout=30
+            )
+            if response.status_code == 200:
+                return Response(
+                    response.iter_content(chunk_size=8192),
+                    content_type='application/pdf'
+                )
+            return jsonify({'error': 'PDF not found'}), response.status_code
         else:
             return jsonify({'error': 'PDF not found'}), response.status_code
 
@@ -441,7 +655,7 @@ def get_pdf(user, project_id):
 @api_latext.route('/project/<project_id>/tex', methods=['GET'])
 @requires_auth()
 def get_tex(user, project_id):
-    """Proxy TEX download request to latextai service"""
+    """Proxy TEX download request to latextai service. Requires payment."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -454,6 +668,16 @@ def get_tex(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Gate: require payment for .tex download
+    if not project.get('paid', False):
+        return jsonify({'error': 'Payment required to download LaTeX source files', 'upgrade_required': True}), 403
+
+    # Gate: free-credit-only projects can't download source files (unless compilation failed)
+    if (project.get('paid_with_free_upload', False) and
+            not project.get('paid_with_credits', False) and
+            not project.get('compilation_failed', False)):
+        return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
     try:
         # Proxy request to latextai service
@@ -489,7 +713,7 @@ def get_tex(user, project_id):
 @api_latext.route('/project/<project_id>/bib', methods=['GET'])
 @requires_auth()
 def get_bib(user, project_id):
-    """Proxy BibTeX download request to latextai service"""
+    """Proxy BibTeX download request to latextai service. Requires payment."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -502,6 +726,16 @@ def get_bib(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Gate: require payment for .bib download
+    if not project.get('paid', False):
+        return jsonify({'error': 'Payment required to download BibTeX files', 'upgrade_required': True}), 403
+
+    # Gate: free-credit-only projects can't download source files (unless compilation failed)
+    if (project.get('paid_with_free_upload', False) and
+            not project.get('paid_with_credits', False) and
+            not project.get('compilation_failed', False)):
+        return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
     try:
         # Proxy request to latextai service
@@ -537,7 +771,7 @@ def get_bib(user, project_id):
 @api_latext.route('/project/<project_id>/package', methods=['GET'])
 @requires_auth()
 def get_package(user, project_id):
-    """Proxy package download request to latextai service"""
+    """Proxy package download request to latextai service. Requires payment."""
     project = Project.find_by_id(project_id)
 
     if not project:
@@ -550,6 +784,16 @@ def get_package(user, project_id):
     # Check if project has been processed
     if project.get('status') != 'converted':
         return jsonify({'error': 'Document not yet processed'}), 404
+
+    # Gate: require payment for package download
+    if not project.get('paid', False):
+        return jsonify({'error': 'Payment required to download compilation package', 'upgrade_required': True}), 403
+
+    # Gate: free-credit-only projects can't download source files (unless compilation failed)
+    if (project.get('paid_with_free_upload', False) and
+            not project.get('paid_with_credits', False) and
+            not project.get('compilation_failed', False)):
+        return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
     try:
         # Proxy request to latextai service

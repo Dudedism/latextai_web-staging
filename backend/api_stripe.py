@@ -48,15 +48,12 @@ def create_setup_session(user, data):
     if project.get('paid', False):
         return jsonify({'error': 'Project already paid'}), 409
 
-    if User.has_claimed_free_project(user['email']):
-        return jsonify({'error': 'Free upload already used'}), 409
-
     try:
         checkout_session = stripe.checkout.Session.create(
             mode='setup',
             currency='usd',
-            success_url=f'{FRONTEND_URL}/papers/{project_id}/payment?setup_success=true&session_id={{CHECKOUT_SESSION_ID}}',
-            cancel_url=f'{FRONTEND_URL}/papers/{project_id}/payment?setup_cancelled=true',
+            success_url=f'{FRONTEND_URL}/papers/{project_id}/view?setup_success=true&session_id={{CHECKOUT_SESSION_ID}}',
+            cancel_url=f'{FRONTEND_URL}/papers/{project_id}/view?setup_cancelled=true',
             metadata={
                 'project_id': project_id,
                 'user_email': user['email'],
@@ -155,7 +152,7 @@ def stripe_webhook():
 def handle_setup_completed(session, project_id, user_email):
     """
     Handle setup mode completion: extract fingerprint and store on user, mark project as card verified.
-    Does NOT mark project as paid. Frontend must call /claim-free after this.
+    Does NOT mark project as paid.
     """
     print(f"🔐 [STRIPE] Setup completed for project {project_id}")
 

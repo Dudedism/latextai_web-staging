@@ -56,6 +56,61 @@ def calculate_cost(page_count):
     }
 
 
+def calculate_credit_split(total_cost, free_balance, paid_balance, discount_available):
+    """
+    Calculate how to split a payment across free credits, paid credits, and first-purchase discount.
+
+    Free credits are applied first, then the first-purchase discount (50% off remaining),
+    then paid credits cover whatever is left.
+
+    Args:
+        total_cost (int): Total credits required
+        free_balance (int): User's free credit balance
+        paid_balance (int): User's paid credit balance
+        discount_available (bool): Whether first-purchase 50% discount is available
+
+    Returns:
+        dict: Split breakdown containing:
+            - free_credits_used (int)
+            - paid_credits_used (int)
+            - discount_applied (bool)
+            - discount_amount (int): Credits saved by discount
+            - access_level (str): 'full' if paid credits used, else 'free_only'
+            - sufficient (bool): Whether user can afford the total
+            - total_after_discount (int): Effective total after free credits and discount
+    """
+    from math import ceil
+
+    # Apply free credits first
+    free_used = min(total_cost, free_balance)
+    remaining = total_cost - free_used
+
+    # Apply first-purchase discount on remaining (paid portion)
+    discount_applied = False
+    discount_amount = 0
+    if discount_available and remaining > 0:
+        discount_amount = remaining - ceil(remaining / 2)
+        remaining = ceil(remaining / 2)
+        discount_applied = True
+
+    # Apply paid credits
+    paid_used = min(remaining, paid_balance)
+    sufficient = (free_used + paid_used + discount_amount) >= total_cost
+
+    # Access level: 'full' if any paid credits used, else 'free_only'
+    access_level = 'full' if paid_used > 0 else 'free_only'
+
+    return {
+        'free_credits_used': free_used,
+        'paid_credits_used': paid_used,
+        'discount_applied': discount_applied,
+        'discount_amount': discount_amount,
+        'access_level': access_level,
+        'sufficient': sufficient,
+        'total_after_discount': total_cost - discount_amount,
+    }
+
+
 def get_pricing_config():
     """Get current pricing configuration."""
     return PRICING_CONFIG.copy()

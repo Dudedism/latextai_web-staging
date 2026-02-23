@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
 import { apiRequest } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 import './YourPapersPage.css';
 
 interface Paper {
@@ -18,13 +19,20 @@ interface Paper {
 
 const YourPapersPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, isLoading, isAnonymous } = useAuth();
+  const uploadLimitHit = searchParams.get('upload_limit') === 'true';
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
 
+
+  // Only fetch projects after auth is loaded and user is authenticated
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (!isLoading && isAuthenticated) {
+      fetchProjects();
+    }
+  }, [isLoading, isAuthenticated]);
 
   const fetchProjects = async () => {
     try {
@@ -39,12 +47,8 @@ const YourPapersPage: React.FC = () => {
   };
 
   const handleView = (paper: Paper) => {
-    // If not paid, redirect to payment page, otherwise go to view
-    if (!paper.paid) {
-      navigate(`/papers/${paper.id}/payment`);
-    } else {
-      navigate(`/papers/${paper.id}/view`);
-    }
+    // All papers go to view page — payment UI is now on PreviewPage
+    navigate(`/papers/${paper.id}/view`);
   };
 
   const handleDelete = async (paperId: string) => {
@@ -89,6 +93,19 @@ const YourPapersPage: React.FC = () => {
 
       <section className="main-section">
         <div className="container">
+          {uploadLimitHit && (
+            <div className="notice notice--warning mb-6">
+              <span className="notice-icon">&#9888;</span>
+              <div className="notice-content">
+                <strong>Upload limit reached</strong>
+                <p>{isAnonymous
+                  ? 'Sign up to continue uploading documents.'
+                  : 'Pay for an existing document or purchase credits to upload more.'
+                }</p>
+              </div>
+            </div>
+          )}
+
           <div className="papers-header">
             <h1 className="section-title" style={{ marginBottom: 0 }}>Your Papers</h1>
             <div className="papers-header-actions">
@@ -105,12 +122,14 @@ const YourPapersPage: React.FC = () => {
                   <path d="M14 14L17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </div>
-              <button className="btn btn--outline btn--pill" onClick={() => navigate('/credits')}>
-                Top Up Credits
-              </button>
-              <button className="btn btn--outline btn--pill" onClick={handleNewPaper}>
-                New Paper
-                <span style={{ fontSize: '18px', fontWeight: 300 }}>+</span>
+              {!isAnonymous && (
+                <button className="btn btn--outline btn--pill" onClick={() => navigate('/credits')}>
+                  Top Up Credits
+                </button>
+              )}
+              <button className="btn btn--outline btn--pill" onClick={isAnonymous && papers.length > 0 ? () => navigate('/signup') : handleNewPaper} disabled={isAnonymous && papers.length > 0}>
+                {isAnonymous && papers.length > 0 ? 'Sign Up to Upload More' : 'New Paper'}
+                {!(isAnonymous && papers.length > 0) && <span style={{ fontSize: '18px', fontWeight: 300 }}>+</span>}
               </button>
             </div>
           </div>
@@ -126,7 +145,7 @@ const YourPapersPage: React.FC = () => {
                 </div>
                 <div className="text-center">
                   <h3 className="font-bold" style={{ fontSize: '28px', marginBottom: '12px' }}>Upload your first project</h3>
-                  <p className="text-muted">Your first upload is free, get started now!</p>
+                  <p className="text-muted">{isAnonymous ? 'Try it out — upload a document and see a free preview!' : 'Your first upload is free, get started now!'}</p>
                 </div>
               </div>
             ) : filteredPapers.length === 0 ? (
@@ -159,7 +178,7 @@ const YourPapersPage: React.FC = () => {
                   </div>
                   <div className="paper-actions">
                     <button className="paper-action-btn" onClick={() => handleView(paper)}>
-                      <span className="btn-text">{paper.paid ? 'View' : 'Pay'}</span>
+                      <span className="btn-text">{paper.paid ? 'View' : isAnonymous ? 'Preview' : 'View'}</span>
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                         <path d="M10 4C6 4 2.5 7 1 10C2.5 13 6 16 10 16C14 16 17.5 13 19 10C17.5 7 14 4 10 4Z" stroke="currentColor" strokeWidth="1.5"/>
                         <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/>

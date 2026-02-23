@@ -1,12 +1,20 @@
 import React from 'react';
 
-const HowItWorks: React.FC = () => {
+export const HowItWorksTitle: React.FC = () => {
   return (
-    <section className="section howitworks">
+    <section className="section howitworks" style={{ paddingBottom: 0, marginBottom: '24px', marginTop: '40px' }}>
       <div className="how-container">
         <h2 className="how-title">How it works.</h2>
         <p className="how-subtitle">Our process is simple.</p>
+      </div>
+    </section>
+  );
+};
 
+export const HowItWorksSteps: React.FC = () => {
+  return (
+    <section className="section howitworks" style={{ paddingTop: 0, marginTop: '32px', marginBottom: '60px' }}>
+      <div className="how-container">
         <div className="how-steps">
           {/* Step 1 */}
           <div className="how-step">
@@ -69,6 +77,15 @@ const HowItWorks: React.FC = () => {
         </div>
       </div>
     </section>
+  );
+};
+
+const HowItWorks: React.FC = () => {
+  return (
+    <>
+      <HowItWorksTitle />
+      <HowItWorksSteps />
+    </>
   );
 };
 

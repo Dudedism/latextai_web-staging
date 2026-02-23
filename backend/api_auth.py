@@ -46,7 +46,7 @@ def generate_verification_url(email):
     token = s.dumps(email)
     return f"{FRONTEND_URL}/verify?token={token}"
 
-def requires_auth(func=None, require_admin=False, require_verified=False, use_form=False):
+def requires_auth(func=None, require_admin=False, require_verified=False, use_form=False, allow_anonymous=False):
     """
     Decorator to apply user authentication using Flask-JWT-Extended.
     Decorator can also provide `data` and `user` parsed from the request body.
@@ -55,10 +55,11 @@ def requires_auth(func=None, require_admin=False, require_verified=False, use_fo
     :param require_admin: Optional boolean indicating whether admin access is required. Default is False.
     :param require_verified: Optional boolean indicating whether email verification is required. Default is False.
     :param use_form: Optional boolean indicating whether to use form data. Default is False.
+    :param allow_anonymous: Optional boolean. If False (default), anonymous users get 403. If True, anonymous users can access.
     :return: A wrapper function that authenticates the user before calling the decorated function.
     """
     if func is None:
-        return partial(requires_auth, require_admin=require_admin, require_verified=require_verified, use_form=use_form)
+        return partial(requires_auth, require_admin=require_admin, require_verified=require_verified, use_form=use_form, allow_anonymous=allow_anonymous)
 
     @wraps(func)
     @jwt_required()  # Flask-JWT-Extended handles token validation
@@ -69,6 +70,9 @@ def requires_auth(func=None, require_admin=False, require_verified=False, use_fo
 
         if not user:
             return jsonify({'message': 'User not found.'}), 401
+
+        if not allow_anonymous and user.get('is_anonymous', False):
+            return jsonify({'message': 'Account required. Please sign up to access this feature.'}), 403
 
         if require_admin and not user.get('admin', False):
             return jsonify({'message': 'User not admin.'}), 403
@@ -136,19 +140,19 @@ def signup():
 
     pwd = generate_password_hash(data['password'])
 
-    # Check if any deleted users with this email have used their free upload or have card fingerprints
+    # Check if any deleted users with this email have inherited state
     deleted_users = User.find_deleted_by_email(data['email'])
-    inherited_free_project_id = None
     inherited_card_fingerprints = []
+    inherited_free_credit_balance = 750  # Default for new users
+    inherited_first_purchase_discount_used = False
     for du in deleted_users:
-        if du.get('free_project_id'):
-            inherited_free_project_id = du.get('free_project_id')
         if du.get('card_fingerprints'):
             inherited_card_fingerprints.extend(du.get('card_fingerprints', []))
+        if du.get('free_credit_balance', 750) < inherited_free_credit_balance:
+            inherited_free_credit_balance = du.get('free_credit_balance', 750)
+        if du.get('first_purchase_discount_used', False):
+            inherited_first_purchase_discount_used = True
     inherited_card_fingerprints = list(set(inherited_card_fingerprints))
-
-    if inherited_free_project_id:
-        print(f"ℹ️  [SIGNUP] User has previously used free upload (from deleted account)")
 
     # Create user with is_verified=False (requires email verification)
     user = User(
@@ -156,13 +160,25 @@ def signup():
         password=pwd,
         is_verified=False,
         admin=False,
-        free_project_id=inherited_free_project_id,
-        card_fingerprints=inherited_card_fingerprints
+        card_fingerprints=inherited_card_fingerprints,
+        free_credit_balance=inherited_free_credit_balance,
+        first_purchase_discount_used=inherited_first_purchase_discount_used,
     )
 
     user.insert()
 
     print(f"✅ [SIGNUP] User registered")
+
+    # Merge anonymous user if anon_email provided
+    anon_email = data.get('anon_email')
+    if anon_email:
+        new_user = User.find_by_email(data['email'])
+        if new_user:
+            merged = User.merge_anonymous_into(anon_email, str(new_user['_id']), data['email'])
+            if merged:
+                print(f"✅ [SIGNUP] Merged anonymous user {anon_email} into new account")
+            else:
+                print(f"⚠️  [SIGNUP] Failed to merge anonymous user {anon_email}")
 
     # Note: Verification email is NOT sent automatically on signup
     # User will see a modal prompting them to request verification when needed
@@ -186,6 +202,46 @@ def signup():
         'email': email,
         'admin': False
     }), 201
+
+@api_auth.route('/auth/anonymous', methods=['POST'])
+@limiter.limit("30 per hour")
+def create_anonymous():
+    """
+    Create an anonymous user session.
+    Generates a synthetic email and issues JWT tokens so anonymous users
+    can use all email-keyed methods (upload locks, token storage, etc.).
+    """
+    anonymous_id = uuid.uuid4().hex[:16]
+    email = f"anon_{anonymous_id}@anonymous.user"
+    pwd = generate_password_hash(str(uuid.uuid4()))
+
+    user = User(
+        email=email,
+        password=pwd,
+        is_verified=False,
+        admin=False,
+        is_anonymous=True,
+        anonymous_id=anonymous_id,
+        preview_count=0
+    )
+    user.insert()
+
+    access_token = create_access_token(identity=email, fresh=True)
+    refresh_token = create_refresh_token(identity=email)
+
+    refresh_token_decoded = decode_token(refresh_token)
+    refresh_token_jti = refresh_token_decoded['jti']
+    User.store_refresh_token(email, refresh_token_jti)
+
+    print(f"✅ [ANON] Anonymous user created: {anonymous_id}")
+
+    return jsonify({
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'email': email,
+        'is_anonymous': True
+    }), 201
+
 
 @api_auth.route('/verify', methods=['GET'])
 def verify():
@@ -263,6 +319,19 @@ def login():
     # Only find active (non-deleted) users
     user = User.find_by_email(email, include_deleted=False)  # get the user object from the DB
     if user and user.get('password') and check_password_hash(user['password'], password):  # if the password is legit log in
+        # Tuck-away: if anon_email provided, mark anonymous record as deleted (no merge)
+        anon_email = data.get('anon_email')
+        if anon_email:
+            anon_user = User.find_by_email(anon_email)
+            if anon_user and anon_user.get('is_anonymous'):
+                User.invalidate_refresh_token(anon_email)
+                User.update_fields(anon_email, {
+                    'is_deleted': True,
+                    'tucked_away_for': str(user['_id']),
+                    'tucked_away_at': datetime.datetime.utcnow()
+                })
+                print(f"✅ [LOGIN] Tucked away anonymous user {anon_email}")
+
         # Create tokens with Flask-JWT-Extended (allow unverified users to login)
         access_token = create_access_token(identity=email, fresh=True)
         refresh_token = create_refresh_token(identity=email)
@@ -339,54 +408,108 @@ def refresh():
         'refresh_token': new_refresh_token
     }), 200
 
-# @api_auth.route('/loginGoogle', methods=['POST'])
-# def login_google():
-#     data = request.get_json()
-#
-#     try:
-#         id_info = id_token.verify_oauth2_token(data['credential'], requests.Request(), GOOGLE_CLIENT_ID)
-#         email = id_info['email']
-#         existing_user = User.find_by_email(email, include_deleted=False)
-#
-#         # Create user if none exists (check deleted users for free upload history)
-#         if not existing_user:
-#             name = id_info['given_name'] + ' ' + id_info['family_name']
-#             pwd = generate_password_hash(str(uuid.uuid4()))
-#
-#             # Check deleted users for free upload history
-#             deleted_users = User.find_deleted_by_email(email)
-#             free_upload_already_used = any(du.get('free_upload_used', False) for du in deleted_users)
-#
-#             user = User(name=name, email=email, password=pwd, admin=False, free_upload_used=free_upload_already_used)
-#             user.insert()
-#             existing_user = User.find_by_email(email, include_deleted=False)
-#
-#         # Check if user is verified
-#         if not existing_user.get('is_verified', False):
-#             return jsonify({'message': 'Account not verified'}), 401
-#
-#         # Create tokens with Flask-JWT-Extended
-#         access_token = create_access_token(identity=email, fresh=True)
-#         refresh_token = create_refresh_token(identity=email)
-#
-#         # Store refresh token JTI in database for rotation and reuse detection
-#         refresh_token_decoded = decode_token(refresh_token)
-#         refresh_token_jti = refresh_token_decoded['jti']
-#         User.store_refresh_token(email, refresh_token_jti)
-#
-#         return jsonify({
-#             'message': 'Login successful!',
-#             'access_token': access_token,
-#             'refresh_token': refresh_token,
-#             'email': email,
-#             'admin': existing_user['admin']
-#         }), 200
-#
-#     except (ValueError, KeyError):
-#         return jsonify({'message': 'Authentication failed.'}), 401
+@api_auth.route('/auth/google', methods=['POST'])
+def login_google():
+    """
+    Handle Google Sign-In callback.
+    Google sends the credential as form data when using redirect mode.
+    """
+    # Get credential from form data (Google sends it as form-urlencoded)
+    credential = request.form.get('credential')
+    
+    if not credential:
+        # Fallback to JSON if form data is empty
+        data = request.get_json() or {}
+        credential = data.get('credential')
+    
+    if not credential:
+        return redirect(f"{FRONTEND_URL}/signin?error=missing_credential")
+
+    # Read anon_email from cookie (set by frontend before OAuth redirect)
+    anon_email = request.cookies.get('anon_email')
+
+    try:
+        id_info = id_token.verify_oauth2_token(credential, requests.Request(), GOOGLE_CLIENT_ID)
+        email = id_info['email']
+        existing_user = User.find_by_email(email, include_deleted=False)
+
+        # Create user if none exists (check deleted users for free upload history)
+        is_new_user = False
+        if not existing_user:
+            is_new_user = True
+            name = id_info.get('given_name', '') + ' ' + id_info.get('family_name', '')
+            name = name.strip() or email.split('@')[0]  # Fallback to email prefix if no name
+            pwd = generate_password_hash(str(uuid.uuid4()))
+
+            # Check deleted users for free upload history and credit inheritance
+            deleted_users = User.find_deleted_by_email(email)
+            inherited_free_credit_balance = 750
+            inherited_first_purchase_discount_used = False
+            for du in deleted_users:
+                if du.get('free_credit_balance', 750) < inherited_free_credit_balance:
+                    inherited_free_credit_balance = du.get('free_credit_balance', 750)
+                if du.get('first_purchase_discount_used', False):
+                    inherited_first_purchase_discount_used = True
+
+            # Google users are automatically verified (is_verified=True by default in User constructor)
+            user = User(name=name, email=email, password=pwd, admin=False,
+                        free_credit_balance=inherited_free_credit_balance,
+                        first_purchase_discount_used=inherited_first_purchase_discount_used)
+            user.insert()
+            existing_user = User.find_by_email(email, include_deleted=False)
+
+        # Auto-verify existing Google users if not already verified
+        if not existing_user.get('is_verified', False):
+            User.update_fields(email, {'is_verified': True})
+            existing_user = User.find_by_email(email, include_deleted=False)
+
+        # Create tokens with Flask-JWT-Extended
+        access_token = create_access_token(identity=email, fresh=True)
+        refresh_token = create_refresh_token(identity=email)
+
+        # Store refresh token JTI in database for rotation and reuse detection
+        refresh_token_decoded = decode_token(refresh_token)
+        refresh_token_jti = refresh_token_decoded['jti']
+        User.store_refresh_token(email, refresh_token_jti)
+
+        # Handle anonymous merge/tuck-away
+        if anon_email:
+            anon_user = User.find_by_email(anon_email)
+            if anon_user and anon_user.get('is_anonymous'):
+                if is_new_user:
+                    # New Google user: merge anonymous data
+                    User.merge_anonymous_into(anon_email, str(existing_user['_id']), email)
+                    print(f"✅ [GOOGLE LOGIN] Merged anonymous user into new Google account")
+                else:
+                    # Existing Google user: tuck-away (don't merge, just orphan the anon session)
+                    User.invalidate_refresh_token(anon_email)
+                    User.update_fields(anon_email, {
+                        'is_deleted': True,
+                        'tucked_away_for': str(existing_user['_id']),
+                        'tucked_away_at': datetime.datetime.utcnow()
+                    })
+                    print(f"✅ [GOOGLE LOGIN] Tucked away anonymous user")
+
+        # Redirect to frontend with tokens in URL fragment (more secure than query params)
+        # The frontend will extract these and store them in AuthContext
+        redirect_url = f"{FRONTEND_URL}/papers#access_token={access_token}&refresh_token={refresh_token}&email={email}&admin={str(existing_user.get('admin', False)).lower()}"
+
+        print(f"✅ [GOOGLE LOGIN] User logged in: {email}")
+        response = redirect(redirect_url)
+        # Clear the anon_email cookie
+        if anon_email:
+            response.set_cookie('anon_email', '', max_age=0)
+        return response
+
+    except ValueError as e:
+        print(f"❌ [GOOGLE LOGIN] Token verification failed: {e}")
+        return redirect(f"{FRONTEND_URL}/signin?error=invalid_token")
+    except Exception as e:
+        print(f"❌ [GOOGLE LOGIN] Error: {e}")
+        return redirect(f"{FRONTEND_URL}/signin?error=auth_failed")
 
 @api_auth.route('/logout', methods=['POST'])
-@requires_auth
+@requires_auth(allow_anonymous=True)
 def logout(user):
     """
     Logout user by invalidating their refresh token.
@@ -428,7 +551,7 @@ def delete_account(user, data):
     - Deletes all used tokens
     - Deletes local uploaded files
     - Sends deletion request to latextai server
-    - Keeps user record with _id, free_project_id, and card_fingerprints for abuse tracking
+    - Keeps user record with _id and card_fingerprints for abuse tracking
     - Strips email and personal information
     - Marks account as deleted
     """
@@ -498,7 +621,9 @@ def delete_account(user, data):
         User.invalidate_refresh_token(user['email'])
         print(f"   Invalidated refresh tokens")
 
-        # Orphan the user account (keep _id, free_project_id, card_fingerprints for abuse tracking)
+        # Orphan the user account (keep _id, card_fingerprints for abuse tracking)
+        # Preserve free_credit_balance and first_purchase_discount_used for re-signup inheritance
+        current_user = User.find_by_email(user['email'])
         orphan_data = {
             'is_deleted': True,
             'deleted_at': datetime.datetime.utcnow(),
@@ -508,6 +633,8 @@ def delete_account(user, data):
             'admin': False,
             'data_consent': None,
             'credit_balance': 0,
+            'free_credit_balance': current_user.get('free_credit_balance', 0) if current_user else 0,
+            'first_purchase_discount_used': current_user.get('first_purchase_discount_used', False) if current_user else False,
         }
 
         update_result = mongo.db.users.update_one(
