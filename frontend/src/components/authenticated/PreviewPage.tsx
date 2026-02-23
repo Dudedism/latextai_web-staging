@@ -411,8 +411,6 @@ const PreviewPage: React.FC = () => {
     setPaidWithFreeUpload(false);
 
     // Derive payment details from sliders
-    const totalAvailable = mockFreeCredits + mockPaidCredits;
-    const hasFree = mockFreeCredits > 0;
     const mockSplit = calculate_credit_split_local(MOCK_COST.total_credits, mockFreeCredits, mockPaidCredits, true);
     const pd: PaymentDetails = {
       metadata: MOCK_META, cost_estimate: MOCK_COST,

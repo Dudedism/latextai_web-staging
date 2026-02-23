@@ -16,7 +16,7 @@ interface AccountPageProps {
 
 const AccountPage: React.FC<AccountPageProps> = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, isVerified, isAnonymous, logout, refreshUser } = useAuth();
+  const { user, isAuthenticated, isVerified, isAnonymous, logout, refreshUser } = useAuth();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   const [dataConsent, setDataConsent] = useState<boolean | null>(null);
