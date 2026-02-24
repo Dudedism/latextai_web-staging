@@ -350,15 +350,6 @@ def unlock_full_access(user, data, project_id):
         not balances['first_purchase_discount_used']
     )
 
-    # Must use paid credits to unlock full access
-    if split['access_level'] == 'free_only':
-        return jsonify({
-            'error': 'Insufficient paid credits for full access',
-            'credits_required': total_cost,
-            'credit_split': split,
-            'requires_topup': True
-        }), 402
-
     if not split['sufficient']:
         return jsonify({
             'error': 'Insufficient credits',
