@@ -835,6 +835,33 @@ const PreviewPage: React.FC = () => {
                 <p className="error-text">Failed to load PDF</p>
               )}
             </div>
+          ) : status === 'completed' && compilationFailed ? (
+            <div className="compilation-failed-banner">
+              <div className="compilation-failed-icon">⚠</div>
+              <h2 className="compilation-failed-title">PDF Compilation Issue</h2>
+              <p className="compilation-failed-text">
+                Your document was successfully converted to LaTeX, but we encountered an issue
+                during PDF compilation. We apologise for the inconvenience — an internal report
+                has been filed and our team will investigate.
+              </p>
+              {effectiveAnonymous ? (
+                <>
+                  <p className="compilation-failed-text">
+                    <a href="/signup" className="compilation-failed-link">Create a free account</a>{' '}
+                    to access your LaTeX source and bibliography files, and we'll notify you
+                    once the PDF is ready.
+                  </p>
+                  <div className="compilation-failed-cta">
+                    <a href="/signup" className="btn btn--primary btn--pill">Sign Up — It's Free</a>
+                  </div>
+                </>
+              ) : (
+                <p className="compilation-failed-text compilation-failed-note">
+                  Your LaTeX source (.tex) and bibliography (.bib) files are
+                  available for download below.
+                </p>
+              )}
+            </div>
           ) : null}
 
           {/* Invoice Card for unpaid completed projects */}
