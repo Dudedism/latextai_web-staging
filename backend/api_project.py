@@ -634,6 +634,13 @@ def get_payment_details(user, project_id):
         not first_purchase_discount_used
     )
 
+    # Check if user has already used a free conversion
+    from database import mongo
+    first_free_conversion_used = mongo.db.projects.find_one({
+        'user_email': user_email,
+        'paid_with_free_upload': True
+    }) is not None
+
     # Look up document analysis
     analysis_doc = DocumentAnalysis.find_by_project(project_id)
     document_analysis = None
@@ -655,6 +662,7 @@ def get_payment_details(user, project_id):
         'first_purchase_discount_available': not first_purchase_discount_used,
         'credit_split': credit_split,
         'has_sufficient_credits': credit_split['sufficient'],
+        'first_free_conversion_used': first_free_conversion_used,
         'document_analysis': document_analysis
     }), 200
 

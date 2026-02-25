@@ -52,6 +52,7 @@ interface PaymentDetails {
   first_purchase_discount_available: boolean;
   credit_split: CreditSplit;
   has_sufficient_credits: boolean;
+  first_free_conversion_used: boolean;
 }
 
 const PreviewPage: React.FC = () => {
@@ -81,6 +82,7 @@ const PreviewPage: React.FC = () => {
   const [mockPaidCredits, setMockPaidCredits] = useState(0);
   const effectiveAnonymous = mockAnonymous !== null ? mockAnonymous : isAnonymous;
   const freeCredits = (import.meta.env.VITE_DEBUG_CONTROLS === 'true' && mockAnonymous !== null) ? mockFreeCredits : (paymentDetails?.free_credit_balance ?? 0);
+  const isFirstFreeConversion = freeCredits >= (paymentDetails?.cost_estimate?.total_credits ?? Infinity) && !paymentDetails?.first_free_conversion_used;
 
   const isPaymentFlow = searchParams.get('payment_success') === 'true';
   const paymentStartTime = useRef<number | null>(null);
@@ -419,6 +421,7 @@ const PreviewPage: React.FC = () => {
       first_purchase_discount_available: true,
       credit_split: mockSplit,
       has_sufficient_credits: mockSplit.sufficient,
+      first_free_conversion_used: false,
     };
 
     switch (mockPreset) {
@@ -527,7 +530,7 @@ const PreviewPage: React.FC = () => {
           <h3 className="invoice-heading">
             {effectiveAnonymous
               ? 'Sign Up & Unlock for Free!'
-              : freeCredits >= cost_estimate.total_credits
+              : isFirstFreeConversion
                 ? 'Unlock Your Document for Free'
                 : isUpgrade
                   ? 'Upgrade to Full Access'
@@ -541,7 +544,7 @@ const PreviewPage: React.FC = () => {
               <li>750 free credits — one full conversion</li>
               <li>5 free document previews</li>
             </ul>
-          ) : freeCredits >= cost_estimate.total_credits ? (
+          ) : isFirstFreeConversion ? (
             <ul className="invoice-features">
               <li>Professionally compiled PDF document</li>
               <li>Your free credits cover this conversion</li>
@@ -589,7 +592,7 @@ const PreviewPage: React.FC = () => {
                       <span className="detail-value">+{cost_estimate.additional_credits} credits</span>
                     </div>
                   )}
-                  {credit_split?.free_credits_used > 0 && (
+                  {isFirstFreeConversion && credit_split?.free_credits_used > 0 && (
                     <div className="detail-item invoice-free-credits">
                       <span className="detail-label">Free credits</span>
                       <span className="detail-value">−{credit_split.free_credits_used} credits</span>
@@ -603,11 +606,12 @@ const PreviewPage: React.FC = () => {
                   )}
                   {(() => {
                     const effectiveCost = credit_split
-                      ? cost_estimate.total_credits - (credit_split.free_credits_used ?? 0) - (credit_split.discount_amount ?? 0)
+                      ? cost_estimate.total_credits - (isFirstFreeConversion ? (credit_split.free_credits_used ?? 0) : 0) - (credit_split.discount_amount ?? 0)
                       : cost_estimate.total_credits;
-                    const hasDiscount = (credit_split?.free_credits_used ?? 0) > 0 || credit_split?.discount_applied;
+                    const hasDiscount = (isFirstFreeConversion && (credit_split?.free_credits_used ?? 0) > 0) || credit_split?.discount_applied;
                     const remainingFree = freeBalance - (credit_split?.free_credits_used ?? 0);
                     const remainingPaid = credit_balance - (credit_split?.paid_credits_used ?? 0);
+                    const remainingTotal = remainingPaid + remainingFree;
                     const covered = credit_split?.sufficient ?? false;
 
                     return (
@@ -629,10 +633,16 @@ const PreviewPage: React.FC = () => {
                             )}
                           </span>
                         </div>
-                        {credit_balance > 0 && (
+                        {(credit_balance > 0 || freeBalance > 0) && (
                           <div className="detail-item invoice-balance">
                             <span className="detail-label">Your balance</span>
-                            <span className="detail-value">{credit_balance.toLocaleString()} credits</span>
+                            <span className="detail-value">
+                              {isFirstFreeConversion ? (
+                                <>{credit_balance.toLocaleString()} credits</>
+                              ) : (
+                                <>{(credit_balance + freeBalance).toLocaleString()} credits</>
+                              )}
+                            </span>
                           </div>
                         )}
                         <div className="detail-item invoice-balance">
@@ -640,13 +650,15 @@ const PreviewPage: React.FC = () => {
                           <span className={`detail-value ${covered ? 'text-success' : 'text-error'}`}>
                             {!covered ? (
                               <span className="text-error">Need more credits</span>
-                            ) : (
+                            ) : isFirstFreeConversion ? (
                               <>
                                 {remainingPaid > 0 && <>{remainingPaid.toLocaleString()} credits</>}
                                 {remainingPaid > 0 && remainingFree > 0 && ' + '}
                                 {remainingFree > 0 && <span className="invoice-highlight invoice-highlight--blue">+{remainingFree} free credits</span>}
                                 {remainingPaid === 0 && remainingFree === 0 && '0 credits'}
                               </>
+                            ) : (
+                              <>{remainingTotal.toLocaleString()} credits</>
                             )}
                           </span>
                         </div>
@@ -657,7 +669,7 @@ const PreviewPage: React.FC = () => {
               </div>
 
               {/* State B: Free credits cover entire conversion */}
-              {credit_split?.sufficient && credit_split.paid_credits_used === 0 && freeCredits > 0 && (
+              {isFirstFreeConversion && credit_split?.sufficient && credit_split.paid_credits_used === 0 && (
                 <div className="invoice-promo">
                   <div className="notice notice--info">
                     <span className="notice-icon" role="img" aria-label="gift">&#127873;</span>
@@ -681,9 +693,9 @@ const PreviewPage: React.FC = () => {
                     onClick={handleProcessWithCredits}
                     disabled={paymentLoading}
                   >
-                    {paymentLoading ? 'Processing...' : credit_split?.access_level === 'free_only'
+                    {paymentLoading ? 'Processing...' : isFirstFreeConversion
                       ? 'Use Free Credits'
-                      : `Pay ${credit_split?.paid_credits_used ?? cost_estimate.total_credits} Credits`}
+                      : `Pay ${cost_estimate.total_credits} Credits`}
                   </button>
                 ) : (
                   <button
@@ -789,8 +801,8 @@ const PreviewPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              {/* Invoice card shown during preview processing */}
-              {(isPreview || effectiveAnonymous) && renderInvoiceCard()}
+              {/* Invoice card shown during preview processing (only for first free conversion or anonymous) */}
+              {(isFirstFreeConversion || effectiveAnonymous) && renderInvoiceCard()}
             </>
           ) : status === 'needs_payment' ? (
             renderInvoiceCard()
@@ -820,7 +832,7 @@ const PreviewPage: React.FC = () => {
                       textAlign: 'center',
                       fontSize: '14px'
                     }}>
-                      This is a 3-page preview. {effectiveAnonymous ? 'Sign up to see the full document for free!' : freeCredits >= (paymentDetails?.cost_estimate?.total_credits ?? 999) ? 'Use your free credits below to unlock the full document.' : 'Pay to unlock the full document and source files.'}
+                      This is a 3-page preview. {effectiveAnonymous ? 'Sign up to see the full document for free!' : isFirstFreeConversion ? 'Use your free credits below to unlock the full document.' : 'Pay to unlock the full document and source files.'}
                     </div>
                   )}
                   <iframe
