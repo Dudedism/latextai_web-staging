@@ -235,8 +235,13 @@ def upload_file(user, data):
             return jsonify({'error': error_msg}), 400
 
         # STEP 6: Determine if this is a preview upload
-        # Anonymous users always get previews. Signed-up users get previews if they have quota (5 max).
-        is_preview_upload = is_anonymous or user.get('preview_count', 0) < 5
+        # Anonymous users always get previews. Signed-up users get previews if they have quota (5 max)
+        # AND haven't used their first free conversion yet.
+        has_used_free_conversion = mongo.db.projects.find_one({
+            'user_email': user_email,
+            'paid_with_free_upload': True
+        }) is not None
+        is_preview_upload = is_anonymous or (not has_used_free_conversion and user.get('preview_count', 0) < 5)
 
         # STEP 7: Create database entry with validated=False
         # No metadata yet - will be populated by /validate endpoint
