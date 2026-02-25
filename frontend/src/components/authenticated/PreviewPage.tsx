@@ -801,8 +801,8 @@ const PreviewPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              {/* Invoice card shown during preview processing (only for first free conversion or anonymous) */}
-              {(isFirstFreeConversion || effectiveAnonymous) && renderInvoiceCard()}
+              {/* Invoice card shown during preview processing (only for anonymous sign-up CTA) */}
+              {effectiveAnonymous && renderInvoiceCard()}
             </>
           ) : status === 'needs_payment' ? (
             renderInvoiceCard()
