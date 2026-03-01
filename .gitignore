@@ -27,11 +27,14 @@ MANIFEST
 instance/
 .webassets-cache
 
-# Environment variables (all .env files - secrets must not be in git)
+# Environment variables (secrets must not be in git)
 .env
 .env.*
 **/.env
 **/.env.*
+# But allow .env.example templates
+!.env.example
+!**/.env.example
 .venv
 env/
 venv/
