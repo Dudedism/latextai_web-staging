@@ -26,7 +26,7 @@ interface CreditSplit {
   paid_credits_used: number;
   discount_applied: boolean;
   discount_amount: number;
-  access_level: 'full' | 'free_only';
+  access_level: 'full' | 'free_only' | 'first_full';
   sufficient: boolean;
   total_after_discount: number;
 }
