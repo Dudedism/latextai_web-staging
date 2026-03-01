@@ -56,7 +56,7 @@ def calculate_cost(page_count):
     }
 
 
-def calculate_credit_split(total_cost, free_balance, paid_balance, discount_available):
+def calculate_credit_split(total_cost, free_balance, paid_balance, discount_available, first_full_conversion_available=False):
     """
     Calculate how to split a payment across free credits, paid credits, and first-purchase discount.
 
@@ -68,6 +68,7 @@ def calculate_credit_split(total_cost, free_balance, paid_balance, discount_avai
         free_balance (int): User's free credit balance
         paid_balance (int): User's paid credit balance
         discount_available (bool): Whether first-purchase 50% discount is available
+        first_full_conversion_available (bool): Whether this is the user's first conversion (full access with free credits)
 
     Returns:
         dict: Split breakdown containing:
@@ -75,7 +76,7 @@ def calculate_credit_split(total_cost, free_balance, paid_balance, discount_avai
             - paid_credits_used (int)
             - discount_applied (bool)
             - discount_amount (int): Credits saved by discount
-            - access_level (str): 'full' if paid credits used, else 'free_only'
+            - access_level (str): 'full', 'first_full', or 'free_only'
             - sufficient (bool): Whether user can afford the total
             - total_after_discount (int): Effective total after free credits and discount
     """
@@ -97,8 +98,13 @@ def calculate_credit_split(total_cost, free_balance, paid_balance, discount_avai
     paid_used = min(remaining, paid_balance)
     sufficient = (free_used + paid_used + discount_amount) >= total_cost
 
-    # Access level: 'full' if any paid credits used, else 'free_only'
-    access_level = 'full' if paid_used > 0 else 'free_only'
+    # Access level: 'full' if paid credits used, 'first_full' for first free conversion, else 'free_only'
+    if paid_used > 0:
+        access_level = 'full'
+    elif first_full_conversion_available and sufficient:
+        access_level = 'first_full'
+    else:
+        access_level = 'free_only'
 
     return {
         'free_credits_used': free_used,

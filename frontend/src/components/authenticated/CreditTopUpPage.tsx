@@ -154,6 +154,14 @@ const CreditTopUpPage: React.FC = () => {
             </div>
           )}
 
+          <div className="notice notice--info mb-6" style={{ cursor: 'pointer' }} onClick={() => navigate('/pricing')}>
+            <span className="notice-icon">&#9733;</span>
+            <div className="notice-content">
+              <strong>Save up to 80% with a subscription</strong>
+              <p style={{ margin: '4px 0 0' }}>Starting at $4.99/month for ~10 document conversions. <span style={{ color: 'var(--accent)', fontWeight: 500 }}>View plans &rarr;</span></p>
+            </div>
+          </div>
+
           <div className="card mb-6">
             <h2 className="section-heading">Top Up Credits</h2>
             <p className="text-muted text-sm mb-6">

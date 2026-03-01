@@ -27,18 +27,18 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
             <h3 className="pc-card-title">Our Service</h3>
 
             <div className="pc-price">
-              <span className="pc-price-currency">$</span>
+              <span className="pc-price-currency">from $</span>
               <span className="pc-price-value">4.99</span>
-              <span className="pc-price-unit">/document</span>
+              <span className="pc-price-unit">/month</span>
             </div>
 
             <div className="pc-includes">Includes</div>
             <ul className="pc-features">
-              <li>Up to 15 pages</li>
-              <li>+$0.50 per additional page</li>
+              <li>~10 document conversions/month</li>
               <li>Delivery in minutes, not days</li>
               <li>Submission-ready PDF + Complete LaTeX compilation package</li>
               <li>Superior quality output</li>
+              <li>Pay-as-you-go also available</li>
             </ul>
 
             <button
@@ -47,7 +47,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
               type="button"
               aria-label="Get started now"
             >
-              Get started now ↗
+              Get started now &#8599;
             </button>
           </div>
 

@@ -630,20 +630,32 @@ def get_payment_details(user, project_id):
     credit_balance = balances['credit_balance']
     free_credit_balance = balances['free_credit_balance']
     first_purchase_discount_used = balances['first_purchase_discount_used']
+    first_full_conversion_used = balances['first_full_conversion_used']
+
+    # Determine if first full conversion is available
+    first_full_available = (
+        not first_full_conversion_used
+        and user.get('is_verified', False)
+        and not user.get('is_anonymous', False)
+    )
 
     # Pre-compute credit split
     credit_split = calculate_credit_split(
         cost_estimate['total_credits'],
         free_credit_balance,
         credit_balance,
-        not first_purchase_discount_used
+        not first_purchase_discount_used,
+        first_full_conversion_available=first_full_available
     )
 
     # Check if user has already used a free conversion
     from database import mongo
     first_free_conversion_used = mongo.db.projects.find_one({
         'user_email': user_email,
-        'paid_with_free_upload': True
+        '$or': [
+            {'paid_with_free_upload': True},
+            {'first_full_conversion': True}
+        ]
     }) is not None
 
     # Look up document analysis
@@ -668,6 +680,7 @@ def get_payment_details(user, project_id):
         'credit_split': credit_split,
         'has_sufficient_credits': credit_split['sufficient'],
         'first_free_conversion_used': first_free_conversion_used,
+        'first_full_conversion_available': first_full_available,
         'document_analysis': document_analysis
     }), 200
 

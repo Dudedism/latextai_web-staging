@@ -5,6 +5,7 @@ from api_auth import requires_auth
 from database import Project, User, CreditTransaction, mongo
 from datetime import datetime
 from config import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, FRONTEND_URL
+from api_subscription import SUBSCRIPTION_TIERS, PRICE_ID_TO_TIER
 
 api_stripe = Blueprint('api_stripe_blueprint', __name__, url_prefix='/api/stripe')
 
@@ -103,7 +104,11 @@ def stripe_webhook():
 
     Events handled:
         - checkout.session.completed (type=credit_topup): Add credits to user balance
+        - checkout.session.completed (type=subscription): Activate subscription + grant credits
         - checkout.session.completed (mode=setup): Store card fingerprint for free upload verification
+        - invoice.payment_succeeded: Monthly subscription renewal credits
+        - customer.subscription.updated: Subscription plan changes
+        - customer.subscription.deleted: Subscription cancellation
     """
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
@@ -133,6 +138,9 @@ def stripe_webhook():
         if metadata.get('type') == 'credit_topup':
             return handle_credit_topup_completed(session, metadata)
 
+        if metadata.get('type') == 'subscription':
+            return handle_subscription_checkout_completed(session, metadata)
+
         project_id = metadata.get('project_id')
         user_email = metadata.get('user_email')
 
@@ -145,6 +153,18 @@ def stripe_webhook():
         else:
             print(f"⚠️ [STRIPE] Unknown session mode: {session_mode}")
             return jsonify({'received': True}), 200
+
+    elif event['type'] == 'invoice.payment_succeeded':
+        invoice = event['data']['object']
+        return handle_invoice_payment_succeeded(invoice)
+
+    elif event['type'] == 'customer.subscription.updated':
+        subscription = event['data']['object']
+        return handle_subscription_updated(subscription)
+
+    elif event['type'] == 'customer.subscription.deleted':
+        subscription = event['data']['object']
+        return handle_subscription_deleted(subscription)
 
     return jsonify({'received': True}), 200
 
@@ -184,6 +204,213 @@ def handle_setup_completed(session, project_id, user_email):
     except Exception as e:
         print(f"❌ [STRIPE] Error processing setup: {e}")
         return jsonify({'error': 'Failed to process card verification'}), 500
+
+
+def handle_subscription_checkout_completed(session, metadata):
+    """Handle subscription checkout: activate subscription and grant initial credits."""
+    user_email = metadata.get('user_email')
+    tier_key = metadata.get('tier')
+    session_id = session['id']
+    subscription_id = session.get('subscription')
+
+    if not user_email or not tier_key:
+        print(f"❌ [STRIPE] Missing user_email or tier in subscription metadata")
+        return jsonify({'error': 'Invalid metadata'}), 400
+
+    tier = SUBSCRIPTION_TIERS.get(tier_key)
+    if not tier:
+        print(f"❌ [STRIPE] Unknown subscription tier: {tier_key}")
+        return jsonify({'error': 'Unknown tier'}), 400
+
+    print(f"💳 [STRIPE] Subscription checkout completed: {tier['name']} for {user_email}")
+
+    try:
+        # Idempotency: check if this session was already processed
+        existing_txn = mongo.db.credit_transactions.find_one({'stripe_session_id': session_id})
+        if existing_txn:
+            print(f"⚠️  [STRIPE] Subscription checkout already processed for session {session_id}")
+            return jsonify({'received': True}), 200
+
+        user = User.find_by_email(user_email)
+        if not user:
+            print(f"❌ [STRIPE] User not found: {user_email}")
+            return jsonify({'error': 'User not found'}), 404
+
+        # Retrieve subscription details from Stripe
+        sub = stripe.Subscription.retrieve(subscription_id)
+        current_period_end = datetime.utcfromtimestamp(sub.current_period_end)
+
+        # Update user subscription fields
+        User.update_fields(user_email, {
+            'subscription_id': subscription_id,
+            'subscription_status': 'active',
+            'subscription_tier': tier_key,
+            'subscription_current_period_end': current_period_end,
+            'stripe_customer_id': session.get('customer'),
+        })
+
+        # Grant credits
+        credits = tier['credits']
+        new_balance = User.add_credits(user_email, credits)
+
+        CreditTransaction.create(
+            user_email=user_email,
+            user_id=str(user['_id']),
+            transaction_type='subscription',
+            amount=credits,
+            balance_after=new_balance,
+            description=f'Subscription: {tier["name"]} — {credits} credits',
+            stripe_session_id=session_id,
+        )
+
+        print(f"✅ [STRIPE] Subscription activated: {tier['name']}, +{credits} credits, balance: {new_balance}")
+        return jsonify({'received': True}), 200
+
+    except Exception as e:
+        print(f"❌ [STRIPE] Error processing subscription checkout: {e}")
+        return jsonify({'error': 'Failed to process subscription'}), 500
+
+
+def handle_invoice_payment_succeeded(invoice):
+    """Handle monthly subscription renewal: grant credits for the new billing period."""
+    # Only handle subscription invoices (not one-time payments)
+    subscription_id = invoice.get('subscription')
+    if not subscription_id:
+        return jsonify({'received': True}), 200
+
+    # Skip the first invoice — that's handled by checkout.session.completed
+    billing_reason = invoice.get('billing_reason')
+    if billing_reason == 'subscription_create':
+        print(f"⚠️  [STRIPE] Skipping initial subscription invoice (handled by checkout)")
+        return jsonify({'received': True}), 200
+
+    invoice_id = invoice['id']
+    customer_id = invoice.get('customer')
+
+    print(f"💳 [STRIPE] Subscription renewal invoice: {invoice_id}")
+
+    try:
+        # Idempotency
+        existing_txn = mongo.db.credit_transactions.find_one({'stripe_invoice_id': invoice_id})
+        if existing_txn:
+            print(f"⚠️  [STRIPE] Invoice already processed: {invoice_id}")
+            return jsonify({'received': True}), 200
+
+        # Find user by stripe_customer_id
+        db_user = mongo.db.users.find_one({'stripe_customer_id': customer_id})
+        if not db_user:
+            print(f"❌ [STRIPE] No user found for customer {customer_id}")
+            return jsonify({'error': 'User not found'}), 404
+
+        user_email = db_user['email']
+        tier_key = db_user.get('subscription_tier')
+        tier = SUBSCRIPTION_TIERS.get(tier_key)
+
+        if not tier:
+            print(f"❌ [STRIPE] Unknown tier {tier_key} for user {user_email}")
+            return jsonify({'error': 'Unknown tier'}), 400
+
+        # Update period end
+        sub = stripe.Subscription.retrieve(subscription_id)
+        current_period_end = datetime.utcfromtimestamp(sub.current_period_end)
+        User.update_fields(user_email, {
+            'subscription_status': 'active',
+            'subscription_current_period_end': current_period_end,
+        })
+
+        # Grant monthly credits
+        credits = tier['credits']
+        new_balance = User.add_credits(user_email, credits)
+
+        CreditTransaction.create(
+            user_email=user_email,
+            user_id=str(db_user['_id']),
+            transaction_type='subscription_renewal',
+            amount=credits,
+            balance_after=new_balance,
+            description=f'Renewal: {tier["name"]} — {credits} credits',
+            stripe_invoice_id=invoice_id,
+        )
+
+        print(f"✅ [STRIPE] Renewal: {tier['name']}, +{credits} credits for {user_email}, balance: {new_balance}")
+        return jsonify({'received': True}), 200
+
+    except Exception as e:
+        print(f"❌ [STRIPE] Error processing renewal: {e}")
+        return jsonify({'error': 'Failed to process renewal'}), 500
+
+
+def handle_subscription_updated(subscription):
+    """Handle subscription plan changes (upgrade/downgrade)."""
+    subscription_id = subscription['id']
+    customer_id = subscription.get('customer')
+    status = subscription.get('status')
+
+    print(f"🔄 [STRIPE] Subscription updated: {subscription_id}, status: {status}")
+
+    try:
+        db_user = mongo.db.users.find_one({'stripe_customer_id': customer_id})
+        if not db_user:
+            print(f"❌ [STRIPE] No user found for customer {customer_id}")
+            return jsonify({'error': 'User not found'}), 404
+
+        user_email = db_user['email']
+
+        # Determine new tier from subscription items
+        new_tier_key = None
+        items = subscription.get('items', {}).get('data', [])
+        for item in items:
+            price_id = item.get('price', {}).get('id')
+            if price_id in PRICE_ID_TO_TIER:
+                new_tier_key = PRICE_ID_TO_TIER[price_id]
+                break
+
+        update_fields = {
+            'subscription_status': status,
+        }
+        if new_tier_key:
+            update_fields['subscription_tier'] = new_tier_key
+
+        current_period_end = subscription.get('current_period_end')
+        if current_period_end:
+            update_fields['subscription_current_period_end'] = datetime.utcfromtimestamp(current_period_end)
+
+        User.update_fields(user_email, update_fields)
+
+        print(f"✅ [STRIPE] Subscription updated for {user_email}: tier={new_tier_key}, status={status}")
+        return jsonify({'received': True}), 200
+
+    except Exception as e:
+        print(f"❌ [STRIPE] Error updating subscription: {e}")
+        return jsonify({'error': 'Failed to update subscription'}), 500
+
+
+def handle_subscription_deleted(subscription):
+    """Handle subscription cancellation."""
+    subscription_id = subscription['id']
+    customer_id = subscription.get('customer')
+
+    print(f"🚫 [STRIPE] Subscription cancelled: {subscription_id}")
+
+    try:
+        db_user = mongo.db.users.find_one({'stripe_customer_id': customer_id})
+        if not db_user:
+            print(f"❌ [STRIPE] No user found for customer {customer_id}")
+            return jsonify({'error': 'User not found'}), 404
+
+        user_email = db_user['email']
+
+        # Mark subscription as cancelled but keep credits
+        User.update_fields(user_email, {
+            'subscription_status': 'cancelled',
+        })
+
+        print(f"✅ [STRIPE] Subscription cancelled for {user_email}. Credits retained.")
+        return jsonify({'received': True}), 200
+
+    except Exception as e:
+        print(f"❌ [STRIPE] Error cancelling subscription: {e}")
+        return jsonify({'error': 'Failed to cancel subscription'}), 500
 
 
 def handle_credit_topup_completed(session, metadata):

@@ -237,11 +237,17 @@ def _process_credit_payment(user, project, project_id, description_prefix="Conve
 
     # Get all balances in one query
     balances = User.get_all_balances(user['email'])
+    first_full_available = (
+        not balances['first_full_conversion_used']
+        and user.get('is_verified', False)
+        and not user.get('is_anonymous', False)
+    )
     split = calculate_credit_split(
         total_cost,
         balances['free_credit_balance'],
         balances['credit_balance'],
-        not balances['first_purchase_discount_used']
+        not balances['first_purchase_discount_used'],
+        first_full_conversion_available=first_full_available
     )
 
     if not split['sufficient']:
@@ -255,6 +261,7 @@ def _process_credit_payment(user, project, project_id, description_prefix="Conve
         }), 402
 
     # Determine project payment flags based on access level
+    is_first_full = split['access_level'] == 'first_full'
     is_free_only = split['access_level'] == 'free_only'
     project_set = {
         'paid': True,
@@ -265,7 +272,11 @@ def _process_credit_payment(user, project, project_id, description_prefix="Conve
         'discount_applied': split['discount_applied'],
         'discount_amount': split['discount_amount'],
     }
-    if is_free_only:
+    if is_first_full:
+        # First conversion: grant full access even with free credits only
+        project_set['paid_with_credits'] = True
+        project_set['first_full_conversion'] = True
+    elif is_free_only:
         project_set['paid_with_free_upload'] = True
     else:
         project_set['paid_with_credits'] = True
@@ -304,6 +315,10 @@ def _process_credit_payment(user, project, project_id, description_prefix="Conve
     # Mark first purchase discount as used
     if split['discount_applied']:
         User.update_fields(user['email'], {'first_purchase_discount_used': True})
+
+    # Mark first full conversion as used
+    if is_first_full:
+        User.update_fields(user['email'], {'first_full_conversion_used': True})
 
     # Record transaction
     total_deducted = split['free_credits_used'] + split['paid_credits_used']

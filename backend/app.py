@@ -13,6 +13,7 @@ from api_project import api_project
 from api_user import api_user
 from api_stripe import api_stripe
 from api_credits import api_credits
+from api_subscription import api_subscription
 from config import *
 from database import mongo, User
 
@@ -28,7 +29,7 @@ BLOCKED_FILENAMES = {
     'requirements.txt', 'package.json', 'package-lock.json',
     '.gitignore', '.git', 'config.py', 'database.py',
     'api_auth.py', 'api_user.py', 'api_latext.py', 'api_project.py', 'api_public.py',
-    'app.py', 'email_service.py', 'templates.json', 'verification_email.html',
+    'app.py', 'api_subscription.py', 'email_service.py', 'templates.json', 'verification_email.html',
     'deploy.sh', 'diagnose.py'
 }
 BLOCKED_PATTERNS = {'/api', '/.env', '/docker', '/config', '/database', '/__pycache__'}
@@ -128,6 +129,7 @@ app.register_blueprint(api_latext)
 app.register_blueprint(api_project)
 app.register_blueprint(api_stripe)
 app.register_blueprint(api_credits)
+app.register_blueprint(api_subscription)
 
 # Test MongoDB connection
 try:

@@ -54,7 +54,7 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
-    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, is_deleted=False, card_fingerprints=None, credit_balance=0, free_credit_balance=0, first_purchase_discount_used=False, is_anonymous=False, anonymous_id=None, preview_count=0, **kwargs):
+    def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, is_deleted=False, card_fingerprints=None, credit_balance=0, free_credit_balance=0, first_purchase_discount_used=False, first_full_conversion_used=False, is_anonymous=False, anonymous_id=None, preview_count=0, stripe_customer_id=None, subscription_id=None, subscription_status=None, subscription_tier=None, subscription_current_period_end=None, **kwargs):
         super().__init__(
             email=email,
             password=password,
@@ -66,9 +66,15 @@ class User(BaseModel):
             credit_balance=credit_balance,
             free_credit_balance=free_credit_balance,
             first_purchase_discount_used=first_purchase_discount_used,
+            first_full_conversion_used=first_full_conversion_used,
             is_anonymous=is_anonymous,
             anonymous_id=anonymous_id,
             preview_count=preview_count,
+            stripe_customer_id=stripe_customer_id,
+            subscription_id=subscription_id,
+            subscription_status=subscription_status,
+            subscription_tier=subscription_tier,
+            subscription_current_period_end=subscription_current_period_end,
             created_at=datetime.utcnow(),
             **kwargs
         )
@@ -229,14 +235,15 @@ class User(BaseModel):
         """Get user's credit balance, free credit balance, and first purchase discount status in one query"""
         result = mongo.db[cls.collection_name].find_one(
             {'email': email, 'is_deleted': {'$ne': True}},
-            {'credit_balance': 1, 'free_credit_balance': 1, 'first_purchase_discount_used': 1}
+            {'credit_balance': 1, 'free_credit_balance': 1, 'first_purchase_discount_used': 1, 'first_full_conversion_used': 1}
         )
         if not result:
-            return {'credit_balance': 0, 'free_credit_balance': 0, 'first_purchase_discount_used': False}
+            return {'credit_balance': 0, 'free_credit_balance': 0, 'first_purchase_discount_used': False, 'first_full_conversion_used': False}
         return {
             'credit_balance': result.get('credit_balance', 0),
             'free_credit_balance': result.get('free_credit_balance', 0),
             'first_purchase_discount_used': result.get('first_purchase_discount_used', False),
+            'first_full_conversion_used': result.get('first_full_conversion_used', False),
         }
 
     @classmethod
@@ -709,7 +716,7 @@ class CreditTransaction(BaseModel):
     collection_name = 'credit_transactions'
 
     def __init__(self, user_email=None, user_id=None, transaction_type=None, amount=0, balance_after=0,
-                 description=None, project_id=None, stripe_session_id=None, **kwargs):
+                 description=None, project_id=None, stripe_session_id=None, stripe_invoice_id=None, **kwargs):
         super().__init__(
             transaction_id=str(uuid.uuid4()),
             user_email=user_email,
@@ -720,13 +727,14 @@ class CreditTransaction(BaseModel):
             description=description,
             project_id=project_id,
             stripe_session_id=stripe_session_id,
+            stripe_invoice_id=stripe_invoice_id,
             created_at=datetime.utcnow(),
             **kwargs
         )
 
     @classmethod
     def create(cls, user_email, user_id, transaction_type, amount, balance_after, description,
-               project_id=None, stripe_session_id=None):
+               project_id=None, stripe_session_id=None, stripe_invoice_id=None):
         """Create and save a new credit transaction"""
         txn = cls(
             user_email=user_email,
@@ -736,7 +744,8 @@ class CreditTransaction(BaseModel):
             balance_after=balance_after,
             description=description,
             project_id=project_id,
-            stripe_session_id=stripe_session_id
+            stripe_session_id=stripe_session_id,
+            stripe_invoice_id=stripe_invoice_id,
         )
         txn.insert()
         return txn.data

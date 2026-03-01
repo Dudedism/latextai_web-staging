@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Banner from '../Banner';
 import Footer from '../Footer';
 import LoadingScreen from '../common/LoadingScreen';
@@ -8,7 +8,17 @@ import { VerificationModal } from '../common/VerificationModal';
 import { ConsentModal } from '../common/ConsentModal';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { PasswordResetRequestModal } from '../common/PasswordResetRequestModal';
+import { StatusModal } from '../common/StatusModal';
 import { apiRequest } from '../../utils/api';
+
+interface SubscriptionStatus {
+  active: boolean;
+  tier: string;
+  tier_name: string;
+  credits_per_month: number;
+  status: string;
+  current_period_end: string | null;
+}
 
 interface AccountPageProps {
   userEmail?: string;
@@ -16,14 +26,19 @@ interface AccountPageProps {
 
 const AccountPage: React.FC<AccountPageProps> = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isAuthenticated, isVerified, isAnonymous, logout, refreshUser } = useAuth();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
+  const [successTierName, setSuccessTierName] = useState<string | null>(null);
 
   const [dataConsent, setDataConsent] = useState<boolean | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   // Use user data from context
   const userEmail = user?.email || 'user@example.com';
@@ -34,10 +49,12 @@ const AccountPage: React.FC<AccountPageProps> = () => {
       try {
         setLoading(true);
         await refreshUser();
-        const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', {
-          method: 'GET',
-        });
-        setDataConsent(data.consent);
+        const [consentData, subData] = await Promise.all([
+          apiRequest<{ consent: boolean | null }>('/api/user/data-consent', { method: 'GET' }),
+          apiRequest<SubscriptionStatus>('/api/subscription/status', { method: 'GET' }).catch(() => null),
+        ]);
+        setDataConsent(consentData.consent);
+        if (subData) setSubscription(subData);
       } catch (error) {
         console.error('Error fetching account data:', error);
       } finally {
@@ -51,6 +68,14 @@ const AccountPage: React.FC<AccountPageProps> = () => {
       setLoading(false);
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (searchParams.get('subscription_success') === 'true') {
+      const tier = searchParams.get('tier');
+      if (tier) setSuccessTierName(tier.charAt(0).toUpperCase() + tier.slice(1));
+      setShowSubscriptionSuccess(true);
+    }
+  }, [searchParams]);
 
   console.log('👤 [ACCOUNT PAGE] Render state:', {
     isAuthenticated,
@@ -141,6 +166,20 @@ const AccountPage: React.FC<AccountPageProps> = () => {
     console.log('✅ [ACCOUNT] Password reset email sent');
   };
 
+  const handleManageSubscription = async () => {
+    try {
+      setPortalLoading(true);
+      const data = await apiRequest<{ portal_url: string }>('/api/subscription/create-portal', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      window.location.href = data.portal_url;
+    } catch (err: any) {
+      alert(err.message || 'Failed to open billing portal');
+      setPortalLoading(false);
+    }
+  };
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -222,6 +261,39 @@ const AccountPage: React.FC<AccountPageProps> = () => {
                     <span className="badge badge--error">Not Verified</span>
                     <button className="btn btn--primary btn--sm btn--pill" onClick={handleVerifyEmail}>
                       Send Verification Email
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="form-label form-label--light">Subscription</label>
+              <div className="flex items-center gap-4">
+                {subscription?.active ? (
+                  <>
+                    <span className="badge badge--success">
+                      {subscription.tier_name} Plan
+                    </span>
+                    <span style={{ fontSize: '14px', color: '#666' }}>
+                      {subscription.credits_per_month.toLocaleString()} credits/month
+                      {subscription.current_period_end && (
+                        <> &middot; Renews {new Date(subscription.current_period_end).toLocaleDateString()}</>
+                      )}
+                    </span>
+                    <button
+                      className="btn btn--primary btn--sm btn--pill"
+                      onClick={handleManageSubscription}
+                      disabled={portalLoading}
+                    >
+                      {portalLoading ? 'Opening...' : 'Manage'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="badge" style={{ background: '#f5f5f5', color: '#666' }}>No active plan</span>
+                    <button className="btn btn--primary btn--sm btn--pill" onClick={() => navigate('/pricing')}>
+                      View Plans
                     </button>
                   </>
                 )}
@@ -315,6 +387,14 @@ const AccountPage: React.FC<AccountPageProps> = () => {
         onClose={() => setShowPasswordResetModal(false)}
         userEmail={userEmail}
         onConfirm={handlePasswordResetConfirm}
+      />
+
+      <StatusModal
+        isOpen={showSubscriptionSuccess}
+        onClose={() => setShowSubscriptionSuccess(false)}
+        status="success"
+        title="Subscription Activated!"
+        message={`Your ${successTierName || ''} subscription is now active. Credits have been added to your account.`}
       />
     </div>
   );
