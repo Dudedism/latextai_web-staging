@@ -11,6 +11,17 @@ api_stripe = Blueprint('api_stripe_blueprint', __name__, url_prefix='/api/stripe
 
 stripe.api_key = STRIPE_SECRET_KEY
 
+
+def get_subscription_period_end(sub):
+    """Extract current_period_end from a Stripe subscription object.
+    In newer API versions, this moved from the subscription to the item level."""
+    # Try item-level first (newer API versions)
+    items = sub.get('items', {}).get('data', [])
+    if items and items[0].get('current_period_end'):
+        return items[0]['current_period_end']
+    # Fallback to subscription-level (older API versions)
+    return sub.get('current_period_end')
+
 @api_stripe.route('/create-setup-session', methods=['POST'])
 @requires_auth()
 def create_setup_session(user, data):
@@ -238,7 +249,8 @@ def handle_subscription_checkout_completed(session, metadata):
 
         # Retrieve subscription details from Stripe
         sub = stripe.Subscription.retrieve(subscription_id)
-        current_period_end = datetime.utcfromtimestamp(sub.current_period_end)
+        period_end_ts = get_subscription_period_end(sub)
+        current_period_end = datetime.utcfromtimestamp(period_end_ts) if period_end_ts else None
 
         # Update user subscription fields
         User.update_fields(user_email, {
@@ -312,7 +324,8 @@ def handle_invoice_payment_succeeded(invoice):
 
         # Update period end
         sub = stripe.Subscription.retrieve(subscription_id)
-        current_period_end = datetime.utcfromtimestamp(sub.current_period_end)
+        period_end_ts = get_subscription_period_end(sub)
+        current_period_end = datetime.utcfromtimestamp(period_end_ts) if period_end_ts else None
         User.update_fields(user_email, {
             'subscription_status': 'active',
             'subscription_current_period_end': current_period_end,
@@ -371,9 +384,9 @@ def handle_subscription_updated(subscription):
         if new_tier_key:
             update_fields['subscription_tier'] = new_tier_key
 
-        current_period_end = subscription.get('current_period_end')
-        if current_period_end:
-            update_fields['subscription_current_period_end'] = datetime.utcfromtimestamp(current_period_end)
+        period_end_ts = get_subscription_period_end(subscription)
+        if period_end_ts:
+            update_fields['subscription_current_period_end'] = datetime.utcfromtimestamp(period_end_ts)
 
         User.update_fields(user_email, update_fields)
 
