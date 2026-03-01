@@ -27,10 +27,11 @@ MANIFEST
 instance/
 .webassets-cache
 
-# Environment variables
-# Track environment-specific files (.env.staging, .env.production)
-# But ignore generic .env for local development
+# Environment variables (all .env files - secrets must not be in git)
 .env
+.env.*
+**/.env
+**/.env.*
 .venv
 env/
 venv/
