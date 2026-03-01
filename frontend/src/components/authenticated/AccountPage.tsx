@@ -18,6 +18,7 @@ interface SubscriptionStatus {
   credits_per_month: number;
   status: string;
   current_period_end: string | null;
+  cancel_at_period_end: boolean;
 }
 
 interface AccountPageProps {
@@ -39,6 +40,8 @@ const AccountPage: React.FC<AccountPageProps> = () => {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Use user data from context
   const userEmail = user?.email || 'user@example.com';
@@ -180,6 +183,40 @@ const AccountPage: React.FC<AccountPageProps> = () => {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    setShowCancelModal(false);
+    try {
+      setCancelLoading(true);
+      await apiRequest('/api/subscription/cancel', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      // Refresh subscription status
+      const subData = await apiRequest<SubscriptionStatus>('/api/subscription/status', { method: 'GET' }).catch(() => null);
+      if (subData) setSubscription(subData);
+    } catch (err: any) {
+      alert(err.message || 'Failed to cancel subscription');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    try {
+      setCancelLoading(true);
+      await apiRequest('/api/subscription/reactivate', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const subData = await apiRequest<SubscriptionStatus>('/api/subscription/status', { method: 'GET' }).catch(() => null);
+      if (subData) setSubscription(subData);
+    } catch (err: any) {
+      alert(err.message || 'Failed to reactivate subscription');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -269,7 +306,7 @@ const AccountPage: React.FC<AccountPageProps> = () => {
 
             <div className="mb-6">
               <label className="form-label form-label--light">Subscription</label>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4" style={{ flexWrap: 'wrap' }}>
                 {subscription?.active ? (
                   <>
                     <span className="badge badge--success">
@@ -278,16 +315,40 @@ const AccountPage: React.FC<AccountPageProps> = () => {
                     <span style={{ fontSize: '14px', color: '#666' }}>
                       {subscription.credits_per_month.toLocaleString()} credits/month
                       {subscription.current_period_end && (
-                        <> &middot; Renews {new Date(subscription.current_period_end).toLocaleDateString()}</>
+                        subscription.cancel_at_period_end
+                          ? <> &middot; Ends {new Date(subscription.current_period_end).toLocaleDateString()}</>
+                          : <> &middot; Renews {new Date(subscription.current_period_end).toLocaleDateString()}</>
                       )}
                     </span>
-                    <button
-                      className="btn btn--primary btn--sm btn--pill"
-                      onClick={handleManageSubscription}
-                      disabled={portalLoading}
-                    >
-                      {portalLoading ? 'Opening...' : 'Manage'}
-                    </button>
+                    {subscription.cancel_at_period_end ? (
+                      <>
+                        <span className="badge badge--error">Cancelling</span>
+                        <button
+                          className="btn btn--primary btn--sm btn--pill"
+                          onClick={handleReactivateSubscription}
+                          disabled={cancelLoading}
+                        >
+                          {cancelLoading ? 'Loading...' : 'Reactivate'}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="btn btn--primary btn--sm btn--pill"
+                          onClick={handleManageSubscription}
+                          disabled={portalLoading}
+                        >
+                          {portalLoading ? 'Opening...' : 'Manage'}
+                        </button>
+                        <button
+                          className="btn btn--danger btn--sm btn--pill"
+                          onClick={() => setShowCancelModal(true)}
+                          disabled={cancelLoading}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
@@ -379,6 +440,17 @@ const AccountPage: React.FC<AccountPageProps> = () => {
         message="Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed."
         confirmText="Delete Account"
         cancelText="Cancel"
+        isDangerous={true}
+      />
+
+      <ConfirmModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleCancelSubscription}
+        title="Cancel Subscription"
+        message={`Your ${subscription?.tier_name || ''} subscription will remain active until ${subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString() : 'the end of the current billing period'}. After that, it will not renew. Your remaining credits will be kept.`}
+        confirmText="Cancel Subscription"
+        cancelText="Keep Subscription"
         isDangerous={true}
       />
 

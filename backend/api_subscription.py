@@ -143,6 +143,15 @@ def get_status(user):
     tier_key = db_user.get('subscription_tier')
     tier_config = SUBSCRIPTION_TIERS.get(tier_key, {})
 
+    cancel_at_period_end = False
+    sub_id = db_user.get('subscription_id')
+    if sub_id and db_user.get('subscription_status') == 'active':
+        try:
+            sub = stripe.Subscription.retrieve(sub_id)
+            cancel_at_period_end = sub.cancel_at_period_end
+        except stripe.error.StripeError:
+            pass
+
     return jsonify({
         'active': db_user.get('subscription_status') == 'active',
         'tier': tier_key,
@@ -150,4 +159,52 @@ def get_status(user):
         'credits_per_month': tier_config.get('credits', 0),
         'status': db_user.get('subscription_status'),
         'current_period_end': db_user.get('subscription_current_period_end').isoformat() if db_user.get('subscription_current_period_end') else None,
+        'cancel_at_period_end': cancel_at_period_end,
     }), 200
+
+
+@api_subscription.route('/cancel', methods=['POST'])
+@requires_auth()
+def cancel_subscription(user, data):
+    """Cancel subscription at end of current billing period."""
+    db_user = mongo.db.users.find_one(
+        {'email': user['email']},
+        {'subscription_id': 1, 'subscription_status': 1}
+    )
+
+    sub_id = db_user.get('subscription_id') if db_user else None
+    if not sub_id or db_user.get('subscription_status') != 'active':
+        return jsonify({'error': 'No active subscription to cancel'}), 400
+
+    try:
+        # Cancel at period end — user keeps access until current period expires
+        stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
+        print(f"✅ [SUBSCRIPTION] Cancelled at period end for {user['email']}")
+        return jsonify({'message': 'Subscription will be cancelled at the end of the current billing period.'}), 200
+
+    except stripe.error.StripeError as e:
+        print(f"❌ [SUBSCRIPTION] Cancel error: {e}")
+        return jsonify({'error': 'Failed to cancel subscription. Please try again.'}), 500
+
+
+@api_subscription.route('/reactivate', methods=['POST'])
+@requires_auth()
+def reactivate_subscription(user, data):
+    """Reactivate a subscription that was set to cancel at period end."""
+    db_user = mongo.db.users.find_one(
+        {'email': user['email']},
+        {'subscription_id': 1, 'subscription_status': 1}
+    )
+
+    sub_id = db_user.get('subscription_id') if db_user else None
+    if not sub_id or db_user.get('subscription_status') != 'active':
+        return jsonify({'error': 'No active subscription to reactivate'}), 400
+
+    try:
+        stripe.Subscription.modify(sub_id, cancel_at_period_end=False)
+        print(f"✅ [SUBSCRIPTION] Reactivated for {user['email']}")
+        return jsonify({'message': 'Subscription reactivated. It will renew automatically.'}), 200
+
+    except stripe.error.StripeError as e:
+        print(f"❌ [SUBSCRIPTION] Reactivate error: {e}")
+        return jsonify({'error': 'Failed to reactivate subscription. Please try again.'}), 500
