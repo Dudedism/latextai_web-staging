@@ -143,6 +143,9 @@ const PricingPage: React.FC = () => {
                 <div className="pricing-payg-price">
                   1 credit = $0.01 &middot; Base document: 499 credits ($4.99) &middot; +50 credits per extra page
                 </div>
+                <div style={{ marginTop: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '14px' }}>
+                  Introductory offer: +150 bonus credits on purchases of $2.50 or more!
+                </div>
               </div>
               <button
                 className="pricing-card-cta"

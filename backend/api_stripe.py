@@ -427,16 +427,18 @@ def handle_subscription_deleted(subscription):
 
 
 def handle_credit_topup_completed(session, metadata):
-    """Handle credit top-up completion: add credits to user balance."""
+    """Handle credit top-up completion: add credits + introductory bonus to user balance."""
     user_email = metadata.get('user_email')
     credits = int(metadata.get('credits', 0))
+    bonus_credits = int(metadata.get('bonus_credits', 0))
+    total_credits = credits + bonus_credits
     session_id = session['id']
 
     if not user_email or not credits:
         print(f"❌ [STRIPE] Missing user_email or credits in metadata")
         return jsonify({'error': 'Invalid metadata'}), 400
 
-    print(f"💳 [STRIPE] Credit top-up completed: {credits} credits")
+    print(f"💳 [STRIPE] Credit top-up completed: {credits} credits + {bonus_credits} bonus")
 
     try:
         # IDEMPOTENCY CHECK: Prevent duplicate credit additions from webhook retries
@@ -450,22 +452,23 @@ def handle_credit_topup_completed(session, metadata):
             print(f"❌ [STRIPE] User not found")
             return jsonify({'error': 'User not found'}), 404
 
-        new_balance = User.add_credits(user_email, credits)
+        new_balance = User.add_credits(user_email, total_credits)
         if new_balance is None:
             print(f"❌ [STRIPE] Failed to add credits")
             return jsonify({'error': 'Failed to add credits'}), 500
 
+        bonus_desc = f' + {bonus_credits} bonus' if bonus_credits else ''
         CreditTransaction.create(
             user_email=user_email,
             user_id=str(user['_id']),
             transaction_type='topup',
-            amount=credits,
+            amount=total_credits,
             balance_after=new_balance,
-            description=f'Top-up: {credits} credits (${credits / 100:.2f})',
+            description=f'Top-up: {credits} credits{bonus_desc} (${credits / 100:.2f})',
             stripe_session_id=session_id
         )
 
-        print(f"✅ [STRIPE] Added {credits} credits, new balance: {new_balance}")
+        print(f"✅ [STRIPE] Added {total_credits} credits ({credits} + {bonus_credits} bonus), new balance: {new_balance}")
         return jsonify({'received': True}), 200
 
     except Exception as e:

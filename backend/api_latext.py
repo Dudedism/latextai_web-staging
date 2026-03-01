@@ -273,8 +273,8 @@ def _process_credit_payment(user, project, project_id, description_prefix="Conve
         'discount_amount': split['discount_amount'],
     }
     if is_first_full:
-        # First conversion: grant full access even with free credits only
-        project_set['paid_with_credits'] = True
+        # First conversion: PDF only, source files require credits
+        project_set['paid_with_credits'] = False
         project_set['first_full_conversion'] = True
     elif is_free_only:
         project_set['paid_with_free_upload'] = True
@@ -673,7 +673,41 @@ def pipeline_complete_callback():
     )
 
     print(f"📬 [CALLBACK] Pipeline complete for {project_id}: status={status}, matched={result.matched_count}")
+
+    # Persist converted PDFs locally for pipeline improvement
+    if status == 'converted':
+        project = Project.find_by_id(project_id)
+        if project:
+            user_email = project.get('user_email')
+            if user_email:
+                _save_outputs_locally(project_id, user_email)
+
     return jsonify({'success': True}), 200
+
+
+def _save_outputs_locally(project_id, user_email):
+    """Download and save all output files from latextai service for persistent storage."""
+    project_dir = create_project_directory(user_email, project_id)
+    params = {'user_email': user_email, 'project_id': project_id}
+
+    for endpoint, filename in [
+        ('/api/download/pdf', 'output.pdf'),
+        ('/api/download/pdf-preview', 'output_preview.pdf'),
+        ('/api/download/tex', 'output.tex'),
+        ('/api/download/bib', 'output.bib'),
+    ]:
+        try:
+            response = _proxy_download(endpoint, params, stream=True, timeout=60)
+            if response.status_code == 200:
+                filepath = os.path.join(project_dir, filename)
+                with open(filepath, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print(f"💾 [PERSIST] Saved {filename} for {project_id}")
+            else:
+                print(f"⚠️ [PERSIST] Could not download {filename} for {project_id}: {response.status_code}")
+        except Exception as e:
+            print(f"⚠️ [PERSIST] Error saving {filename} for {project_id}: {e}")
 
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
@@ -695,6 +729,18 @@ def get_pdf(user, project_id):
 
     # Determine which PDF to serve: preview (3-page) or full
     is_preview = project.get('is_preview', False) and not project.get('paid', False)
+
+    # Try serving from local persistent storage first
+    local_filename = 'output_preview.pdf' if is_preview else 'output.pdf'
+    local_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, local_filename)
+    if not os.path.exists(local_path) and is_preview:
+        # Fall back to full PDF locally if preview not available
+        local_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, 'output.pdf')
+
+    if os.path.exists(local_path):
+        return send_file(local_path, mimetype='application/pdf')
+
+    # Fallback: proxy from latextai service
     download_endpoint = '/api/download/pdf-preview' if is_preview else '/api/download/pdf'
     params = {'user_email': user['email'], 'project_id': project_id}
 
@@ -736,12 +782,18 @@ def get_tex(user, project_id):
     if not project.get('paid', False):
         return jsonify({'error': 'Payment required to download LaTeX source files', 'upgrade_required': True}), 403
 
-    # Gate: free-credit-only projects can't download source files (unless compilation failed)
-    if (project.get('paid_with_free_upload', False) and
-            not project.get('paid_with_credits', False) and
-            not project.get('compilation_failed', False)):
+    # Gate: free-credit-only or first-free projects can't download source files (unless compilation failed)
+    if (not project.get('paid_with_credits', False) and
+            not project.get('compilation_failed', False) and
+            (project.get('paid_with_free_upload', False) or project.get('first_full_conversion', False))):
         return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
+    # Try serving from local persistent storage first
+    local_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, 'output.tex')
+    if os.path.exists(local_path):
+        return send_file(local_path, mimetype='text/plain')
+
+    # Fallback: proxy from latextai service
     params = {'user_email': user['email'], 'project_id': project_id}
 
     try:
@@ -777,12 +829,18 @@ def get_bib(user, project_id):
     if not project.get('paid', False):
         return jsonify({'error': 'Payment required to download BibTeX files', 'upgrade_required': True}), 403
 
-    # Gate: free-credit-only projects can't download source files (unless compilation failed)
-    if (project.get('paid_with_free_upload', False) and
-            not project.get('paid_with_credits', False) and
-            not project.get('compilation_failed', False)):
+    # Gate: free-credit-only or first-free projects can't download source files (unless compilation failed)
+    if (not project.get('paid_with_credits', False) and
+            not project.get('compilation_failed', False) and
+            (project.get('paid_with_free_upload', False) or project.get('first_full_conversion', False))):
         return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
+    # Try serving from local persistent storage first
+    local_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, 'output.bib')
+    if os.path.exists(local_path):
+        return send_file(local_path, mimetype='application/x-bibtex')
+
+    # Fallback: proxy from latextai service
     params = {'user_email': user['email'], 'project_id': project_id}
 
     try:
@@ -818,10 +876,10 @@ def get_package(user, project_id):
     if not project.get('paid', False):
         return jsonify({'error': 'Payment required to download compilation package', 'upgrade_required': True}), 403
 
-    # Gate: free-credit-only projects can't download source files (unless compilation failed)
-    if (project.get('paid_with_free_upload', False) and
-            not project.get('paid_with_credits', False) and
-            not project.get('compilation_failed', False)):
+    # Gate: free-credit-only or first-free projects can't download source files (unless compilation failed)
+    if (not project.get('paid_with_credits', False) and
+            not project.get('compilation_failed', False) and
+            (project.get('paid_with_free_upload', False) or project.get('first_full_conversion', False))):
         return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
     params = {'user_email': user['email'], 'project_id': project_id}

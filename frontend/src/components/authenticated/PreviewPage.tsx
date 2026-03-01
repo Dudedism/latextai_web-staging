@@ -17,6 +17,7 @@ interface ProjectResponse {
   paid?: boolean;
   is_preview?: boolean;
   paid_with_free_upload?: boolean;
+  first_full_conversion?: boolean;
   compilation_failed?: boolean;
   feedback?: 'positive' | 'negative' | null;
 }
@@ -91,6 +92,13 @@ const PreviewPage: React.FC = () => {
   const hasCalledProcess = useRef(false);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Progress bar state
+  const [progress, setProgress] = useState(0);
+  const [processingStage, setProcessingStage] = useState('Analyzing document...');
+  const processingStartTime = useRef<number | null>(null);
+  const progressAnimationRef = useRef<number | null>(null);
+  const isConvertedRef = useRef(false);
+
   useEffect(() => {
     if (paperId) {
       if (isPaymentFlow) {
@@ -119,10 +127,10 @@ const PreviewPage: React.FC = () => {
       setFeedback(project.feedback || null);
       setProjectPaid(paid);
       setIsPreview(preview);
-      setPaidWithFreeUpload(project.paid_with_free_upload || false);
+      setPaidWithFreeUpload(project.paid_with_free_upload || project.first_full_conversion || false);
 
       // State logging
-      console.log(`[PreviewPage] status=${projectStatus} paid=${paid} preview=${preview} freeUpload=${project.paid_with_free_upload || false} compileFailed=${projectCompilationFailed} isAnonymous=${isAnonymous}`);
+      console.log(`[PreviewPage] status=${projectStatus} paid=${paid} preview=${preview} freeUpload=${project.paid_with_free_upload || false} firstFull=${project.first_full_conversion || false} compileFailed=${projectCompilationFailed} isAnonymous=${isAnonymous}`);
 
       const currentPath = window.location.pathname;
       const isViewingThisProject = currentPath === `/papers/${paperId}/view`;
@@ -183,6 +191,7 @@ const PreviewPage: React.FC = () => {
       }
 
       if (projectStatus === 'converted') {
+        isConvertedRef.current = true;
         setStatus('completed');
         setCompilationFailed(projectCompilationFailed);
         if (!projectCompilationFailed) {
@@ -251,6 +260,89 @@ const PreviewPage: React.FC = () => {
       }
     };
   }, [pdfUrl]);
+
+  // Progress bar simulation
+  useEffect(() => {
+    if (status !== 'processing') {
+      if (isConvertedRef.current) {
+        setProgress(100);
+        setProcessingStage('Complete!');
+      }
+      return;
+    }
+
+    if (!processingStartTime.current) {
+      processingStartTime.current = Date.now();
+    }
+    isConvertedRef.current = false;
+
+    const pageCount = paymentDetails?.metadata?.page_count ?? null;
+    const estimatedMs = pageCount !== null
+      ? (45 + Math.max(0, pageCount - 15) * 3) * 1000
+      : 60000;
+
+    const stages = [
+      { threshold: 0, label: 'Analyzing document...' },
+      { threshold: 20, label: 'Converting to LaTeX...' },
+      { threshold: 50, label: 'Compiling PDF...' },
+      { threshold: 80, label: 'Finalizing output...' },
+    ];
+
+    let lastUpdate = 0;
+    const animate = () => {
+      const now = Date.now();
+      if (now - lastUpdate < 100) {
+        progressAnimationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      lastUpdate = now;
+
+      const elapsed = now - processingStartTime.current!;
+      const t = elapsed / estimatedMs;
+
+      let pct: number;
+      if (t <= 0.7) {
+        pct = (t / 0.7) * 70;
+      } else if (t <= 1.0) {
+        pct = 70 + ((t - 0.7) / 0.3) * 20;
+      } else {
+        pct = 90 + 5 * (1 - Math.exp(-(t - 1.0) * 0.5));
+      }
+      pct = Math.min(pct, 95);
+
+      setProgress(pct);
+      for (let i = stages.length - 1; i >= 0; i--) {
+        if (pct >= stages[i].threshold) {
+          setProcessingStage(stages[i].label);
+          break;
+        }
+      }
+
+      progressAnimationRef.current = requestAnimationFrame(animate);
+    };
+
+    progressAnimationRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (progressAnimationRef.current) cancelAnimationFrame(progressAnimationRef.current);
+    };
+  }, [status, paymentDetails?.metadata?.page_count]);
+
+  const getTimeRemaining = (): string => {
+    if (progress >= 95) return 'Almost done...';
+    if (!processingStartTime.current) return '';
+    const pageCount = paymentDetails?.metadata?.page_count ?? null;
+    const estimatedMs = pageCount !== null
+      ? (45 + Math.max(0, pageCount - 15) * 3) * 1000
+      : 60000;
+    const elapsed = Date.now() - processingStartTime.current;
+    const remaining = Math.max(0, estimatedMs - elapsed);
+    const seconds = Math.ceil(remaining / 1000);
+    if (seconds <= 0) return 'Almost done...';
+    if (seconds < 60) return `~${seconds}s remaining`;
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `~${minutes}m ${secs}s remaining`;
+  };
 
   const handleErrorModalClose = () => {
     setShowErrorModal(false);
@@ -688,7 +780,7 @@ const PreviewPage: React.FC = () => {
                     <span className="notice-icon" role="img" aria-label="gift">&#127873;</span>
                     <div className="notice-content">
                       <strong>{isFirstFullConversion
-                        ? 'Your first document includes everything — PDF, source files, and compilation package!'
+                        ? 'Your first PDF is free! LaTeX source and compilation package available with credits.'
                         : 'Your free credits cover this entire conversion!'}</strong>
                       <p>No payment required.</p>
                     </div>
@@ -709,7 +801,7 @@ const PreviewPage: React.FC = () => {
                     disabled={paymentLoading}
                   >
                     {paymentLoading ? 'Processing...' : isFirstFullConversion
-                      ? 'Get Your Free Document'
+                      ? 'Get Your Free PDF'
                       : isFirstFreeConversion
                         ? 'Use Free Credits'
                         : `Pay ${cost_estimate.total_credits} Credits`}
@@ -787,40 +879,21 @@ const PreviewPage: React.FC = () => {
           ) : status === 'processing' ? (
             <>
               <div className="processing-state">
-                <div className="processing-circle">
-                  <div className="circle-outer">
-                    <div className="circle-inner">
-                      <svg
-                        className="progress-ring spinning"
-                        width="320"
-                        height="320"
-                        viewBox="0 0 320 320"
-                      >
-                        <circle
-                          className="progress-ring-bg"
-                          cx="160"
-                          cy="160"
-                          r="150"
-                          strokeWidth="2"
-                          fill="none"
-                        />
-                        <circle
-                          className="progress-ring-fill"
-                          cx="160"
-                          cy="160"
-                          r="150"
-                          strokeWidth="3"
-                          fill="none"
-                          strokeDasharray="400 942"
-                          transform="rotate(-90 160 160)"
-                        />
-                      </svg>
-                      <div className="processing-text">
-                        <h2 className="processing-title">Processing Your Document...</h2>
-                        <p className="processing-subtitle">Your document is being converted to LaTeX format and compiled. This may take a few minutes.</p>
-                      </div>
-                    </div>
+                <div className="progress-bar-container">
+                  <h2 className="processing-title">{processingStage}</h2>
+                  <div className="progress-bar-track">
+                    <div
+                      className={`progress-bar-fill${progress >= 100 ? ' progress-bar-fill--complete' : ''}`}
+                      style={{ width: `${progress}%` }}
+                    />
                   </div>
+                  <div className="progress-bar-info">
+                    <span className="progress-bar-pct">{Math.round(progress)}%</span>
+                    <span className="progress-bar-time">{getTimeRemaining()}</span>
+                  </div>
+                  <p className="processing-subtitle">
+                    Your document is being converted to LaTeX format and compiled.
+                  </p>
                 </div>
               </div>
               {/* Invoice card shown during preview processing (only for anonymous sign-up CTA) */}
@@ -854,7 +927,7 @@ const PreviewPage: React.FC = () => {
                       textAlign: 'center',
                       fontSize: '14px'
                     }}>
-                      This is a 3-page preview. {effectiveAnonymous ? 'Sign up to see the full document for free!' : isFirstFullConversion ? 'Your first document is completely free — click below to unlock everything!' : isFirstFreeConversion ? 'Use your free credits below to unlock the full document.' : 'Pay to unlock the full document and source files.'}
+                      This is a 3-page preview. {effectiveAnonymous ? 'Sign up to see the full document for free!' : isFirstFullConversion ? 'Your first PDF is free! Click below to unlock it. LaTeX source files available with credits.' : isFirstFreeConversion ? 'Use your free credits below to unlock the full document.' : 'Pay to unlock the full document and source files.'}
                     </div>
                   )}
                   <iframe

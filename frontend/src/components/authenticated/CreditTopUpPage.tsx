@@ -29,6 +29,8 @@ interface TransactionResponse {
 }
 
 const MIN_CREDITS = 100;
+const TOPUP_BONUS_CREDITS = 150; // Introductory bonus
+const TOPUP_BONUS_MIN_CREDITS = 250; // Bonus only for purchases >= $2.50
 
 const CreditTopUpPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -125,6 +127,7 @@ const CreditTopUpPage: React.FC = () => {
   const parsedCredits = parseInt(creditAmount, 10) || 0;
   const dollarAmount = (parsedCredits / 100).toFixed(2);
   const isValidAmount = parsedCredits >= MIN_CREDITS;
+  const qualifiesForBonus = TOPUP_BONUS_CREDITS > 0 && parsedCredits >= TOPUP_BONUS_MIN_CREDITS;
 
   if (loading) {
     return <LoadingScreen />;
@@ -166,6 +169,11 @@ const CreditTopUpPage: React.FC = () => {
             <h2 className="section-heading">Top Up Credits</h2>
             <p className="text-muted text-sm mb-6">
               1 credit = $0.01. Minimum top-up: {MIN_CREDITS} credits (${(MIN_CREDITS / 100).toFixed(2)})
+              {TOPUP_BONUS_CREDITS > 0 && (
+                <span style={{ display: 'block', marginTop: '6px', color: '#2e7d32', fontWeight: 600 }}>
+                  Introductory offer: +{TOPUP_BONUS_CREDITS} bonus credits on purchases of ${(TOPUP_BONUS_MIN_CREDITS / 100).toFixed(2)} or more!
+                </span>
+              )}
             </p>
 
             <div className="form-group">
@@ -182,7 +190,11 @@ const CreditTopUpPage: React.FC = () => {
 
             <div className="mb-6">
               {isValidAmount ? (
-                <span className="text-lg"><strong>{parsedCredits.toLocaleString()}</strong> credits = <strong>${dollarAmount}</strong></span>
+                <span className="text-lg">
+                  <strong>{parsedCredits.toLocaleString()}</strong> credits
+                  {qualifiesForBonus && <span style={{ color: '#2e7d32', fontWeight: 700 }}> +{TOPUP_BONUS_CREDITS} bonus</span>}
+                  {' '}= <strong>${dollarAmount}</strong>
+                </span>
               ) : (
                 <span className="text-muted">Enter at least {MIN_CREDITS} credits</span>
               )}

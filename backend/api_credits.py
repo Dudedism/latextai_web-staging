@@ -9,6 +9,8 @@ api_credits = Blueprint('api_credits_blueprint', __name__, url_prefix='/api/cred
 stripe.api_key = STRIPE_SECRET_KEY
 
 MIN_TOPUP_CREDITS = 100
+TOPUP_BONUS_CREDITS = 150  # Introductory bonus: extra credits on every top-up
+TOPUP_BONUS_MIN_CREDITS = 250  # Bonus only applies for purchases >= $2.50
 
 
 @api_credits.route('/balance', methods=['GET'])
@@ -77,6 +79,10 @@ def create_topup_session(user, data):
 
     amount_cents = credits
 
+    bonus = TOPUP_BONUS_CREDITS if credits >= TOPUP_BONUS_MIN_CREDITS else 0
+    total_credits = credits + bonus
+    bonus_desc = f' + {bonus} bonus' if bonus else ''
+
     try:
         checkout_session = stripe.checkout.Session.create(
             line_items=[{
@@ -85,19 +91,20 @@ def create_topup_session(user, data):
                     'unit_amount': amount_cents,
                     'product_data': {
                         'name': 'LaTeX.ai Credits',
-                        'description': f'{credits} credits',
+                        'description': f'{credits} credits{bonus_desc}' + (' (introductory offer)' if bonus else ''),
                     },
                 },
                 'quantity': 1,
             }],
             mode='payment',
             allow_promotion_codes=True,
-            success_url=f'{FRONTEND_URL}/credits?topup_success=true&credits={credits}',
+            success_url=f'{FRONTEND_URL}/credits?topup_success=true&credits={total_credits}',
             cancel_url=f'{FRONTEND_URL}/credits?topup_cancelled=true',
             metadata={
                 'type': 'credit_topup',
                 'user_email': user['email'],
                 'credits': credits,
+                'bonus_credits': bonus,
             },
         )
 
