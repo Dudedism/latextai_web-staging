@@ -35,6 +35,7 @@ GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 
 # LatextAI Microservice Configuration
 LATEXTAI_SERVICE_URL = os.getenv('LATEXTAI_SERVICE_URL', 'http://localhost:8001')
+LATEXTAI_SERVICE_URL_FAST = os.getenv('LATEXTAI_SERVICE_URL_FAST')  # Optional fast server (local via tunnel)
 LATEXTAI_API_KEY = os.getenv('LATEXTAI_API_KEY')
 
 # Stripe Configuration

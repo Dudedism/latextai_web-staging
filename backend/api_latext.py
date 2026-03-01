@@ -7,7 +7,7 @@ from flask import jsonify, Blueprint, request, send_file, Response
 from api_auth import requires_auth
 from database import User, Project, CreditTransaction, mongo
 from datetime import datetime
-from config import LATEXTAI_SERVICE_URL, LATEXTAI_API_KEY
+from config import BACKEND_URL, LATEXTAI_SERVICE_URL, LATEXTAI_SERVICE_URL_FAST, LATEXTAI_API_KEY
 from utils.document_utils import extract_docx_metadata, validate_docx_file
 from utils.pricing import calculate_cost, calculate_credit_split
 
@@ -15,6 +15,36 @@ api_latext = Blueprint('api_latext_blueprint', __name__, url_prefix='/api/latex'
 
 # Base directory for user projects (local temporary storage before sending to latextai)
 USER_PROJECTS_DIR = 'user_projects'
+
+
+def _proxy_download(endpoint, params, stream=True, timeout=30):
+    """Proxy a download request to latextai service, trying fast server first."""
+    headers = {'X-API-Key': LATEXTAI_API_KEY}
+    urls = []
+    if LATEXTAI_SERVICE_URL_FAST:
+        urls.append(LATEXTAI_SERVICE_URL_FAST)
+    urls.append(LATEXTAI_SERVICE_URL)
+
+    for url in urls:
+        try:
+            response = requests.get(
+                f"{url}{endpoint}",
+                params=params,
+                headers=headers,
+                stream=stream,
+                timeout=timeout,
+            )
+            if response.status_code == 200:
+                return response
+            # If fast server returns 404, the file might be on the default server
+            if url != LATEXTAI_SERVICE_URL and response.status_code == 404:
+                continue
+            return response
+        except requests.exceptions.RequestException:
+            if url != LATEXTAI_SERVICE_URL:
+                continue
+            raise
+    return response
 
 # Templates configuration file
 TEMPLATES_FILE = 'templates.json'
@@ -517,52 +547,65 @@ def process_project(user, data):
 
     try:
         # STEP 7: Forward file to latextai service
-        with open(file_path, 'rb') as f:
-            files = {
-                'file': (project.get('upload_filename'), f, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-            }
-            form_data = {
-                'user_email': user['email'],
-                'project_id': project_id,
-                'template': latextai_template_name
-            }
-            headers = {
-                'X-API-Key': LATEXTAI_API_KEY
-            }
+        # Try fast server first (local via SSH tunnel), fall back to default
+        service_urls = []
+        if LATEXTAI_SERVICE_URL_FAST:
+            service_urls.append(('fast', LATEXTAI_SERVICE_URL_FAST))
+        service_urls.append(('default', LATEXTAI_SERVICE_URL))
 
-            print(f"🚀 [PROCESS] Forwarding project {project_id} to latextai...")
+        form_data = {
+            'user_email': user['email'],
+            'project_id': project_id,
+            'template': latextai_template_name,
+            'callback_url': f"{BACKEND_URL}/api/latex/internal/pipeline-complete",
+            'callback_api_key': LATEXTAI_API_KEY,
+        }
+        headers = {
+            'X-API-Key': LATEXTAI_API_KEY
+        }
 
-            response = requests.post(
-                f"{LATEXTAI_SERVICE_URL}/api/convert",
-                files=files,
-                data=form_data,
-                headers=headers,
-                timeout=30
-            )
+        for label, service_url in service_urls:
+            try:
+                with open(file_path, 'rb') as f:
+                    files = {
+                        'file': (project.get('upload_filename'), f, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+                    }
 
-            print(f"📡 [PROCESS] LatextAI response: {response.status_code}")
+                    print(f"🚀 [PROCESS] Forwarding project {project_id} to latextai ({label}: {service_url})...")
 
-            if response.status_code == 202:
-                # STEP 8: Update project status to 'processing'
-                mongo.db.projects.update_one(
-                    {'project_id': project_id},
-                    {'$set': {'status': 'processing'}}
-                )
+                    response = requests.post(
+                        f"{service_url}/api/convert",
+                        files=files,
+                        data=form_data,
+                        headers=headers,
+                        timeout=10 if label == 'fast' else 30
+                    )
 
-                print(f"✅ [PROCESS] Project {project_id} sent to latextai successfully")
+                print(f"📡 [PROCESS] LatextAI response ({label}): {response.status_code}")
 
-                return jsonify({
-                    'message': 'Processing started successfully',
-                    'project_id': project_id,
-                    'status': 'processing'
-                }), 202  # 202 Accepted
+                if response.status_code == 202:
+                    mongo.db.projects.update_one(
+                        {'project_id': project_id},
+                        {'$set': {'status': 'processing'}}
+                    )
+                    print(f"✅ [PROCESS] Project {project_id} sent to latextai ({label}) successfully")
+                    return jsonify({
+                        'message': 'Processing started successfully',
+                        'project_id': project_id,
+                        'status': 'processing'
+                    }), 202
 
-            else:
-                # latextai returned error
-                print(f"❌ [PROCESS] LatextAI error: {response.text}")
-                return jsonify({
-                    'error': f'Processing service error: {response.text}'
-                }), response.status_code
+                else:
+                    print(f"❌ [PROCESS] LatextAI error ({label}): {response.text}")
+                    return jsonify({
+                        'error': f'Processing service error: {response.text}'
+                    }), response.status_code
+
+            except requests.exceptions.RequestException as e:
+                if label == 'fast':
+                    print(f"⚠️  [PROCESS] Fast server unreachable, falling back to default: {e}")
+                    continue
+                raise
 
     except requests.exceptions.RequestException as e:
         print(f"❌ [PROCESS] Network error: {e}")
@@ -575,6 +618,48 @@ def process_project(user, data):
         return jsonify({
             'error': 'Processing failed. Please try again.'
         }), 500
+
+
+# ====================================================================
+# PIPELINE CALLBACK (called by orchestra service after processing)
+# ====================================================================
+
+@api_latext.route('/internal/pipeline-complete', methods=['POST'])
+def pipeline_complete_callback():
+    """Callback from orchestra service when pipeline finishes."""
+    api_key = request.headers.get('X-API-Key')
+    if not api_key or api_key != LATEXTAI_API_KEY:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    project_id = data.get('project_id')
+    status = data.get('status')
+
+    if not project_id or not status:
+        return jsonify({'error': 'Missing project_id or status'}), 400
+
+    update_data = {
+        'status': status,
+        'updated_at': datetime.utcnow(),
+    }
+
+    if data.get('error_message'):
+        update_data['error_message'] = data['error_message']
+    if data.get('conversion_cost') is not None:
+        update_data['conversion_cost'] = data['conversion_cost']
+    if data.get('compilation_failed') is not None:
+        update_data['compilation_failed'] = data['compilation_failed']
+    if status == 'converted':
+        update_data['converted_at'] = datetime.utcnow()
+
+    result = mongo.db.projects.update_one(
+        {'project_id': project_id},
+        {'$set': update_data}
+    )
+
+    print(f"📬 [CALLBACK] Pipeline complete for {project_id}: status={status}, matched={result.matched_count}")
+    return jsonify({'success': True}), 200
+
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
 @requires_auth(allow_anonymous=True)
@@ -596,45 +681,17 @@ def get_pdf(user, project_id):
     # Determine which PDF to serve: preview (3-page) or full
     is_preview = project.get('is_preview', False) and not project.get('paid', False)
     download_endpoint = '/api/download/pdf-preview' if is_preview else '/api/download/pdf'
+    params = {'user_email': user['email'], 'project_id': project_id}
 
     try:
-        # Proxy request to latextai service
-        params = {
-            'user_email': user['email'],
-            'project_id': project_id
-        }
-        headers = {
-            'X-API-Key': LATEXTAI_API_KEY
-        }
-
-        response = requests.get(
-            f"{LATEXTAI_SERVICE_URL}{download_endpoint}",
-            params=params,
-            headers=headers,
-            stream=True,
-            timeout=30
-        )
+        response = _proxy_download(download_endpoint, params)
 
         if response.status_code == 200:
-            # Stream the PDF file back to client
-            return Response(
-                response.iter_content(chunk_size=8192),
-                content_type='application/pdf'
-            )
+            return Response(response.iter_content(chunk_size=8192), content_type='application/pdf')
         elif is_preview and response.status_code == 404:
-            # Preview endpoint might not exist yet — fallback to full PDF
-            response = requests.get(
-                f"{LATEXTAI_SERVICE_URL}/api/download/pdf",
-                params=params,
-                headers=headers,
-                stream=True,
-                timeout=30
-            )
+            response = _proxy_download('/api/download/pdf', params)
             if response.status_code == 200:
-                return Response(
-                    response.iter_content(chunk_size=8192),
-                    content_type='application/pdf'
-                )
+                return Response(response.iter_content(chunk_size=8192), content_type='application/pdf')
             return jsonify({'error': 'PDF not found'}), response.status_code
         else:
             return jsonify({'error': 'PDF not found'}), response.status_code
@@ -670,30 +727,13 @@ def get_tex(user, project_id):
             not project.get('compilation_failed', False)):
         return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
-    try:
-        # Proxy request to latextai service
-        params = {
-            'user_email': user['email'],
-            'project_id': project_id
-        }
-        headers = {
-            'X-API-Key': LATEXTAI_API_KEY
-        }
+    params = {'user_email': user['email'], 'project_id': project_id}
 
-        response = requests.get(
-            f"{LATEXTAI_SERVICE_URL}/api/download/tex",
-            params=params,
-            headers=headers,
-            stream=True,
-            timeout=30
-        )
+    try:
+        response = _proxy_download('/api/download/tex', params)
 
         if response.status_code == 200:
-            # Stream the TEX file back to client
-            return Response(
-                response.iter_content(chunk_size=8192),
-                content_type='text/plain'
-            )
+            return Response(response.iter_content(chunk_size=8192), content_type='text/plain')
         else:
             return jsonify({'error': 'LaTeX file not found'}), response.status_code
 
@@ -728,30 +768,13 @@ def get_bib(user, project_id):
             not project.get('compilation_failed', False)):
         return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
-    try:
-        # Proxy request to latextai service
-        params = {
-            'user_email': user['email'],
-            'project_id': project_id
-        }
-        headers = {
-            'X-API-Key': LATEXTAI_API_KEY
-        }
+    params = {'user_email': user['email'], 'project_id': project_id}
 
-        response = requests.get(
-            f"{LATEXTAI_SERVICE_URL}/api/download/bib",
-            params=params,
-            headers=headers,
-            stream=True,
-            timeout=30
-        )
+    try:
+        response = _proxy_download('/api/download/bib', params)
 
         if response.status_code == 200:
-            # Stream the BibTeX file back to client
-            return Response(
-                response.iter_content(chunk_size=8192),
-                content_type='application/x-bibtex'
-            )
+            return Response(response.iter_content(chunk_size=8192), content_type='application/x-bibtex')
         else:
             return jsonify({'error': 'BibTeX file not found'}), response.status_code
 
@@ -786,30 +809,13 @@ def get_package(user, project_id):
             not project.get('compilation_failed', False)):
         return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
-    try:
-        # Proxy request to latextai service
-        params = {
-            'user_email': user['email'],
-            'project_id': project_id
-        }
-        headers = {
-            'X-API-Key': LATEXTAI_API_KEY
-        }
+    params = {'user_email': user['email'], 'project_id': project_id}
 
-        response = requests.get(
-            f"{LATEXTAI_SERVICE_URL}/api/download/package",
-            params=params,
-            headers=headers,
-            stream=True,
-            timeout=30
-        )
+    try:
+        response = _proxy_download('/api/download/package', params)
 
         if response.status_code == 200:
-            # Stream the package file back to client
-            return Response(
-                response.iter_content(chunk_size=8192),
-                content_type='application/zip'
-            )
+            return Response(response.iter_content(chunk_size=8192), content_type='application/zip')
         else:
             return jsonify({'error': 'Compilation package not found'}), response.status_code
 
