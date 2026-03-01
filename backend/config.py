@@ -48,6 +48,9 @@ STRIPE_PRICE_PROFESSOR = os.getenv('STRIPE_PRICE_PROFESSOR')
 # reCAPTCHA Configuration
 RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY')
 
+# Staging Access Control
+STAGING_INVITE_CODE = os.getenv('STAGING_INVITE_CODE')
+
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["10000 per day", "1000 per hour"]

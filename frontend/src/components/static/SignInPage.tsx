@@ -21,6 +21,8 @@ const SignInPage: React.FC = () => {
   const [error, setError] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const requireInviteCode = import.meta.env.VITE_REQUIRE_INVITE_CODE === 'true';
 
   useEffect(() => {
     // Set auth mode based on current path
@@ -89,6 +91,11 @@ const SignInPage: React.FC = () => {
         if (container && window.google?.accounts) {
           container.innerHTML = '';
 
+          // Set invite code cookie for Google OAuth redirect (backend reads it)
+          if (requireInviteCode && inviteCode) {
+            document.cookie = `invite_code=${encodeURIComponent(inviteCode)}; path=/; max-age=300; SameSite=Lax`;
+          }
+
           window.google.accounts.id.initialize({
             client_id: '720160772474-jrdbco5ieojmvg83sr1juo3kineasj20.apps.googleusercontent.com',
             ux_mode: 'redirect',
@@ -153,6 +160,11 @@ const SignInPage: React.FC = () => {
         // If user was anonymous, pass the anon email for merge
         if (isAnonymous && user?.email) {
           body.anon_email = user.email;
+        }
+
+        // Send invite code if required
+        if (requireInviteCode && inviteCode) {
+          body.invite_code = inviteCode;
         }
 
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/signup`, {
@@ -271,6 +283,19 @@ const SignInPage: React.FC = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   maxLength={128}
+                  className="auth-input"
+                />
+              </div>
+            )}
+
+            {authMode === 'signup' && requireInviteCode && (
+              <div>
+                <input
+                  type="text"
+                  placeholder="Invite Code"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  required
                   className="auth-input"
                 />
               </div>

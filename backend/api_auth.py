@@ -107,6 +107,11 @@ def requires_admin(func):
 def signup():
     data = request.get_json()
 
+    # Staging invite code check
+    if STAGING_INVITE_CODE:
+        if data.get('invite_code') != STAGING_INVITE_CODE:
+            return jsonify({'message': 'Valid invite code required for staging registration.'}), 403
+
     # Validate required fields exist
     if not data.get('email') or not data.get('password'):
         return jsonify({'message': 'Email and password are required.'}), 400
@@ -211,6 +216,10 @@ def create_anonymous():
     Generates a synthetic email and issues JWT tokens so anonymous users
     can use all email-keyed methods (upload locks, token storage, etc.).
     """
+    # Block anonymous account creation on staging
+    if STAGING_INVITE_CODE:
+        return jsonify({'message': 'Anonymous accounts are disabled on staging.'}), 403
+
     anonymous_id = uuid.uuid4().hex[:16]
     email = f"anon_{anonymous_id}@anonymous.user"
     pwd = generate_password_hash(str(uuid.uuid4()))
@@ -436,6 +445,11 @@ def login_google():
         # Create user if none exists (check deleted users for free upload history)
         is_new_user = False
         if not existing_user:
+            # Block new Google OAuth registrations on staging without invite code
+            if STAGING_INVITE_CODE:
+                invite_code = request.cookies.get('invite_code')
+                if invite_code != STAGING_INVITE_CODE:
+                    return redirect(f"{FRONTEND_URL}/signin?error=invite_code_required")
             is_new_user = True
             name = id_info.get('given_name', '') + ' ' + id_info.get('family_name', '')
             name = name.strip() or email.split('@')[0]  # Fallback to email prefix if no name
