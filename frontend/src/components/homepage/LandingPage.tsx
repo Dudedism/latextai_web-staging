@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Banner from '../Banner';
 import { HeroSection, PricingCompare } from '.'; // barrel import
@@ -7,6 +7,8 @@ import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+
+  const [citationExpanded, setCitationExpanded] = useState(false);
 
   const handleTryFree = () => {
     navigate('/papers/new');
@@ -32,16 +34,18 @@ const LandingPage: React.FC = () => {
           <img src="/lancet.svg" alt="The Lancet" className="publisher-logo" style={{ width: '250px', height: '28px' }} />
           <img src="/nature.svg" alt="Nature" className="publisher-logo" style={{ width: '168px', height: '46px' }} />
         </div>
-        <div className="feature-callout">
+        <div className={`feature-callout${citationExpanded ? ' expanded' : ''}`} onClick={() => setCitationExpanded(!citationExpanded)} style={{ cursor: 'pointer' }}>
           <div className="hero-feature-badge">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: citationExpanded ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s ease' }}>
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
             Auto Citation Lookup
           </div>
-          <p className="feature-callout-text">
-            We automatically search and match your citation keys to real publications, so your bibliography is always complete and correctly formatted.
-          </p>
+          <div className="feature-callout-collapse">
+            <p className="feature-callout-text">
+              We automatically search and match your citation keys to real publications, so your bibliography is always complete and correctly formatted.
+            </p>
+          </div>
         </div>
       </section>
 

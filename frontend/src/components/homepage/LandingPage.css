@@ -105,13 +105,27 @@
   flex-direction: column;
   align-items: center;
   margin-top: 40px;
-  gap: 12px;
+  gap: 0;
+}
+
+.feature-callout-collapse {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.25s ease, margin-top 0.3s ease;
+  margin-top: 0;
+}
+
+.feature-callout.expanded .feature-callout-collapse {
+  max-height: 120px;
+  opacity: 1;
+  margin-top: 12px;
 }
 
 .feature-callout-text {
   font-family: var(--font-sans);
-  font-size: 15px;
-  color: #555;
+  font-size: var(--fs-sm);
+  color: var(--color-gray-600);
   text-align: center;
   max-width: 520px;
   line-height: 1.6;
