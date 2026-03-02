@@ -69,6 +69,7 @@ const ProcessingPage: React.FC = () => {
                 <div className="processing-text">
                   <h1 className="processing-title">Processing Your Paper</h1>
                   <p className="processing-subtitle">Converting to your selected template...</p>
+                  <p className="processing-feature-hint">We automatically find and format your bibliography references.</p>
                 </div>
               </div>
             </div>

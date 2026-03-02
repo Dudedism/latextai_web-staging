@@ -70,6 +70,7 @@ const PreviewPage: React.FC = () => {
   const [projectPaid, setProjectPaid] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
   const [paidWithFreeUpload, setPaidWithFreeUpload] = useState(false);
+  const [isFirstFullProject, setIsFirstFullProject] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const { id: paperId } = useParams<{ id: string }>();
@@ -128,6 +129,7 @@ const PreviewPage: React.FC = () => {
       setProjectPaid(paid);
       setIsPreview(preview);
       setPaidWithFreeUpload(project.paid_with_free_upload || project.first_full_conversion || false);
+      setIsFirstFullProject(project.first_full_conversion || false);
 
       // State logging
       console.log(`[PreviewPage] status=${projectStatus} paid=${paid} preview=${preview} freeUpload=${project.paid_with_free_upload || false} firstFull=${project.first_full_conversion || false} compileFailed=${projectCompilationFailed} isAnonymous=${isAnonymous}`);
@@ -199,8 +201,8 @@ const PreviewPage: React.FC = () => {
         } else {
           setLoading(false);
         }
-        // Fetch payment details for unpaid projects or free-upload projects (need cost data for upgrade CTA)
-        if (!paid || project.paid_with_free_upload) {
+        // Fetch payment details for unpaid projects or free-upload/first-free projects (need cost data for upgrade CTA)
+        if (!paid || project.paid_with_free_upload || project.first_full_conversion) {
           fetchPaymentDetails();
         }
       } else if (projectStatus === 'failed') {
@@ -1029,11 +1031,12 @@ const PreviewPage: React.FC = () => {
 
                   return canUnlock ? (
                     <>
-                      <h3 className="dl-message-heading">Ready to unlock?</h3>
+                      <h3 className="dl-message-heading">{isFirstFullProject ? 'Your first PDF is free!' : 'Ready to unlock?'}</h3>
                       <p className="dl-message-text">
-                        You have enough credits to unlock the full package for this document.
-                        This includes editable LaTeX source (.tex), bibliography (.bib),
-                        journal style files, and the complete compilation package.
+                        {isFirstFullProject
+                          ? 'Enjoy your free PDF! To get the full LaTeX source, bibliography, and compilation package, unlock with credits.'
+                          : 'You have enough credits to unlock the full package for this document. This includes editable LaTeX source (.tex), bibliography (.bib), journal style files, and the complete compilation package.'
+                        }
                       </p>
                       {hasDiscount && (
                         <p className="dl-message-text">
@@ -1060,11 +1063,12 @@ const PreviewPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <h3 className="dl-message-heading">Enjoying your results?</h3>
+                      <h3 className="dl-message-heading">{isFirstFullProject ? 'Your first PDF is free!' : 'Enjoying your results?'}</h3>
                       <p className="dl-message-text">
-                        Thank you for trying LaTexT! Your PDF is ready to download below.
-                        To unlock the full package — editable LaTeX source, bibliography,
-                        and all compilation files — top up your credits.
+                        {isFirstFullProject
+                          ? 'Enjoy your free PDF! To get the full LaTeX source, bibliography, and compilation package, top up your credits.'
+                          : 'Thank you for trying LaTexT! Your PDF is ready to download below. To unlock the full package — editable LaTeX source, bibliography, and all compilation files — top up your credits.'
+                        }
                       </p>
 
                       <div className="invoice-breakdown" style={{ margin: '16px 0' }}>

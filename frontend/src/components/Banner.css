@@ -74,6 +74,19 @@
   transform: translateY(-1px);
 }
 
+/* Feature badge */
+.feature-badge {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a7f37;
+  background: #dafbe1;
+  padding: 5px 12px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
 /* Hamburger Menu Styles */
 .hamburger-menu {
   position: relative;
@@ -178,6 +191,10 @@
 
   /* Hide desktop nav links */
   .nav-center {
+    display: none;
+  }
+
+  .feature-badge {
     display: none;
   }
 

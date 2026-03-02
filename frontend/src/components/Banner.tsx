@@ -58,6 +58,7 @@ const Banner: React.FC = () => {
         </Link>
       </nav>
       <div className="nav-right">
+        <span className="feature-badge">Auto Citation Lookup</span>
         <div className="hamburger-menu" ref={dropdownRef}>
           <button
             className="hamburger-button"
