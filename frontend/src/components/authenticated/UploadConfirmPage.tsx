@@ -194,7 +194,7 @@ const UploadConfirmPage: React.FC = () => {
     // Check consent before uploading
     try {
       const data = await apiRequest<{ consent: boolean | null }>('/api/user/data-consent', { method: 'GET' });
-      if (data.consent !== true) {
+      if (data.consent === null || data.consent === undefined) {
         setShowConsentModal(true);
         return;
       }
