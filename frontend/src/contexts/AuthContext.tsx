@@ -115,6 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const refreshToken = params.get('refresh_token');
         const urlEmail = params.get('email');
         const admin = params.get('admin') === 'true';
+        const isNewUser = params.get('is_new_user') === 'true';
 
         if (accessToken && refreshToken && urlEmail) {
           // Store auth data from OAuth callback
@@ -131,6 +132,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isVerified: true,
             isAnonymous: false
           });
+
+          // Track Google OAuth signup conversion (production only, new users only)
+          if (isNewUser && window.location.hostname === 'latext.ai' && typeof window.gtag === 'function') {
+            window.gtag('set', 'user_data', { 'email': urlEmail });
+            window.gtag('event', 'conversion', {
+              'send_to': 'AW-17841022197/AzBICImqtN8bEPXJobtC'
+            });
+          }
 
           // Clean up URL (remove hash fragment)
           window.history.replaceState(null, '', window.location.pathname);

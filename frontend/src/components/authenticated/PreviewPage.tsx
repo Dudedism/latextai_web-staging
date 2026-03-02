@@ -76,7 +76,7 @@ const PreviewPage: React.FC = () => {
   const { id: paperId } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAnonymous } = useAuth();
+  const { isAnonymous, user } = useAuth();
 
   // Debug mock overrides (dev/staging only, tree-shaken from production)
   const [mockAnonymous, setMockAnonymous] = useState<boolean | null>(null);
@@ -200,6 +200,17 @@ const PreviewPage: React.FC = () => {
           fetchPdf();
         } else {
           setLoading(false);
+        }
+        // Track Free User Upload conversion (production only, free-credit projects only)
+        if ((project.paid_with_free_upload || project.first_full_conversion) && !isAnonymous) {
+          if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function') {
+            if (user?.email) {
+              window.gtag('set', 'user_data', { 'email': user.email });
+            }
+            window.gtag('event', 'conversion', {
+              'send_to': 'AW-17841022197/RDtCCOWwtd8bEPXJobtC'
+            });
+          }
         }
         // Fetch payment details for unpaid projects or free-upload/first-free projects (need cost data for upgrade CTA)
         if (!paid || project.paid_with_free_upload || project.first_full_conversion) {

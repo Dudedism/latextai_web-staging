@@ -524,7 +524,7 @@ def login_google():
 
         # Redirect to frontend with tokens in URL fragment (more secure than query params)
         # The frontend will extract these and store them in AuthContext
-        redirect_url = f"{FRONTEND_URL}/papers#access_token={access_token}&refresh_token={refresh_token}&email={email}&admin={str(existing_user.get('admin', False)).lower()}"
+        redirect_url = f"{FRONTEND_URL}/papers#access_token={access_token}&refresh_token={refresh_token}&email={email}&admin={str(existing_user.get('admin', False)).lower()}&is_new_user={str(is_new_user).lower()}"
 
         print(f"✅ [GOOGLE LOGIN] User logged in: {email}")
         response = redirect(redirect_url)
