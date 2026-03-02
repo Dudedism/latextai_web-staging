@@ -24,7 +24,7 @@ const LandingPage: React.FC = () => {
       <HeroSection />
 
       {/* Section 2: Publishers */}
-      <section className="section" style={{ marginTop: '-60px' }}>
+      <section className="section" style={{ marginTop: '-30px' }}>
         <div className="publishers-section">
           <img src="/elsevier.png" alt="Elsevier" className="publisher-logo" style={{ width: '156px', height: '76px' }} />
           <img src="/ieee.svg" alt="IEEE" className="publisher-logo" style={{ width: '138px', height: '77px' }} />
