@@ -212,6 +212,14 @@ const PreviewPage: React.FC = () => {
             });
           }
         }
+        // Track Anonymous Free Upload (observation only, not used for bidding)
+        if ((project.paid_with_free_upload || project.first_full_conversion) && isAnonymous) {
+          if (window.location.hostname === 'latext.ai' && typeof window.gtag === 'function') {
+            window.gtag('event', 'conversion', {
+              'send_to': 'AW-17841022197/royJCOj8x4EcEPXJobtC'
+            });
+          }
+        }
         // Fetch payment details for unpaid projects or free-upload/first-free projects (need cost data for upgrade CTA)
         if (!paid || project.paid_with_free_upload || project.first_full_conversion) {
           fetchPaymentDetails();
