@@ -25,14 +25,27 @@ const YourPapersPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
+  const [freeCredits, setFreeCredits] = useState<number | null>(null);
 
 
   // Only fetch projects after auth is loaded and user is authenticated
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       fetchProjects();
+      if (!isAnonymous) {
+        fetchCredits();
+      }
     }
   }, [isLoading, isAuthenticated]);
+
+  const fetchCredits = async () => {
+    try {
+      const data = await apiRequest<{ free_balance: number }>('/api/credits/balance');
+      setFreeCredits(data.free_balance);
+    } catch (error) {
+      console.error('Error fetching credits:', error);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -102,6 +115,16 @@ const YourPapersPage: React.FC = () => {
                   ? 'Sign up to continue uploading documents.'
                   : 'Pay for an existing document or purchase credits to upload more.'
                 }</p>
+              </div>
+            </div>
+          )}
+
+          {!isAnonymous && freeCredits !== null && freeCredits >= 499 && papers.length === 0 && (
+            <div className="notice notice--info mb-6" style={{ cursor: 'pointer' }} onClick={handleNewPaper}>
+              <span className="notice-icon">&#127873;</span>
+              <div className="notice-content">
+                <strong>Your first conversion is free!</strong>
+                <p>Upload a .docx and get a journal-ready LaTeX PDF — no payment required. You also have 5 free previews, so feel free to try different documents before using your free conversion.</p>
               </div>
             </div>
           )}

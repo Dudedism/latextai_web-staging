@@ -2,6 +2,7 @@ from flask_pymongo import PyMongo
 from bson import ObjectId
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
+import hashlib
 import uuid
 
 mongo = PyMongo()
@@ -54,9 +55,12 @@ class BaseModel:
 class User(BaseModel):
     collection_name = 'users'
 
+    EMAIL_HASH_SALT = 'latext_ai_email_hash_v1'
+
     def __init__(self, email=None, password=None, is_verified=True, admin=False, data_consent=None, is_deleted=False, card_fingerprints=None, credit_balance=0, free_credit_balance=0, first_purchase_discount_used=False, first_full_conversion_used=False, is_anonymous=False, anonymous_id=None, preview_count=0, stripe_customer_id=None, subscription_id=None, subscription_status=None, subscription_tier=None, subscription_current_period_end=None, **kwargs):
         super().__init__(
             email=email,
+            email_hash=User.hash_email(email) if email else None,
             password=password,
             is_verified=is_verified,
             admin=admin,
@@ -79,6 +83,11 @@ class User(BaseModel):
             **kwargs
         )
     
+    @staticmethod
+    def hash_email(email):
+        """Generate a salted SHA-256 hash of an email for privacy-safe lookup."""
+        return hashlib.sha256(f'{User.EMAIL_HASH_SALT}:{email.lower()}'.encode()).hexdigest()
+
     @classmethod
     def find_by_email(cls, email, include_deleted=False):
         """
@@ -99,9 +108,9 @@ class User(BaseModel):
 
     @classmethod
     def find_deleted_by_email(cls, email):
-        """Find deleted user accounts by email"""
+        """Find deleted user accounts by email hash (email itself is wiped on deletion)"""
         return list(mongo.db[cls.collection_name].find({
-            'email': email,
+            'email_hash': User.hash_email(email),
             'is_deleted': True
         }))
     

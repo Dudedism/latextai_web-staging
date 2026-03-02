@@ -25,7 +25,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import *
 from database import User, Project, UsedToken, mongo
-from email_service import send_verification_email, send_password_reset_email
+from email_service import send_verification_email, send_password_reset_email, send_welcome_email
 from itsdangerous import URLSafeTimedSerializer
 
 api_auth = Blueprint('api_auth_blueprint', __name__, url_prefix='/api')
@@ -187,6 +187,16 @@ def signup():
 
     # Note: Verification email is NOT sent automatically on signup
     # User will see a modal prompting them to request verification when needed
+
+    # Send welcome email with actual credit balance (after merge, non-blocking)
+    try:
+        fresh_user = User.find_by_email(data['email'])
+        actual_credits = fresh_user.get('free_credit_balance', 0) if fresh_user else 0
+        user_name = data['email'].split('@')[0]
+        if actual_credits >= 499:
+            send_welcome_email(data['email'], user_name, f"{FRONTEND_URL}/papers/new", free_credits=actual_credits)
+    except Exception as e:
+        print(f"⚠️  [SIGNUP] Welcome email failed (non-blocking): {e}")
 
     # Auto-login: Create tokens for the new user
     email = data['email']
@@ -418,6 +428,7 @@ def refresh():
     }), 200
 
 @api_auth.route('/auth/google', methods=['POST'])
+@limiter.limit("30 per minute")
 def login_google():
     """
     Handle Google Sign-In callback.
@@ -471,6 +482,13 @@ def login_google():
                         first_purchase_discount_used=inherited_first_purchase_discount_used)
             user.insert()
             existing_user = User.find_by_email(email, include_deleted=False)
+
+            # Send welcome email for new Google signups (non-blocking)
+            try:
+                if inherited_free_credit_balance >= 499:
+                    send_welcome_email(email, name, f"{FRONTEND_URL}/papers/new", free_credits=inherited_free_credit_balance)
+            except Exception as e:
+                print(f"⚠️  [GOOGLE LOGIN] Welcome email failed (non-blocking): {e}")
 
         # Auto-verify existing Google users if not already verified
         if not existing_user.get('is_verified', False):
