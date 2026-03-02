@@ -19,13 +19,6 @@ const HeroSection: React.FC = () => {
             tailored to your target journal&apos;s guidelines, in minutes,
             not days.
           </p>
-
-          <div className="hero-feature-badge">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Auto Citation Lookup
-          </div>
         </div>
 
         <div className="hero-visual">

@@ -32,6 +32,17 @@ const LandingPage: React.FC = () => {
           <img src="/lancet.svg" alt="The Lancet" className="publisher-logo" style={{ width: '250px', height: '28px' }} />
           <img src="/nature.svg" alt="Nature" className="publisher-logo" style={{ width: '168px', height: '46px' }} />
         </div>
+        <div className="feature-callout">
+          <div className="hero-feature-badge">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Auto Citation Lookup
+          </div>
+          <p className="feature-callout-text">
+            We automatically search and match your citation keys to real publications, so your bibliography is always complete and correctly formatted.
+          </p>
+        </div>
       </section>
 
       {/* Section 3: Action Buttons */}

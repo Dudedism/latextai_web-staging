@@ -100,6 +100,24 @@
   letter-spacing: 0.02em;
 }
 
+.feature-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 40px;
+  gap: 12px;
+}
+
+.feature-callout-text {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: #555;
+  text-align: center;
+  max-width: 520px;
+  line-height: 1.6;
+  margin: 0;
+}
+
 /* Hero Visual */
 .hero-visual {
   flex: 1;
