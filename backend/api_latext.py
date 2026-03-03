@@ -782,12 +782,6 @@ def get_tex(user, project_id):
     if not project.get('paid', False):
         return jsonify({'error': 'Payment required to download LaTeX source files', 'upgrade_required': True}), 403
 
-    # Gate: free-credit-only or first-free projects can't download source files (unless compilation failed)
-    if (not project.get('paid_with_credits', False) and
-            not project.get('compilation_failed', False) and
-            (project.get('paid_with_free_upload', False) or project.get('first_full_conversion', False))):
-        return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
-
     # Try serving from local persistent storage first
     local_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, 'output.tex')
     if os.path.exists(local_path):
@@ -829,12 +823,6 @@ def get_bib(user, project_id):
     if not project.get('paid', False):
         return jsonify({'error': 'Payment required to download BibTeX files', 'upgrade_required': True}), 403
 
-    # Gate: free-credit-only or first-free projects can't download source files (unless compilation failed)
-    if (not project.get('paid_with_credits', False) and
-            not project.get('compilation_failed', False) and
-            (project.get('paid_with_free_upload', False) or project.get('first_full_conversion', False))):
-        return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
-
     # Try serving from local persistent storage first
     local_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, 'output.bib')
     if os.path.exists(local_path):
@@ -875,12 +863,6 @@ def get_package(user, project_id):
     # Gate: require payment for package download
     if not project.get('paid', False):
         return jsonify({'error': 'Payment required to download compilation package', 'upgrade_required': True}), 403
-
-    # Gate: free-credit-only or first-free projects can't download source files (unless compilation failed)
-    if (not project.get('paid_with_credits', False) and
-            not project.get('compilation_failed', False) and
-            (project.get('paid_with_free_upload', False) or project.get('first_full_conversion', False))):
-        return jsonify({'error': 'Upgrade required to download source files', 'upgrade_required': True, 'free_upload_only': True}), 403
 
     params = {'user_email': user['email'], 'project_id': project_id}
 

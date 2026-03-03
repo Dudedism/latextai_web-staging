@@ -1166,7 +1166,7 @@ const PreviewPage: React.FC = () => {
               </div>}
 
               {/* Full Package hero card */}
-              <div className={`dl-hero${paidWithFreeUpload && !compilationFailed ? ' dl-card--locked' : ''}`}>
+              <div className="dl-hero">
                 <img className="dl-hero-icon" src="/zip.png" alt="ZIP" />
                 <div className="dl-hero-content">
                   <strong className="dl-hero-title">Full Package (.zip)</strong>
@@ -1174,7 +1174,6 @@ const PreviewPage: React.FC = () => {
                   <button
                     className="dl-hero-btn"
                     onClick={handleDownloadPackage}
-                    disabled={paidWithFreeUpload && !compilationFailed}
                   >
                     Download Full Package
                   </button>
@@ -1194,10 +1193,10 @@ const PreviewPage: React.FC = () => {
                   </button>
                 </div>
 
-                <div className={`dl-card${paidWithFreeUpload && !compilationFailed ? ' dl-card--locked' : ''}`}>
+                <div className="dl-card">
                   <img className="dl-card-icon" src="/tex.png" alt="TEX" height="54" />
                   <strong className="dl-card-title">LaTeX Source (.tex)</strong>
-                  <button className="dl-card-btn" onClick={handleDownloadTex} disabled={paidWithFreeUpload && !compilationFailed}>
+                  <button className="dl-card-btn" onClick={handleDownloadTex}>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                       <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
@@ -1205,10 +1204,10 @@ const PreviewPage: React.FC = () => {
                   </button>
                 </div>
 
-                <div className={`dl-card${paidWithFreeUpload && !compilationFailed ? ' dl-card--locked' : ''}`}>
+                <div className="dl-card">
                   <img className="dl-card-icon" src="/bibtex.png" alt="BibTeX" height="54" />
                   <strong className="dl-card-title">Bibliography (.bib)</strong>
-                  <button className="dl-card-btn" onClick={handleDownloadBib} disabled={paidWithFreeUpload && !compilationFailed}>
+                  <button className="dl-card-btn" onClick={handleDownloadBib}>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                       <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
