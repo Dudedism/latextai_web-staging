@@ -59,7 +59,7 @@ interface PaymentDetails {
 
 const PreviewPage: React.FC = () => {
   const [initialLoading, setInitialLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'awaiting_payment' | 'needs_payment' | 'processing' | 'completed' | 'failed'>('processing');
   const [compilationFailed, setCompilationFailed] = useState(false);
@@ -256,7 +256,6 @@ const PreviewPage: React.FC = () => {
   };
 
   const pdfRetryCount = useRef(0);
-  const MAX_PDF_RETRIES = 3;
 
   const fetchPdf = async () => {
     try {
@@ -264,28 +263,23 @@ const PreviewPage: React.FC = () => {
 
       if (response.ok) {
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setPdfUrl(url);
-        pdfRetryCount.current = 0;
-        setLoading(false);
-      } else if (pdfRetryCount.current < MAX_PDF_RETRIES) {
-        pdfRetryCount.current++;
-        console.log(`[PreviewPage] PDF not ready, retrying (${pdfRetryCount.current}/${MAX_PDF_RETRIES})...`);
-        setTimeout(fetchPdf, 3000);
-      } else {
-        setError('Failed to load PDF');
-        setLoading(false);
+        if (blob.size > 0 && blob.type === 'application/pdf') {
+          const url = URL.createObjectURL(blob);
+          setPdfUrl(url);
+          pdfRetryCount.current = 0;
+          setLoading(false);
+          return;
+        }
       }
+      // Not ready yet — keep retrying
+      pdfRetryCount.current++;
+      console.log(`[PreviewPage] PDF not ready, retrying (attempt ${pdfRetryCount.current})...`);
+      setTimeout(fetchPdf, 3000);
     } catch (error) {
       console.error('Error fetching PDF:', error);
-      if (pdfRetryCount.current < MAX_PDF_RETRIES) {
-        pdfRetryCount.current++;
-        console.log(`[PreviewPage] PDF fetch error, retrying (${pdfRetryCount.current}/${MAX_PDF_RETRIES})...`);
-        setTimeout(fetchPdf, 3000);
-      } else {
-        setError('Failed to load PDF');
-        setLoading(false);
-      }
+      pdfRetryCount.current++;
+      console.log(`[PreviewPage] PDF fetch error, retrying (attempt ${pdfRetryCount.current})...`);
+      setTimeout(fetchPdf, 3000);
     }
   };
 
@@ -949,9 +943,9 @@ const PreviewPage: React.FC = () => {
             </div>
           ) : status === 'completed' && !compilationFailed ? (
             <div className="preview-document-wrapper">
-              {loading ? (
+              {!pdfUrl ? (
                 <p className="loading-text">Loading PDF...</p>
-              ) : pdfUrl ? (
+              ) : (
                 <>
                   {isPreview && !projectPaid && (
                     <div style={{
@@ -974,8 +968,6 @@ const PreviewPage: React.FC = () => {
                     title="PDF Preview"
                   />
                 </>
-              ) : (
-                <p className="error-text">Failed to load PDF</p>
               )}
             </div>
           ) : status === 'completed' && compilationFailed ? (
