@@ -255,6 +255,9 @@ const PreviewPage: React.FC = () => {
     }
   };
 
+  const pdfRetryCount = useRef(0);
+  const MAX_PDF_RETRIES = 3;
+
   const fetchPdf = async () => {
     try {
       const response = await apiFetch(`/api/latex/project/${paperId}/pdf`);
@@ -263,14 +266,26 @@ const PreviewPage: React.FC = () => {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
+        pdfRetryCount.current = 0;
+        setLoading(false);
+      } else if (pdfRetryCount.current < MAX_PDF_RETRIES) {
+        pdfRetryCount.current++;
+        console.log(`[PreviewPage] PDF not ready, retrying (${pdfRetryCount.current}/${MAX_PDF_RETRIES})...`);
+        setTimeout(fetchPdf, 3000);
       } else {
         setError('Failed to load PDF');
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error fetching PDF:', error);
-      setError('Failed to load PDF');
-    } finally {
-      setLoading(false);
+      if (pdfRetryCount.current < MAX_PDF_RETRIES) {
+        pdfRetryCount.current++;
+        console.log(`[PreviewPage] PDF fetch error, retrying (${pdfRetryCount.current}/${MAX_PDF_RETRIES})...`);
+        setTimeout(fetchPdf, 3000);
+      } else {
+        setError('Failed to load PDF');
+        setLoading(false);
+      }
     }
   };
 

@@ -158,10 +158,38 @@ def _run_anonymous_cleanup(app):
         time.sleep(INTERVAL)
 
 
-# Start cleanup thread (guard against duplicate in Flask debug reloader)
+def _monitor_fast_server():
+    """Background thread: check fast server connectivity every 60s."""
+    import requests as req
+    if not LATEXTAI_SERVICE_URL_FAST:
+        return
+    INTERVAL = 60
+    was_up = None
+    time.sleep(10)
+    while True:
+        try:
+            resp = req.get(f"{LATEXTAI_SERVICE_URL_FAST}/health", timeout=5)
+            is_up = resp.status_code == 200
+        except req.exceptions.RequestException:
+            is_up = False
+
+        if was_up is None:
+            print(f"🔗 [FAST SERVER] {'✅ Connected' if is_up else '❌ Unreachable'}: {LATEXTAI_SERVICE_URL_FAST}")
+        elif was_up and not is_up:
+            print(f"🔴 [FAST SERVER] Connection LOST to {LATEXTAI_SERVICE_URL_FAST}")
+        elif not was_up and is_up:
+            print(f"🟢 [FAST SERVER] Connection RESTORED to {LATEXTAI_SERVICE_URL_FAST}")
+
+        was_up = is_up
+        time.sleep(INTERVAL)
+
+
+# Start background threads (guard against duplicate in Flask debug reloader)
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN'):
     cleanup_thread = threading.Thread(target=_run_anonymous_cleanup, args=(app,), daemon=True)
     cleanup_thread.start()
+    fast_monitor_thread = threading.Thread(target=_monitor_fast_server, daemon=True)
+    fast_monitor_thread.start()
 
 
 @app.route('/')
