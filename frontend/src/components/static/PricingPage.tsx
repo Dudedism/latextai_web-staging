@@ -5,7 +5,7 @@ import Footer from '../Footer';
 import { StatusModal } from '../common/StatusModal';
 import { apiRequest } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatCredits, getPricingConfig, getCreditRateText } from '../../utils/pricing';
+import { formatCredits, getPricingConfig } from '../../utils/pricing';
 import './PricingPage.css';
 
 interface SubscriptionTier {
