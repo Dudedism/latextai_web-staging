@@ -39,7 +39,7 @@ interface TransactionResponse {
 
 const MIN_CREDITS = 100;
 const TOPUP_BONUS_CREDITS = 150; // Introductory bonus
-const TOPUP_BONUS_MIN_CREDITS = 250; // Bonus only for purchases >= $2.50
+const TOPUP_BONUS_MIN_CREDITS = 1000; // Bonus only for purchases >= $5.00
 
 const CreditTopUpPage: React.FC = () => {
   const [searchParams] = useSearchParams();

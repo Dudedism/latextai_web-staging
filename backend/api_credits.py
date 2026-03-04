@@ -10,7 +10,7 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 MIN_TOPUP_CREDITS = 100
 TOPUP_BONUS_CREDITS = 150  # Introductory bonus: extra credits on every top-up
-TOPUP_BONUS_MIN_CREDITS = 250  # Bonus only applies for purchases >= $2.50
+TOPUP_BONUS_MIN_CREDITS = 1000  # Bonus only applies for purchases >= $5.00
 
 
 @api_credits.route('/balance', methods=['GET'])

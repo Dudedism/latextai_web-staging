@@ -148,7 +148,7 @@ const PricingPage: React.FC = () => {
                   Base document: 499 credits ({formatCredits(499, pricingTier)}) &middot; +50 credits per extra page
                 </div>
                 <div style={{ marginTop: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '14px' }}>
-                  Introductory offer: +150 bonus credits on purchases of {formatCredits(250, pricingTier)} or more!
+                  Introductory offer: +150 bonus credits on purchases of {formatCredits(1000, pricingTier)} or more!
                 </div>
               </div>
               <button
