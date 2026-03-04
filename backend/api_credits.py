@@ -17,13 +17,23 @@ TOPUP_BONUS_MIN_CREDITS = 250  # Bonus only applies for purchases >= $2.50
 @requires_auth()
 def get_balance(user):
     """Get user's current credit balance (paid + free)"""
+    from utils.geo_pricing import get_pricing_for_user, credits_to_display_amount
+
     balances = User.get_all_balances(user['email'])
     balance = balances['credit_balance']
     free_balance = balances['free_credit_balance']
+    pricing = get_pricing_for_user(user)
+
     return jsonify({
         'balance': balance,
         'free_balance': free_balance,
-        'formatted': f'${balance / 100:.2f}'
+        'formatted': credits_to_display_amount(balance, pricing['tier']),
+        'pricing': {
+            'tier': pricing['tier'],
+            'currency': pricing['currency'],
+            'currency_symbol': pricing['currency_symbol'],
+            'credits_to_minor_unit': pricing['credits_to_minor_unit'],
+        },
     }), 200
 
 
@@ -67,6 +77,8 @@ def create_topup_session(user, data):
             "checkout_url": "https://checkout.stripe.com/..."
         }
     """
+    from utils.geo_pricing import get_pricing_for_user, credits_to_minor_units
+
     credits = data.get('credits')
 
     if not credits or not isinstance(credits, int):
@@ -74,10 +86,12 @@ def create_topup_session(user, data):
 
     if credits < MIN_TOPUP_CREDITS:
         return jsonify({
-            'error': f'Minimum top-up is {MIN_TOPUP_CREDITS} credits (${MIN_TOPUP_CREDITS / 100:.2f})'
+            'error': f'Minimum top-up is {MIN_TOPUP_CREDITS} credits'
         }), 400
 
-    amount_cents = credits
+    pricing = get_pricing_for_user(user)
+    amount_minor = credits_to_minor_units(credits, pricing['tier'])
+    stripe_currency = pricing['stripe_currency']
 
     bonus = TOPUP_BONUS_CREDITS if credits >= TOPUP_BONUS_MIN_CREDITS else 0
     total_credits = credits + bonus
@@ -87,8 +101,8 @@ def create_topup_session(user, data):
         checkout_session = stripe.checkout.Session.create(
             line_items=[{
                 'price_data': {
-                    'currency': 'usd',
-                    'unit_amount': amount_cents,
+                    'currency': stripe_currency,
+                    'unit_amount': amount_minor,
                     'product_data': {
                         'name': 'LaTeX.ai Credits',
                         'description': f'{credits} credits{bonus_desc}' + (' (introductory offer)' if bonus else ''),
@@ -105,11 +119,13 @@ def create_topup_session(user, data):
                 'user_email': user['email'],
                 'credits': credits,
                 'bonus_credits': bonus,
+                'pricing_tier': pricing['tier'],
+                'pricing_currency': pricing['currency'],
             },
         )
 
         print(f"✅ [CREDITS] Top-up session created: {checkout_session.id}")
-        print(f"💰 [CREDITS] Amount: {credits} credits")
+        print(f"💰 [CREDITS] Amount: {credits} credits ({stripe_currency} {amount_minor})")
 
         return jsonify({
             'checkout_url': checkout_session.url

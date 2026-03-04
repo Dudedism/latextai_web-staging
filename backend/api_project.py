@@ -664,6 +664,10 @@ def get_payment_details(user, project_id):
     if analysis_doc:
         document_analysis = {k: v for k, v in analysis_doc.items() if k not in ('_id', 'project_id', 'created_at')}
 
+    # Get regional pricing info for display
+    from utils.geo_pricing import get_pricing_for_user, credits_to_display_amount
+    pricing = get_pricing_for_user(user)
+
     return jsonify({
         'project_id': project_id,
         'metadata': {
@@ -681,7 +685,14 @@ def get_payment_details(user, project_id):
         'has_sufficient_credits': credit_split['sufficient'],
         'first_free_conversion_used': first_free_conversion_used,
         'first_full_conversion_available': first_full_available,
-        'document_analysis': document_analysis
+        'document_analysis': document_analysis,
+        'pricing': {
+            'tier': pricing['tier'],
+            'currency': pricing['currency'],
+            'currency_symbol': pricing['currency_symbol'],
+            'credits_to_minor_unit': pricing['credits_to_minor_unit'],
+            'total_display': credits_to_display_amount(cost_estimate['total_credits'], pricing['tier']),
+        },
     }), 200
 
 @api_project.route('/project/<project_id>/feedback', methods=['POST'])

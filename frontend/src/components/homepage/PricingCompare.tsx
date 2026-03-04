@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './PricingCompare.css';
 
 type PricingCompareProps = {
@@ -11,6 +11,23 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
   variant = 'full',
 }) => {
   const isStandalone = variant === 'standalone';
+  const [price, setPrice] = useState({ symbol: '$', value: '4.99' });
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/subscription/detect-pricing`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.tier === 'emerging' && data.currency === 'INR') {
+          setPrice({ symbol: '₹', value: '149' });
+        } else if (data.tier === 'emerging') {
+          setPrice({ symbol: '$', value: '1.75' });
+        }
+        // standard tier keeps the default $4.99
+      })
+      .catch(() => {
+        // keep default pricing on failure
+      });
+  }, []);
 
   return (
     <section className={isStandalone ? '' : 'section'}>
@@ -27,8 +44,8 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
             <h3 className="pc-card-title">Our Service</h3>
 
             <div className="pc-price">
-              <span className="pc-price-currency">from $</span>
-              <span className="pc-price-value">4.99</span>
+              <span className="pc-price-currency">from {price.symbol}</span>
+              <span className="pc-price-value">{price.value}</span>
               <span className="pc-price-unit">/month</span>
             </div>
 

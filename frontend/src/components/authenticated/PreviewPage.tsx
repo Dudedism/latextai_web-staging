@@ -7,6 +7,7 @@ import { ErrorModal } from '../common/ErrorModal';
 import { apiRequest, apiFetch } from '../../utils/api';
 import { downloadFile } from '../../utils/download';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatCreditsWithPricing } from '../../utils/pricing';
 import './PreviewPage.css';
 
 const FAST_POLL_INTERVAL = 5000;
@@ -55,6 +56,13 @@ interface PaymentDetails {
   has_sufficient_credits: boolean;
   first_free_conversion_used: boolean;
   first_full_conversion_available: boolean;
+  pricing?: {
+    tier: string;
+    currency: string;
+    currency_symbol: string;
+    credits_to_minor_unit: number;
+    total_display: string;
+  };
 }
 
 const PreviewPage: React.FC = () => {
@@ -757,13 +765,13 @@ const PreviewPage: React.FC = () => {
                             {hasDiscount && effectiveCost < cost_estimate.total_credits ? (
                               <>
                                 <em className="invoice-highlight invoice-total-free">{effectiveCost} credits</em>
-                                {effectiveCost > 0 && <> <span className="invoice-total-dollars">(${(effectiveCost / 100).toFixed(2)})</span></>}
+                                {effectiveCost > 0 && <> <span className="invoice-total-dollars">({formatCreditsWithPricing(effectiveCost, paymentDetails?.pricing)})</span></>}
                                 <br /><span className="invoice-strikethrough">{cost_estimate.total_credits} credits</span>
                               </>
                             ) : (
                               <>
                                 {cost_estimate.total_credits} credits
-                                <br /><span className="invoice-total-dollars">${cost_estimate.total_dollars.toFixed(2)}</span>
+                                <br /><span className="invoice-total-dollars">{formatCreditsWithPricing(cost_estimate.total_credits, paymentDetails?.pricing)}</span>
                               </>
                             )}
                           </span>
@@ -845,7 +853,7 @@ const PreviewPage: React.FC = () => {
                       Top Up Credits
                     </button>
                     <p style={{ marginTop: '12px', fontSize: '14px', color: '#666' }}>
-                      or <a href="/pricing" style={{ color: 'var(--accent)', fontWeight: 500 }}>subscribe from $4.99/mo</a> and save up to 80%
+                      or <a href="/pricing" style={{ color: 'var(--accent)', fontWeight: 500 }}>subscribe from {formatCreditsWithPricing(499, paymentDetails?.pricing)}/mo</a> and save up to 80%
                     </p>
                   </>
                 )}
@@ -1123,7 +1131,7 @@ const PreviewPage: React.FC = () => {
                           )}
                           <div className="detail-item invoice-total">
                             <span className="detail-label">Credits needed</span>
-                            <span className="detail-value"><strong>{deficit} credits</strong> (${(deficit / 100).toFixed(2)})</span>
+                            <span className="detail-value"><strong>{deficit} credits</strong> ({formatCreditsWithPricing(deficit, paymentDetails?.pricing)})</span>
                           </div>
                         </div>
                       </div>
@@ -1144,7 +1152,7 @@ const PreviewPage: React.FC = () => {
                           className="btn btn--accent btn--lg btn--pill"
                           onClick={() => navigate(`/credits?amount=${deficit}&project_id=${paperId}&return_to=${encodeURIComponent(window.location.pathname)}`)}
                         >
-                          Top Up {deficit} Credits (${(deficit / 100).toFixed(2)})
+                          Top Up {deficit} Credits ({formatCreditsWithPricing(deficit, paymentDetails?.pricing)})
                         </button>
                       </div>
                     </>

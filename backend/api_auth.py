@@ -172,7 +172,18 @@ def signup():
 
     user.insert()
 
-    print(f"✅ [SIGNUP] User registered")
+    # Detect country and set pricing tier
+    from utils.geo_pricing import extract_client_ip, detect_and_resolve
+    client_ip = extract_client_ip(request)
+    geo = detect_and_resolve(client_ip)
+    User.update_fields(data['email'], {
+        'detected_country': geo['country'],
+        'pricing_tier': geo['tier'],
+        'pricing_currency': geo['currency'],
+        'geo_detected_at': datetime.datetime.utcnow(),
+    })
+
+    print(f"✅ [SIGNUP] User registered (country={geo['country']}, tier={geo['tier']})")
 
     # Merge anonymous user if anon_email provided
     anon_email = data.get('anon_email')
@@ -215,7 +226,9 @@ def signup():
         'access_token': access_token,
         'refresh_token': refresh_token,
         'email': email,
-        'admin': False
+        'admin': False,
+        'pricing_tier': geo['tier'],
+        'pricing_currency': geo['currency'],
     }), 201
 
 @api_auth.route('/auth/anonymous', methods=['POST'])
@@ -482,6 +495,18 @@ def login_google():
                         first_purchase_discount_used=inherited_first_purchase_discount_used)
             user.insert()
             existing_user = User.find_by_email(email, include_deleted=False)
+
+            # Detect country and set pricing tier for new Google users
+            from utils.geo_pricing import extract_client_ip, detect_and_resolve
+            client_ip = extract_client_ip(request)
+            geo = detect_and_resolve(client_ip)
+            User.update_fields(email, {
+                'detected_country': geo['country'],
+                'pricing_tier': geo['tier'],
+                'pricing_currency': geo['currency'],
+                'geo_detected_at': datetime.datetime.utcnow(),
+            })
+            print(f"✅ [GOOGLE LOGIN] New user geo: country={geo['country']}, tier={geo['tier']}")
 
             # Send welcome email for new Google signups (non-blocking)
             try:

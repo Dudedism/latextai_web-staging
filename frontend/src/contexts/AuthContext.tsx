@@ -7,6 +7,8 @@ interface User {
   isAdmin: boolean;
   isVerified: boolean;
   isAnonymous: boolean;
+  pricingTier: string;
+  pricingCurrency: string;
 }
 
 interface AuthContextType {
@@ -91,12 +93,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('isAdmin', (data.admin || false).toString());
         localStorage.setItem('isVerified', (data.is_verified || false).toString());
         localStorage.setItem('isAnonymous', (data.is_anonymous || false).toString());
+        localStorage.setItem('pricingTier', data.pricing_tier || 'standard');
+        localStorage.setItem('pricingCurrency', data.pricing_currency || 'usd');
 
         setUser({
           email: data.email,
           isAdmin: data.admin || false,
           isVerified: data.is_verified || false,
-          isAnonymous: data.is_anonymous || false
+          isAnonymous: data.is_anonymous || false,
+          pricingTier: data.pricing_tier || 'standard',
+          pricingCurrency: data.pricing_currency || 'usd',
         });
       }
     } catch (error) {
@@ -130,7 +136,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             email: urlEmail,
             isAdmin: admin,
             isVerified: true,
-            isAnonymous: false
+            isAnonymous: false,
+            pricingTier: localStorage.getItem('pricingTier') || 'standard',
+            pricingCurrency: localStorage.getItem('pricingCurrency') || 'usd',
           });
 
           // Track Google OAuth signup conversion (production only, new users only)
@@ -160,7 +168,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email,
           isAdmin,
           isVerified: cachedVerified === 'true',
-          isAnonymous: cachedAnonymous
+          isAnonymous: cachedAnonymous,
+          pricingTier: localStorage.getItem('pricingTier') || 'standard',
+          pricingCurrency: localStorage.getItem('pricingCurrency') || 'usd',
         });
 
         // Only fetch verification status if not cached and not anonymous
@@ -197,6 +207,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     admin: boolean;
     is_verified?: boolean;
     is_anonymous?: boolean;
+    pricing_tier?: string;
+    pricing_currency?: string;
   }) => {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('refreshToken', data.refresh_token);
@@ -211,11 +223,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Store anonymous status
     localStorage.setItem('isAnonymous', (data.is_anonymous || false).toString());
 
+    // Store pricing tier
+    if (data.pricing_tier) localStorage.setItem('pricingTier', data.pricing_tier);
+    if (data.pricing_currency) localStorage.setItem('pricingCurrency', data.pricing_currency);
+
     setUser({
       email: data.email,
       isAdmin: data.admin,
       isVerified: data.is_verified || false,
-      isAnonymous: data.is_anonymous || false
+      isAnonymous: data.is_anonymous || false,
+      pricingTier: data.pricing_tier || localStorage.getItem('pricingTier') || 'standard',
+      pricingCurrency: data.pricing_currency || localStorage.getItem('pricingCurrency') || 'usd',
     });
   };
 

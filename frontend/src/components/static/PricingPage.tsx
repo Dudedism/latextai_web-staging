@@ -5,6 +5,7 @@ import Footer from '../Footer';
 import { StatusModal } from '../common/StatusModal';
 import { apiRequest } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatCredits, getPricingConfig, getCreditRateText } from '../../utils/pricing';
 import './PricingPage.css';
 
 interface SubscriptionTier {
@@ -13,6 +14,9 @@ interface SubscriptionTier {
   credits: number;
   price_cents: number;
   price_dollars: number;
+  price_display?: string;
+  currency?: string;
+  currency_symbol?: string;
 }
 
 const FALLBACK_TIERS: SubscriptionTier[] = [
@@ -24,29 +28,53 @@ const FALLBACK_TIERS: SubscriptionTier[] = [
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [tiers, setTiers] = useState<SubscriptionTier[]>(FALLBACK_TIERS);
+  const [pricingTier, setPricingTier] = useState<string>('standard');
   const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successTier, setSuccessTier] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchTiers = async () => {
+    const detectAndFetchTiers = async () => {
+      // Detect pricing tier
+      let detectedTier = 'standard';
+
+      if (isAuthenticated && user?.pricingTier) {
+        detectedTier = user.pricingTier;
+      } else if (!isAuthenticated) {
+        try {
+          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/subscription/detect-pricing`);
+          if (response.ok) {
+            const data = await response.json();
+            detectedTier = data.pricing_tier || 'standard';
+          }
+        } catch {
+          // Fall back to standard
+        }
+      }
+
+      setPricingTier(detectedTier);
+
+      // Fetch tiers with pricing_tier param
       try {
-        const data = await apiRequest<{ tiers: SubscriptionTier[] }>('/api/subscription/tiers', { method: 'GET' });
+        const data = await apiRequest<{ tiers: SubscriptionTier[] }>(
+          `/api/subscription/tiers?pricing_tier=${encodeURIComponent(detectedTier)}`,
+          { method: 'GET' }
+        );
         if (data.tiers?.length) setTiers(data.tiers);
       } catch {
         // Use fallback tiers
       }
     };
-    fetchTiers();
+    detectAndFetchTiers();
 
     // Handle subscription success redirect
     if (searchParams.get('subscription_cancelled') === 'true') {
       // No action needed, user just returned from cancelled checkout
     }
-  }, []);
+  }, [isAuthenticated, user?.pricingTier]);
 
   // Check for success redirect from account page
   useEffect(() => {
@@ -77,6 +105,7 @@ const PricingPage: React.FC = () => {
   };
 
   const estimateConversions = (credits: number) => Math.floor(credits / 499);
+  const currencySymbol = tiers[0]?.currency_symbol || getPricingConfig(pricingTier).currencySymbol;
 
   return (
     <div className="static-page">
@@ -94,7 +123,10 @@ const PricingPage: React.FC = () => {
             {tiers.map((tier) => {
               const isPopular = tier.id === 'researcher';
               const conversions = estimateConversions(tier.credits);
-              const costPerDoc = (tier.price_cents / conversions / 100).toFixed(2);
+              const costPerDocAmount = (tier.price_cents / conversions / 100);
+              const costPerDoc = tier.currency === 'inr'
+                ? `${tier.currency_symbol || currencySymbol}${Math.round(costPerDocAmount)}`
+                : `${tier.currency_symbol || currencySymbol}${costPerDocAmount.toFixed(2)}`;
 
               return (
                 <div key={tier.id} className={`pricing-card ${isPopular ? 'pricing-card--popular' : ''}`}>
@@ -102,8 +134,8 @@ const PricingPage: React.FC = () => {
                   <h3 className="pricing-card-name">{tier.name}</h3>
 
                   <div className="pricing-card-price">
-                    <span className="pricing-card-currency">$</span>
-                    <span className="pricing-card-amount">{tier.price_dollars.toFixed(2)}</span>
+                    <span className="pricing-card-currency">{tier.currency_symbol || '$'}</span>
+                    <span className="pricing-card-amount">{tier.price_display || tier.price_dollars.toFixed(2)}</span>
                     <span className="pricing-card-period">/month</span>
                   </div>
 
@@ -113,7 +145,7 @@ const PricingPage: React.FC = () => {
 
                   <ul className="pricing-card-features">
                     <li>~{conversions} document conversions</li>
-                    <li>~${costPerDoc} per document</li>
+                    <li>~{costPerDoc} per document</li>
                     <li>PDF + LaTeX source + bibliography</li>
                     <li>Delivery in minutes</li>
                     <li>Unused credits carry over</li>
@@ -141,10 +173,10 @@ const PricingPage: React.FC = () => {
                   No commitment. Purchase credits when you need them.
                 </p>
                 <div className="pricing-payg-price">
-                  1 credit = $0.01 &middot; Base document: 499 credits ($4.99) &middot; +50 credits per extra page
+                  {getCreditRateText(pricingTier)} &middot; Base document: 499 credits ({formatCredits(499, pricingTier)}) &middot; +50 credits per extra page
                 </div>
                 <div style={{ marginTop: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '14px' }}>
-                  Introductory offer: +150 bonus credits on purchases of $2.50 or more!
+                  Introductory offer: +150 bonus credits on purchases of {formatCredits(250, pricingTier)} or more!
                 </div>
               </div>
               <button
@@ -187,8 +219,8 @@ const PricingPage: React.FC = () => {
             <h3>What's the difference between subscription and pay-as-you-go?</h3>
             <p>
               Subscriptions give you credits at a significant discount. For example, the Scholar plan
-              gives you ~10 conversions for $4.99/month (~$0.50/doc), while a single pay-as-you-go
-              conversion costs $4.99. That's up to 80% savings.
+              gives you ~10 conversions for {tiers[0] ? `${tiers[0].currency_symbol || currencySymbol}${tiers[0].price_display || tiers[0].price_dollars.toFixed(2)}` : formatCredits(499, pricingTier)}/month, while a single pay-as-you-go
+              conversion costs {formatCredits(499, pricingTier)}. That's up to 80% savings.
             </p>
 
             <h3>What payment methods do you accept?</h3>

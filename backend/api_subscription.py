@@ -16,19 +16,19 @@ SUBSCRIPTION_TIERS = {
         'name': 'Scholar',
         'price_id': STRIPE_PRICE_SCHOLAR,
         'credits': 5000,
-        'price_cents': 499,
+        'price_cents': 349,
     },
     'researcher': {
         'name': 'Researcher',
         'price_id': STRIPE_PRICE_RESEARCHER,
         'credits': 8000,
-        'price_cents': 799,
+        'price_cents': 499,
     },
     'professor': {
         'name': 'Professor',
         'price_id': STRIPE_PRICE_PROFESSOR,
         'credits': 10000,
-        'price_cents': 999,
+        'price_cents': 699,
     },
 }
 
@@ -38,29 +38,51 @@ PRICE_ID_TO_TIER = {v['price_id']: k for k, v in SUBSCRIPTION_TIERS.items() if v
 
 @api_subscription.route('/tiers', methods=['GET'])
 def get_tiers():
-    """Return available subscription tiers (public endpoint)."""
+    """Return available subscription tiers (public endpoint).
+    Accepts ?pricing_tier=emerging_inr to return regional prices."""
+    from utils.geo_pricing import PRICING_TIERS, get_tier_display_prices
+
+    pricing_tier = request.args.get('pricing_tier', 'standard')
+    tier_config = PRICING_TIERS.get(pricing_tier, PRICING_TIERS['standard'])
+    display_prices = get_tier_display_prices(pricing_tier)
+
     tiers = []
     for key, tier in SUBSCRIPTION_TIERS.items():
+        regional = display_prices.get(key, {})
         tiers.append({
             'id': key,
             'name': tier['name'],
             'credits': tier['credits'],
-            'price_cents': tier['price_cents'],
-            'price_dollars': tier['price_cents'] / 100,
+            'price_minor': regional.get('price_minor', tier['price_cents']),
+            'price_display': regional.get('display', f"${tier['price_cents'] / 100:.2f}/mo"),
+            'currency': tier_config['currency'],
+            'currency_symbol': tier_config['currency_symbol'],
+            # Keep legacy fields for backwards compat
+            'price_cents': regional.get('price_minor', tier['price_cents']),
+            'price_dollars': regional.get('price_minor', tier['price_cents']) / 100,
         })
-    return jsonify({'tiers': tiers}), 200
+    return jsonify({
+        'tiers': tiers,
+        'pricing_tier': pricing_tier,
+        'currency': tier_config['currency'],
+        'currency_symbol': tier_config['currency_symbol'],
+    }), 200
 
 
 @api_subscription.route('/create-checkout', methods=['POST'])
 @requires_auth()
 def create_checkout(user, data):
     """Create Stripe Checkout session for a subscription."""
+    from utils.geo_pricing import get_pricing_for_user
+
     tier_key = data.get('tier')
     if tier_key not in SUBSCRIPTION_TIERS:
         return jsonify({'error': f'Invalid tier. Choose from: {", ".join(SUBSCRIPTION_TIERS.keys())}'}), 400
 
-    tier = SUBSCRIPTION_TIERS[tier_key]
-    if not tier['price_id']:
+    pricing = get_pricing_for_user(user)
+    price_id = SUBSCRIPTION_TIERS[tier_key]['price_id']
+
+    if not price_id:
         return jsonify({'error': 'Subscription tier not configured'}), 500
 
     # Check if user already has an active subscription
@@ -84,18 +106,20 @@ def create_checkout(user, data):
 
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer_id,
-            line_items=[{'price': tier['price_id'], 'quantity': 1}],
+            line_items=[{'price': price_id, 'quantity': 1}],
             mode='subscription',
+            currency=pricing['stripe_currency'],
             success_url=f'{FRONTEND_URL}/account?subscription_success=true&tier={tier_key}',
             cancel_url=f'{FRONTEND_URL}/pricing?subscription_cancelled=true',
             metadata={
                 'type': 'subscription',
                 'user_email': user['email'],
                 'tier': tier_key,
+                'pricing_tier': pricing['tier'],
             },
         )
 
-        print(f"✅ [SUBSCRIPTION] Checkout session created for {tier['name']} tier: {checkout_session.id}")
+        print(f"✅ [SUBSCRIPTION] Checkout session created for {SUBSCRIPTION_TIERS[tier_key]['name']} tier ({pricing['tier']}): {checkout_session.id}")
         return jsonify({'checkout_url': checkout_session.url}), 200
 
     except stripe.error.StripeError as e:
@@ -208,3 +232,16 @@ def reactivate_subscription(user, data):
     except stripe.error.StripeError as e:
         print(f"❌ [SUBSCRIPTION] Reactivate error: {e}")
         return jsonify({'error': 'Failed to reactivate subscription. Please try again.'}), 500
+
+
+@api_subscription.route('/detect-pricing', methods=['GET'])
+def detect_pricing():
+    """Detect pricing tier from visitor IP (public endpoint, no auth required).
+    Used by the frontend pricing page for unauthenticated visitors."""
+    from utils.geo_pricing import extract_client_ip, detect_and_resolve
+    from config import limiter
+
+    client_ip = extract_client_ip(request)
+    result = detect_and_resolve(client_ip)
+
+    return jsonify(result), 200
