@@ -45,10 +45,13 @@ const PricingPage: React.FC = () => {
 
   useEffect(() => {
     const detectAndFetchTiers = async () => {
-      // Detect pricing tier
+      // Detect pricing tier (allow ?preview_tier= override for testing)
+      const previewTier = searchParams.get('preview_tier');
       let detectedTier = 'standard';
 
-      if (isAuthenticated && user?.pricingTier) {
+      if (previewTier && ['standard', 'emerging_inr', 'emerging_usd'].includes(previewTier)) {
+        detectedTier = previewTier;
+      } else if (isAuthenticated && user?.pricingTier) {
         detectedTier = user.pricingTier;
       } else if (!isAuthenticated) {
         try {
