@@ -71,6 +71,18 @@
 .pc-price-value { font-size: clamp(36px, 6vw, 64px); line-height: 1; }
 .pc-price-unit { margin-left: 4px; opacity: 0.9; }
 
+/* side-by-side prices */
+.pc-prices-row {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.pc-price--payg {
+  border-left: 2px solid #e5e7eb;
+  padding-left: 24px;
+}
+
 /* features */
 .pc-includes { margin-top: 8px; font-weight: 600; }
 .pc-features { list-style: none; padding: 0; margin: 10px 0 18px 0; }

@@ -43,10 +43,17 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
           <div className="pc-card pc-primary">
             <h3 className="pc-card-title">Our Service</h3>
 
-            <div className="pc-price">
-              <span className="pc-price-currency">from {price.symbol}</span>
-              <span className="pc-price-value">{price.value}</span>
-              <span className="pc-price-unit">/month</span>
+            <div className="pc-prices-row">
+              <div className="pc-price">
+                <span className="pc-price-currency">from {price.symbol}</span>
+                <span className="pc-price-value">{price.value}</span>
+                <span className="pc-price-unit">/month</span>
+              </div>
+              <div className="pc-price pc-price--payg">
+                <span className="pc-price-currency">{paygPrice.replace(/[\d.]+/, '')}</span>
+                <span className="pc-price-value">{paygPrice.replace(/[^\d.]+/, '')}</span>
+                <span className="pc-price-unit">/document</span>
+              </div>
             </div>
 
             <div className="pc-includes">Includes</div>
@@ -55,7 +62,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
               <li>Delivery in minutes, not days</li>
               <li>Submission-ready PDF + Complete LaTeX compilation package</li>
               <li>Superior quality output</li>
-              <li>Pay-as-you-go: {paygPrice}/document</li>
+              <li>Pay-as-you-go also available</li>
             </ul>
 
             <button
