@@ -853,7 +853,7 @@ const PreviewPage: React.FC = () => {
                       Top Up Credits
                     </button>
                     <p style={{ marginTop: '12px', fontSize: '14px', color: '#666' }}>
-                      or <a href="/pricing" style={{ color: 'var(--accent)', fontWeight: 500 }}>subscribe from {formatCreditsWithPricing(499, paymentDetails?.pricing)}/mo</a> and save up to 80%
+                      or <a href="/pricing" style={{ color: 'var(--accent)', fontWeight: 500 }}>subscribe from {paymentDetails?.pricing?.currency === 'inr' ? '₹149' : '$3.49'}/mo</a> and save up to 80%
                     </p>
                   </>
                 )}

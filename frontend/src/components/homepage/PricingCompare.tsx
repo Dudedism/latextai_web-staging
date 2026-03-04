@@ -11,18 +11,16 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
   variant = 'full',
 }) => {
   const isStandalone = variant === 'standalone';
-  const [price, setPrice] = useState({ symbol: '$', value: '4.99' });
+  const [price, setPrice] = useState({ symbol: '$', value: '3.49' });
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_BACKEND_URL}/api/subscription/detect-pricing`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.tier === 'emerging' && data.currency === 'INR') {
+        if (data.tier === 'emerging_inr') {
           setPrice({ symbol: '₹', value: '149' });
-        } else if (data.tier === 'emerging') {
-          setPrice({ symbol: '$', value: '1.75' });
         }
-        // standard tier keeps the default $4.99
+        // standard and emerging_usd both use $3.49
       })
       .catch(() => {
         // keep default pricing on failure
