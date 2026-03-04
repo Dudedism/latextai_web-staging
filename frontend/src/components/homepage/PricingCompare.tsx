@@ -12,6 +12,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
 }) => {
   const isStandalone = variant === 'standalone';
   const [price, setPrice] = useState({ symbol: '$', value: '3.49' });
+  const [paygPrice, setPaygPrice] = useState('$2.50');
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_BACKEND_URL}/api/subscription/detect-pricing`)
@@ -19,8 +20,9 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
       .then((data) => {
         if (data.tier === 'emerging_inr') {
           setPrice({ symbol: '₹', value: '149' });
+          setPaygPrice('₹75');
         }
-        // standard and emerging_usd both use $3.49
+        // standard and emerging_usd both use $3.49 / $2.50 per doc
       })
       .catch(() => {
         // keep default pricing on failure
@@ -53,7 +55,7 @@ const PricingCompare: React.FC<PricingCompareProps> = ({
               <li>Delivery in minutes, not days</li>
               <li>Submission-ready PDF + Complete LaTeX compilation package</li>
               <li>Superior quality output</li>
-              <li>Pay-as-you-go also available</li>
+              <li>Pay-as-you-go: {paygPrice}/document</li>
             </ul>
 
             <button
