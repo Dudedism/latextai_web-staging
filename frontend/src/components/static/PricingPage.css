@@ -68,12 +68,37 @@
   margin: 8px 0 16px;
 }
 
+/* Launch banner */
+.pricing-launch-banner {
+  text-align: center;
+  background: linear-gradient(135deg, var(--accent), #e04a2f);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  padding: 10px 24px;
+  border-radius: 9999px;
+  margin: -24px auto 36px;
+  width: fit-content;
+}
+
+/* Crossed-out original price */
+.pricing-card-original {
+  font-size: 18px;
+  color: #999;
+  text-decoration: line-through;
+  margin-right: 8px;
+  font-weight: 400;
+}
+
 /* Price display */
 .pricing-card-price {
   display: flex;
   align-items: baseline;
   gap: 2px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .pricing-card-currency {

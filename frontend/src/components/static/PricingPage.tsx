@@ -20,10 +20,17 @@ interface SubscriptionTier {
 }
 
 const FALLBACK_TIERS: SubscriptionTier[] = [
-  { id: 'scholar', name: 'Scholar', credits: 5000, price_cents: 499, price_dollars: 4.99 },
-  { id: 'researcher', name: 'Researcher', credits: 8000, price_cents: 799, price_dollars: 7.99 },
-  { id: 'professor', name: 'Professor', credits: 10000, price_cents: 999, price_dollars: 9.99 },
+  { id: 'scholar', name: 'Scholar', credits: 5000, price_cents: 349, price_dollars: 3.49 },
+  { id: 'researcher', name: 'Researcher', credits: 8000, price_cents: 499, price_dollars: 4.99 },
+  { id: 'professor', name: 'Professor', credits: 10000, price_cents: 699, price_dollars: 6.99 },
 ];
+
+// Original prices (before launch discount) — shown crossed out
+const ORIGINAL_PRICES: Record<string, Record<string, string>> = {
+  standard: { scholar: '$4.99', researcher: '$7.99', professor: '$9.99' },
+  emerging_inr: { scholar: '₹249', researcher: '₹399', professor: '₹599' },
+  emerging_usd: { scholar: '$4.99', researcher: '$7.99', professor: '$9.99' },
+};
 
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -107,6 +114,12 @@ const PricingPage: React.FC = () => {
   const estimateConversions = (credits: number) => Math.floor(credits / 499);
   const currencySymbol = tiers[0]?.currency_symbol || getPricingConfig(pricingTier).currencySymbol;
 
+  // Format price amount without currency symbol (e.g. "3.49" or "149")
+  const formatPriceAmount = (cents: number, currency?: string) => {
+    const amount = cents / 100;
+    return currency === 'inr' ? Math.round(amount).toString() : amount.toFixed(2);
+  };
+
   return (
     <div className="static-page">
       <Banner />
@@ -118,6 +131,39 @@ const PricingPage: React.FC = () => {
             Subscribe monthly or pay as you go. Cancel anytime.
           </p>
 
+          {/* Launch Pricing Banner */}
+          <div className="pricing-launch-banner">
+            Launch Pricing — Limited Time Offer
+          </div>
+
+          {/* Pay As You Go */}
+          <div className="pricing-payg">
+            <div className="pricing-payg-card">
+              <div className="pricing-payg-content">
+                <h3 className="pricing-payg-title">Pay As You Go</h3>
+                <p className="pricing-payg-desc">
+                  No commitment. Purchase credits when you need them.
+                </p>
+                <div className="pricing-payg-price">
+                  Base document: 499 credits ({formatCredits(499, pricingTier)}) &middot; +50 credits per extra page
+                </div>
+                <div style={{ marginTop: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '14px' }}>
+                  Introductory offer: +150 bonus credits on purchases of {formatCredits(250, pricingTier)} or more!
+                </div>
+              </div>
+              <button
+                className="pricing-card-cta"
+                onClick={() => isAuthenticated ? navigate('/credits') : navigate('/signup')}
+              >
+                {isAuthenticated ? 'Buy Credits' : 'Get Started'}
+              </button>
+            </div>
+          </div>
+
+          <p className="pricing-savings-note">
+            Save up to 80% per document with a subscription compared to pay-as-you-go pricing.
+          </p>
+
           {/* Subscription Tiers */}
           <div className="pricing-grid">
             {tiers.map((tier) => {
@@ -127,6 +173,7 @@ const PricingPage: React.FC = () => {
               const costPerDoc = tier.currency === 'inr'
                 ? `${tier.currency_symbol || currencySymbol}${Math.round(costPerDocAmount)}`
                 : `${tier.currency_symbol || currencySymbol}${costPerDocAmount.toFixed(2)}`;
+              const originalPrice = (ORIGINAL_PRICES[pricingTier] || ORIGINAL_PRICES.standard)[tier.id];
 
               return (
                 <div key={tier.id} className={`pricing-card ${isPopular ? 'pricing-card--popular' : ''}`}>
@@ -134,8 +181,11 @@ const PricingPage: React.FC = () => {
                   <h3 className="pricing-card-name">{tier.name}</h3>
 
                   <div className="pricing-card-price">
+                    {originalPrice && (
+                      <span className="pricing-card-original">{originalPrice}</span>
+                    )}
                     <span className="pricing-card-currency">{tier.currency_symbol || '$'}</span>
-                    <span className="pricing-card-amount">{tier.price_display || tier.price_dollars.toFixed(2)}</span>
+                    <span className="pricing-card-amount">{formatPriceAmount(tier.price_cents, tier.currency)}</span>
                     <span className="pricing-card-period">/month</span>
                   </div>
 
@@ -162,34 +212,6 @@ const PricingPage: React.FC = () => {
                 </div>
               );
             })}
-          </div>
-
-          {/* Pay As You Go */}
-          <div className="pricing-payg">
-            <div className="pricing-payg-card">
-              <div className="pricing-payg-content">
-                <h3 className="pricing-payg-title">Pay As You Go</h3>
-                <p className="pricing-payg-desc">
-                  No commitment. Purchase credits when you need them.
-                </p>
-                <div className="pricing-payg-price">
-                  {getCreditRateText(pricingTier)} &middot; Base document: 499 credits ({formatCredits(499, pricingTier)}) &middot; +50 credits per extra page
-                </div>
-                <div style={{ marginTop: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '14px' }}>
-                  Introductory offer: +150 bonus credits on purchases of {formatCredits(250, pricingTier)} or more!
-                </div>
-              </div>
-              <button
-                className="pricing-card-cta"
-                onClick={() => isAuthenticated ? navigate('/credits') : navigate('/signup')}
-              >
-                {isAuthenticated ? 'Buy Credits' : 'Get Started'}
-              </button>
-            </div>
-
-            <p className="pricing-savings-note">
-              Save up to 80% per document with a subscription compared to pay-as-you-go pricing.
-            </p>
           </div>
 
           {/* Enterprise */}
@@ -219,7 +241,7 @@ const PricingPage: React.FC = () => {
             <h3>What's the difference between subscription and pay-as-you-go?</h3>
             <p>
               Subscriptions give you credits at a significant discount. For example, the Scholar plan
-              gives you ~10 conversions for {tiers[0] ? `${tiers[0].currency_symbol || currencySymbol}${tiers[0].price_display || tiers[0].price_dollars.toFixed(2)}` : formatCredits(499, pricingTier)}/month, while a single pay-as-you-go
+              gives you ~10 conversions for {tiers[0] ? `${tiers[0].currency_symbol || currencySymbol}${formatPriceAmount(tiers[0].price_cents, tiers[0].currency)}` : formatCredits(499, pricingTier)}/month, while a single pay-as-you-go
               conversion costs {formatCredits(499, pricingTier)}. That's up to 80% savings.
             </p>
 
