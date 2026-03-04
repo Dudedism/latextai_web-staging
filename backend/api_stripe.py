@@ -458,13 +458,21 @@ def handle_credit_topup_completed(session, metadata):
             return jsonify({'error': 'Failed to add credits'}), 500
 
         bonus_desc = f' + {bonus_credits} bonus' if bonus_credits else ''
+        # Build display amount from Stripe session (actual amount charged)
+        amount_total = session.get('amount_total', 0)
+        currency = session.get('currency', 'usd')
+        if currency == 'inr':
+            display_amount = f'₹{amount_total // 100}'
+        else:
+            display_amount = f'${amount_total / 100:.2f}'
+
         CreditTransaction.create(
             user_email=user_email,
             user_id=str(user['_id']),
             transaction_type='topup',
             amount=total_credits,
             balance_after=new_balance,
-            description=f'Top-up: {credits} credits{bonus_desc} (${credits / 100:.2f})',
+            description=f'Top-up: {credits} credits{bonus_desc} ({display_amount})',
             stripe_session_id=session_id
         )
 
