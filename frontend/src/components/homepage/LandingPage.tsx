@@ -1,27 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Banner from '../Banner';
 import { HeroSection, PricingCompare } from '.'; // barrel import
 import { HowItWorksTitle, HowItWorksSteps } from './HowItWorks';
 import './LandingPage.css';
-
-const testimonials = [
-  {
-    quote: "I spent two days trying to format my IEEE paper in LaTeX. With LaTeXt.ai, it took 5 minutes and the output was cleaner than what I had.",
-    author: "Postdoc",
-    affiliation: "Biomedical Engineering"
-  },
-  {
-    quote: "The Crossref reference verification alone is worth it. Every citation was checked and correctly formatted — no more manual BibTeX editing.",
-    author: "Professor",
-    affiliation: "Social Science"
-  },
-  {
-    quote: "Our group submits to Elsevier and Springer regularly. This has become part of our standard workflow — upload the Word draft, download the LaTeX.",
-    author: "Research Group Lead",
-    affiliation: "Materials Science"
-  }
-];
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,34 +16,6 @@ const LandingPage: React.FC = () => {
 
   const handleBrowseJournals = () => {
     navigate('/journals');
-  };
-
-  // Testimonial slideshow for mobile
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
-  const touchStartX = useRef<number | null>(null);
-  const nextTestimonial = useCallback(() => {
-    setActiveTestimonial(prev => (prev + 1) % testimonials.length);
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(nextTestimonial, 5000);
-    return () => clearInterval(timer);
-  }, [nextTestimonial]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
-      setActiveTestimonial(prev =>
-        diff > 0
-          ? (prev + 1) % testimonials.length
-          : (prev - 1 + testimonials.length) % testimonials.length
-      );
-    }
-    touchStartX.current = null;
   };
 
   return (
@@ -100,46 +54,6 @@ const LandingPage: React.FC = () => {
         <div className="action-buttons">
           <button className="btn-outline" onClick={handleTryFree}>Try It Free Now ↗</button>
           <button className="btn-outline" onClick={handleBrowseJournals}>Browse our supported journals ↗</button>
-        </div>
-      </section>
-
-      {/* Social Proof / Testimonials */}
-      <section className="section social-proof-section">
-        {/* Desktop: 3-column grid */}
-        <div className="testimonials-grid testimonials-desktop">
-          {testimonials.map((t, i) => (
-            <div key={i} className="testimonial-card">
-              <p className="testimonial-quote">"{t.quote}"</p>
-              <p className="testimonial-author">
-                <strong>{t.author}</strong> — {t.affiliation}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Mobile: single-card slideshow */}
-        <div className="testimonials-slideshow" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-          {testimonials.map((t, i) => (
-            <div
-              key={i}
-              className={`testimonial-card testimonial-slide ${i === activeTestimonial ? 'testimonial-slide--active' : ''}`}
-            >
-              <p className="testimonial-quote">"{t.quote}"</p>
-              <p className="testimonial-author">
-                <strong>{t.author}</strong> — {t.affiliation}
-              </p>
-            </div>
-          ))}
-          <div className="testimonial-dots">
-            {testimonials.map((_, i) => (
-              <button
-                key={i}
-                className={`testimonial-dot ${i === activeTestimonial ? 'testimonial-dot--active' : ''}`}
-                onClick={() => setActiveTestimonial(i)}
-                aria-label={`Show testimonial ${i + 1}`}
-              />
-            ))}
-          </div>
         </div>
       </section>
 
