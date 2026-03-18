@@ -203,9 +203,9 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 40px 60px;
+  gap: 40px 40px;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   padding: 40px 20px;
 }
 
