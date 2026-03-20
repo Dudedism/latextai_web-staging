@@ -69,6 +69,8 @@ const PreviewPage: React.FC = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [_loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [isBlurredPreview, setIsBlurredPreview] = useState(false);
   const [status, setStatus] = useState<'awaiting_payment' | 'needs_payment' | 'processing' | 'completed' | 'failed'>('processing');
   const [compilationFailed, setCompilationFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +207,11 @@ const PreviewPage: React.FC = () => {
         setStatus('completed');
         setCompilationFailed(projectCompilationFailed);
         if (!projectCompilationFailed) {
-          fetchPdf();
+          if (preview && !paid) {
+            fetchPreviewImages();
+          } else {
+            fetchPdf();
+          }
         } else {
           setLoading(false);
         }
@@ -263,6 +269,50 @@ const PreviewPage: React.FC = () => {
     }
   };
 
+  const previewRetryCount = useRef(0);
+
+  const fetchPreviewImages = async () => {
+    try {
+      // Get page count
+      let pageCount = paymentDetails?.metadata?.page_count || 0;
+      if (pageCount === 0) {
+        try {
+          const countResp = await apiRequest<{ page_count: number }>(`/api/latex/project/${paperId}/page-count`);
+          pageCount = countResp.page_count || 0;
+        } catch { /* ignore */ }
+      }
+
+      if (pageCount > 0) {
+        const urls: string[] = [];
+        for (let idx = 1; idx <= pageCount; idx++) {
+          const resp = await apiFetch(`/api/latex/project/${paperId}/blurred-page/${idx}`);
+          if (resp.ok) {
+            const blob = await resp.blob();
+            if (blob.size > 0) urls.push(URL.createObjectURL(blob));
+          } else if (idx === 1) {
+            break;
+          }
+        }
+        if (urls.length > 0) {
+          setIsBlurredPreview(true);
+          setPreviewImages(urls);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback: load 3-page preview PDF
+      fetchPdf();
+    } catch {
+      previewRetryCount.current++;
+      if (previewRetryCount.current < 5) {
+        setTimeout(fetchPreviewImages, 3000);
+      } else {
+        fetchPdf();
+      }
+    }
+  };
+
   const pdfRetryCount = useRef(0);
 
   const fetchPdf = async () => {
@@ -293,11 +343,10 @@ const PreviewPage: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      previewImages.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, previewImages]);
 
   // Progress bar simulation
   useEffect(() => {
@@ -951,7 +1000,33 @@ const PreviewPage: React.FC = () => {
             </div>
           ) : status === 'completed' && !compilationFailed ? (
             <div className="preview-document-wrapper">
-              {!pdfUrl ? (
+              {isBlurredPreview && previewImages.length > 0 ? (
+                <>
+                  {isPreview && !projectPaid && (
+                    <div style={{
+                      background: '#e8f5e9',
+                      border: '1px solid #4caf50',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                      marginBottom: '16px',
+                      textAlign: 'center',
+                      fontSize: '14px'
+                    }}>
+                      Preview — {previewImages.length} pages. {effectiveAnonymous ? 'Sign up to see the full document for free!' : isFirstFullConversion ? 'Your first PDF is free! Click below to unlock it. LaTeX source files available with credits.' : isFirstFreeConversion ? 'Use your free credits below to unlock the full document.' : 'Pay to unlock the full document and source files.'}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {previewImages.map((url, idx) => (
+                      <img
+                        key={idx}
+                        src={url}
+                        alt={`Page ${idx + 1}`}
+                        style={{ width: '100%', height: 'auto', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' }}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : !pdfUrl ? (
                 <p className="loading-text">Loading PDF...</p>
               ) : (
                 <>

@@ -641,7 +641,13 @@ def process_project(user, data):
 
 @api_latext.route('/internal/pipeline-complete', methods=['POST'])
 def pipeline_complete_callback():
-    """Callback from orchestra service when pipeline finishes."""
+    """Callback from orchestra service when pipeline finishes.
+
+    For successful conversions: downloads output files and generates
+    blurred preview images BEFORE setting status='converted' in the DB.
+    This guarantees the frontend never sees 'converted' without all
+    preview assets existing on disk.
+    """
     api_key = request.headers.get('X-API-Key')
     if not api_key or api_key != LATEXTAI_API_KEY:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -654,7 +660,6 @@ def pipeline_complete_callback():
         return jsonify({'error': 'Missing project_id or status'}), 400
 
     update_data = {
-        'status': status,
         'updated_at': datetime.utcnow(),
     }
 
@@ -664,32 +669,45 @@ def pipeline_complete_callback():
         update_data['conversion_cost'] = data['conversion_cost']
     if data.get('compilation_failed') is not None:
         update_data['compilation_failed'] = data['compilation_failed']
-    if status == 'converted':
+
+    if data.get('compiled_page_count') is not None:
+        update_data['compiled_page_count'] = data['compiled_page_count']
+
+    # For successful conversions: download outputs and generate previews
+    # BEFORE setting status='converted', so every asset the frontend will
+    # request already exists on disk when the status gate opens.
+    if status in ('converted', 'compiled'):
         update_data['converted_at'] = datetime.utcnow()
+        project = Project.find_by_id(project_id)
+        outputs_ok = False
+        if project:
+            user_email = project.get('user_email')
+            if user_email:
+                outputs_ok = _save_outputs_locally(project_id, user_email)
+        if outputs_ok:
+            update_data['status'] = 'converted'
+        else:
+            update_data['status'] = 'compiled'
+            print(f"⚠️ [CALLBACK] Outputs not ready for {project_id}, staying in 'compiled'")
+    else:
+        update_data['status'] = status
 
     result = mongo.db.projects.update_one(
         {'project_id': project_id},
         {'$set': update_data}
     )
 
-    print(f"📬 [CALLBACK] Pipeline complete for {project_id}: status={status}, matched={result.matched_count}")
-
-    # Persist converted PDFs locally for pipeline improvement
-    if status == 'converted':
-        project = Project.find_by_id(project_id)
-        if project:
-            user_email = project.get('user_email')
-            if user_email:
-                _save_outputs_locally(project_id, user_email)
+    print(f"📬 [CALLBACK] Pipeline complete for {project_id}: status={update_data['status']}, matched={result.matched_count}")
 
     return jsonify({'success': True}), 200
 
 
 def _save_outputs_locally(project_id, user_email):
-    """Download and save all output files from latextai service for persistent storage."""
+    """Download output files and generate blurred preview. Returns True on success."""
     project_dir = create_project_directory(user_email, project_id)
     params = {'user_email': user_email, 'project_id': project_id}
 
+    pdf_ok = False
     for endpoint, filename in [
         ('/api/download/pdf', 'output.pdf'),
         ('/api/download/pdf-preview', 'output_preview.pdf'),
@@ -704,10 +722,27 @@ def _save_outputs_locally(project_id, user_email):
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 print(f"💾 [PERSIST] Saved {filename} for {project_id}")
+                if filename == 'output.pdf':
+                    pdf_ok = True
             else:
                 print(f"⚠️ [PERSIST] Could not download {filename} for {project_id}: {response.status_code}")
         except Exception as e:
             print(f"⚠️ [PERSIST] Error saving {filename} for {project_id}: {e}")
+
+    if not pdf_ok:
+        print(f"⚠️ [PERSIST] PDF download failed for {project_id}, skipping preview generation")
+        return False
+
+    # Generate blurred preview images (3 clear pages + rest blurred)
+    full_pdf = os.path.join(project_dir, 'output.pdf')
+    try:
+        from blur_preview import generate_blurred_preview
+        blurred_filenames = generate_blurred_preview(full_pdf, project_dir)
+        print(f"🖼️ [PERSIST] Generated {len(blurred_filenames)} preview images for {project_id}")
+    except Exception as e:
+        print(f"⚠️ [PERSIST] Blurred preview failed for {project_id}: {e}")
+
+    return True
 
 
 @api_latext.route('/project/<project_id>/pdf', methods=['GET'])
@@ -877,4 +912,58 @@ def get_package(user, project_id):
     except requests.exceptions.RequestException as e:
         print(f"❌ [DOWNLOAD] Package download error: {e}")
         return jsonify({'error': 'Failed to download compilation package'}), 500
+
+
+@api_latext.route('/project/<project_id>/blurred-page/<int:page_num>', methods=['GET'])
+@requires_auth(allow_anonymous=True)
+def get_blurred_page(user, project_id, page_num):
+    """Serve a pre-generated blurred preview page image."""
+    if page_num < 1:
+        return jsonify({'error': 'Invalid page number'}), 400
+
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    if project.get('user_id') != str(user['_id']):
+        return jsonify({'error': 'Unauthorized'}), 403
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
+
+    filename = f'blurred_page_{page_num}.jpg'
+    img_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, filename)
+
+    if not os.path.exists(img_path):
+        return jsonify({'error': 'Blurred page not available'}), 404
+
+    resp = send_file(img_path, mimetype='image/jpeg')
+    resp.headers['Cache-Control'] = 'private, no-store'
+    resp.headers['Content-Disposition'] = 'inline'
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@api_latext.route('/project/<project_id>/page-count', methods=['GET'])
+@requires_auth(allow_anonymous=True)
+def get_page_count(user, project_id):
+    """Return total page count of the full PDF."""
+    project = Project.find_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    if project.get('user_id') != str(user['_id']):
+        return jsonify({'error': 'Unauthorized'}), 403
+    if project.get('status') != 'converted':
+        return jsonify({'error': 'Document not yet processed'}), 404
+
+    pdf_path = os.path.join(USER_PROJECTS_DIR, user['email'], project_id, 'output.pdf')
+    if not os.path.exists(pdf_path):
+        return jsonify({'error': 'PDF not found'}), 404
+
+    import fitz
+    doc = fitz.open(pdf_path)
+    try:
+        count = len(doc)
+    finally:
+        doc.close()
+
+    return jsonify({'page_count': count}), 200
 

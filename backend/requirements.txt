@@ -17,3 +17,5 @@ requests
 sib-api-v3-sdk
 gunicorn
 stripe
+pymupdf
+Pillow
